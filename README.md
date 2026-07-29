@@ -54,7 +54,7 @@
 |---|---|
 | **Team Name** | CYC — *Control Your Career* |
 | **Team ID** | 26O4043 |
-| **Category** | Fourth Year — University Problem Statement |
+| **Category** | University Problem Statement |
 | **Status** | ✅ Approved |
 | **Repository** | [`BHANUASATI/CampusGenie-AI`](https://github.com/BHANUASATI/CampusGenie-AI) |
 
