@@ -1,0 +1,58 @@
+export const attendanceData = {
+  overall: {
+    percentage: 82,
+    totalClasses: 180,
+    attendedClasses: 148,
+    status: 'Good Standing',
+  },
+  byCourse: [
+    {
+      courseId: 'CS501',
+      courseName: 'Data Structures',
+      attended: 43,
+      total: 50,
+      percentage: 86,
+      status: 'Good Standing',
+    },
+    {
+      courseId: 'CS502',
+      courseName: 'Artificial Intelligence',
+      attended: 42,
+      total: 50,
+      percentage: 84,
+      status: 'Good Standing',
+    },
+    {
+      courseId: 'CS503',
+      courseName: 'Cloud Computing',
+      attended: 38,
+      total: 50,
+      percentage: 76,
+      status: 'Attention Required',
+    },
+    {
+      courseId: 'CS504',
+      courseName: 'Database Systems',
+      attended: 40,
+      total: 50,
+      percentage: 81,
+      status: 'Good Standing',
+    },
+    {
+      courseId: 'CS505',
+      courseName: 'Software Engineering',
+      attended: 44,
+      total: 50,
+      percentage: 88,
+      status: 'Excellent',
+    },
+    {
+      courseId: 'CS506',
+      courseName: 'Computer Networks',
+      attended: 38,
+      total: 50,
+      percentage: 77,
+      status: 'Attention Required',
+    },
+  ],
+};
