@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🎓 CampusGenie AI
+# 🎓 CampusGenie AI Major Project 
 
 ### *AI for Smarter Learning*
 
