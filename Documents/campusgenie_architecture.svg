@@ -1,0 +1,151 @@
+<svg width="1500" height="1564" viewBox="0 0 1500 1564" xmlns="http://www.w3.org/2000/svg">
+<defs>
+  <marker id="arrowhead" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <path d="M1 1 L9 5 L1 9 Z" fill="#7A7A72"/>
+  </marker>
+</defs>
+<rect x="0" y="0" width="1500" height="1564" fill="#FFFFFF"/>
+<text x="750.0" y="46" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="28" font-weight="700" fill="#1A1A18">CampusGenie AI &#8212; System Architecture</text>
+<text x="750.0" y="70" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="14" fill="#6B6B63">AI-Powered Academic Assistant &#8226; LLMs &#183; RAG &#183; LangGraph Multi-Agent Orchestration</text>
+<rect x="500.0" y="100" width="200" height="60" rx="10" fill="#F3F3F1" stroke="#9C9C93" stroke-width="1.3"/>
+<circle cx="600.0" cy="116.0" r="7" fill="none" stroke="#9C9C93" stroke-width="1.6"/>
+    <path d="M 589.0 136.0 a 11 9 0 0 1 22 0" fill="none" stroke="#9C9C93" stroke-width="1.6"/>
+<text x="600.0" y="136.0" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="14.5" font-weight="600" fill="#4A4A44">Student / User</text>
+<text x="600.0" y="154.0" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="11.5" fill="#6B6B63">Web browser query</text>
+<line x1="600.0" y1="160" x2="600.0" y2="200" stroke="#7A7A72" stroke-width="1.8" marker-end="url(#arrowhead)"/>
+<rect x="440.0" y="200" width="320" height="66" rx="10" fill="#EAF2FD" stroke="#3B82C4" stroke-width="1.3"/>
+<rect x="586.0" y="213.0" width="28" height="20" rx="3" fill="none" stroke="#3B82C4" stroke-width="1.6"/>
+    <line x1="586.0" y1="219.0" x2="614.0" y2="219.0" stroke="#3B82C4" stroke-width="1.2"/>
+<text x="600.0" y="239.0" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="14.5" font-weight="600" fill="#0E4A82">React Frontend</text>
+<text x="600.0" y="257.0" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="11.5" fill="#2C6FA8">Conversational web application</text>
+<line x1="600.0" y1="266" x2="600.0" y2="306" stroke="#7A7A72" stroke-width="1.8" marker-end="url(#arrowhead)"/>
+<rect x="440.0" y="306" width="320" height="66" rx="10" fill="#EAF2FD" stroke="#3B82C4" stroke-width="1.3"/>
+<rect x="588.0" y="317.0" width="24" height="9" rx="2" fill="none" stroke="#3B82C4" stroke-width="1.5"/>
+    <rect x="588.0" y="328.0" width="24" height="9" rx="2" fill="none" stroke="#3B82C4" stroke-width="1.5"/>
+    <circle cx="592.0" cy="321.5" r="1.3" fill="#3B82C4"/>
+    <circle cx="592.0" cy="332.5" r="1.3" fill="#3B82C4"/>
+<text x="600.0" y="345.0" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="14.5" font-weight="600" fill="#0E4A82">FastAPI Backend</text>
+<text x="600.0" y="363.0" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="11.5" fill="#2C6FA8">REST API &amp;#183; request routing</text>
+<line x1="600.0" y1="372" x2="600.0" y2="412" stroke="#7A7A72" stroke-width="1.8" marker-end="url(#arrowhead)"/>
+<rect x="90" y="412" width="1020" height="246" rx="18" fill="#F1EEFC" fill-opacity="0.35" stroke="#8069D6" stroke-width="1.6" stroke-dasharray="0"/>
+<text x="112" y="442" font-family="Segoe UI, Arial, sans-serif" font-size="15.5" font-weight="700" fill="#4B3494">LangGraph Orchestration Layer  —  decides which agent(s) execute per query</text>
+<rect x="116.0" y="458" width="179.2" height="78" rx="8" fill="#F1EEFC" stroke="#8069D6" stroke-width="1.3"/>
+<text x="205.6" y="493.0" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="12.8" font-weight="600" fill="#4B3494">Intent Detection</text>
+<text x="205.6" y="511.0" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="10.3" fill="#6650B0">Classifies user intent</text>
+<rect x="313.2" y="458" width="179.2" height="78" rx="8" fill="#F1EEFC" stroke="#8069D6" stroke-width="1.3"/>
+<text x="402.79999999999995" y="493.0" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="12.8" font-weight="600" fill="#4B3494">Query Classification</text>
+<text x="402.79999999999995" y="511.0" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="10.3" fill="#6650B0">Routes query type</text>
+<rect x="510.4" y="458" width="179.2" height="78" rx="8" fill="#F1EEFC" stroke="#8069D6" stroke-width="1.3"/>
+<text x="600.0" y="493.0" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="12.8" font-weight="600" fill="#4B3494">RAG Retrieval</text>
+<text x="600.0" y="511.0" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="10.3" fill="#6650B0">Fetches knowledge context</text>
+<rect x="707.5999999999999" y="458" width="179.2" height="78" rx="8" fill="#F1EEFC" stroke="#8069D6" stroke-width="1.3"/>
+<text x="797.1999999999999" y="493.0" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="12.8" font-weight="600" fill="#4B3494">Academic Assistant</text>
+<text x="797.1999999999999" y="511.0" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="10.3" fill="#6650B0">Course &amp; policy Q&amp;amp;A</text>
+<rect x="904.8" y="458" width="179.2" height="78" rx="8" fill="#F1EEFC" stroke="#8069D6" stroke-width="1.3"/>
+<text x="994.4" y="493.0" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="12.8" font-weight="600" fill="#4B3494">Assignment Agent</text>
+<text x="994.4" y="511.0" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="10.3" fill="#6650B0">Assignment guidance</text>
+<rect x="116.0" y="554" width="179.2" height="78" rx="8" fill="#F1EEFC" stroke="#8069D6" stroke-width="1.3"/>
+<text x="205.6" y="589.0" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="12.8" font-weight="600" fill="#4B3494">Timetable Agent</text>
+<text x="205.6" y="607.0" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="10.3" fill="#6650B0">Schedule lookups</text>
+<rect x="313.2" y="554" width="179.2" height="78" rx="8" fill="#F1EEFC" stroke="#8069D6" stroke-width="1.3"/>
+<text x="402.79999999999995" y="589.0" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="12.8" font-weight="600" fill="#4B3494">Placement Info</text>
+<text x="402.79999999999995" y="607.0" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="10.3" fill="#6650B0">Placement queries</text>
+<rect x="510.4" y="554" width="179.2" height="78" rx="8" fill="#F1EEFC" stroke="#8069D6" stroke-width="1.3"/>
+<text x="600.0" y="589.0" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="12.8" font-weight="600" fill="#4B3494">Recommendation</text>
+<text x="600.0" y="607.0" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="10.3" fill="#6650B0">Personalized suggestions</text>
+<rect x="707.5999999999999" y="554" width="179.2" height="78" rx="8" fill="#F1EEFC" stroke="#8069D6" stroke-width="1.3"/>
+<text x="797.1999999999999" y="589.0" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="12.8" font-weight="600" fill="#4B3494">Memory / Conversation</text>
+<text x="797.1999999999999" y="607.0" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="10.3" fill="#6650B0">Tracks dialogue state</text>
+<rect x="904.8" y="554" width="179.2" height="78" rx="8" fill="#F1EEFC" stroke="#8069D6" stroke-width="1.3"/>
+<text x="994.4" y="589.0" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="12.8" font-weight="600" fill="#4B3494">Response Validation</text>
+<text x="994.4" y="607.0" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="10.3" fill="#6650B0">Verifies final answer</text>
+<path d="M 600.0 664 L 600.0 680.0 L 600.0 680.0 L 600.0 702" fill="none" stroke="#3FAE68" stroke-width="1.8" marker-end="url(#arrowhead)"/>
+<rect x="90" y="702" width="1020" height="294" rx="18" fill="#EAF7EF" fill-opacity="0.35" stroke="#3FAE68" stroke-width="1.6" stroke-dasharray="0"/>
+<text x="112" y="732" font-family="Segoe UI, Arial, sans-serif" font-size="15.5" font-weight="700" fill="#1F7A41">LangChain RAG Pipeline</text>
+<rect x="116.0" y="748" width="310.6666666666667" height="62" rx="8" fill="#EAF7EF" stroke="#3FAE68" stroke-width="1.3"/>
+<text x="271.33333333333337" y="784.0" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="600" fill="#1F7A41">Document Loaders</text>
+<rect x="444.6666666666667" y="748" width="310.6666666666667" height="62" rx="8" fill="#EAF7EF" stroke="#3FAE68" stroke-width="1.3"/>
+<text x="600.0" y="784.0" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="600" fill="#1F7A41">PDF / Text Loaders</text>
+<rect x="773.3333333333334" y="748" width="310.6666666666667" height="62" rx="8" fill="#EAF7EF" stroke="#3FAE68" stroke-width="1.3"/>
+<text x="928.6666666666667" y="784.0" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="600" fill="#1F7A41">Text Splitter</text>
+<rect x="116.0" y="828" width="310.6666666666667" height="62" rx="8" fill="#EAF7EF" stroke="#3FAE68" stroke-width="1.3"/>
+<text x="271.33333333333337" y="864.0" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="600" fill="#1F7A41">Embedding Model</text>
+<rect x="444.6666666666667" y="828" width="310.6666666666667" height="62" rx="8" fill="#EAF7EF" stroke="#3FAE68" stroke-width="1.3"/>
+<text x="600.0" y="855.0" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="12.5" font-weight="600" fill="#1F7A41">Vector Database</text>
+<text x="600.0" y="873.0" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="10.5" fill="#2E9455">(ChromaDB / FAISS)</text>
+<rect x="773.3333333333334" y="828" width="310.6666666666667" height="62" rx="8" fill="#EAF7EF" stroke="#3FAE68" stroke-width="1.3"/>
+<text x="928.6666666666667" y="864.0" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="600" fill="#1F7A41">Retriever</text>
+<rect x="116.0" y="908" width="310.6666666666667" height="62" rx="8" fill="#EAF7EF" stroke="#3FAE68" stroke-width="1.3"/>
+<text x="271.33333333333337" y="944.0" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="600" fill="#1F7A41">Prompt Template</text>
+<rect x="444.6666666666667" y="908" width="310.6666666666667" height="62" rx="8" fill="#E3F7F5" stroke="#2BAA9A" stroke-width="1.3"/>
+<text x="600.0" y="944.0" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="600" fill="#12756A">LLM (Gemini / OpenAI)</text>
+<rect x="773.3333333333334" y="908" width="310.6666666666667" height="62" rx="8" fill="#EAF7EF" stroke="#3FAE68" stroke-width="1.3"/>
+<text x="928.6666666666667" y="944.0" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="600" fill="#1F7A41">Output Parser</text>
+<line x1="600.0" y1="1002" x2="600.0" y2="1040" stroke="#7A7A72" stroke-width="1.8" marker-end="url(#arrowhead)"/>
+<rect x="90" y="1040" width="1020" height="202" rx="18" fill="#FDF1E4" fill-opacity="0.35" stroke="#E0972F" stroke-width="1.6" stroke-dasharray="0"/>
+<text x="112" y="1070" font-family="Segoe UI, Arial, sans-serif" font-size="15.5" font-weight="700" fill="#B36A13">University Knowledge Base</text>
+<rect x="116.0" y="1086" width="179.2" height="56" rx="8" fill="#FDF1E4" stroke="#E0972F" stroke-width="1.3"/>
+<text x="205.6" y="1119.0" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="12.3" font-weight="600" fill="#B36A13">Academic Calendar</text>
+<rect x="313.2" y="1086" width="179.2" height="56" rx="8" fill="#FDF1E4" stroke="#E0972F" stroke-width="1.3"/>
+<text x="402.79999999999995" y="1119.0" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="12.3" font-weight="600" fill="#B36A13">Timetable</text>
+<rect x="510.4" y="1086" width="179.2" height="56" rx="8" fill="#FDF1E4" stroke="#E0972F" stroke-width="1.3"/>
+<text x="600.0" y="1119.0" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="12.3" font-weight="600" fill="#B36A13">Attendance Records</text>
+<rect x="707.5999999999999" y="1086" width="179.2" height="56" rx="8" fill="#FDF1E4" stroke="#E0972F" stroke-width="1.3"/>
+<text x="797.1999999999999" y="1119.0" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="12.3" font-weight="600" fill="#B36A13">Assignments</text>
+<rect x="904.8" y="1086" width="179.2" height="56" rx="8" fill="#FDF1E4" stroke="#E0972F" stroke-width="1.3"/>
+<text x="994.4" y="1119.0" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="12.3" font-weight="600" fill="#B36A13">Circulars</text>
+<rect x="116.0" y="1160" width="179.2" height="56" rx="8" fill="#FDF1E4" stroke="#E0972F" stroke-width="1.3"/>
+<text x="205.6" y="1193.0" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="12.3" font-weight="600" fill="#B36A13">Notices</text>
+<rect x="313.2" y="1160" width="179.2" height="56" rx="8" fill="#FDF1E4" stroke="#E0972F" stroke-width="1.3"/>
+<text x="402.79999999999995" y="1193.0" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="12.3" font-weight="600" fill="#B36A13">Course Materials</text>
+<rect x="510.4" y="1160" width="179.2" height="56" rx="8" fill="#FDF1E4" stroke="#E0972F" stroke-width="1.3"/>
+<text x="600.0" y="1193.0" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="12.3" font-weight="600" fill="#B36A13">University Policies</text>
+<rect x="707.5999999999999" y="1160" width="179.2" height="56" rx="8" fill="#FDF1E4" stroke="#E0972F" stroke-width="1.3"/>
+<text x="797.1999999999999" y="1193.0" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="12.3" font-weight="600" fill="#B36A13">Placement Info</text>
+<rect x="904.8" y="1160" width="179.2" height="56" rx="8" fill="#FDF1E4" stroke="#E0972F" stroke-width="1.3"/>
+<text x="994.4" y="1193.0" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="12.3" font-weight="600" fill="#B36A13">Faculty Info</text>
+<path d="M 1050 1242 L 1050 1264 L 1050 1264 L 1050 996" fill="none" stroke="#C97F1E" stroke-width="1.6" stroke-dasharray="6 5" marker-end="url(#arrowhead)"/>
+<text x="1058" y="1260" font-family="Segoe UI, Arial, sans-serif" font-size="11" fill="#B36A13">retrieved context</text>
+<path d="M 150 702 L 150 680 L 525.4 680 L 525.4 658" fill="none" stroke="#2F9E58" stroke-width="1.6" stroke-dasharray="6 5" marker-end="url(#arrowhead)"/>
+<text x="158" y="694" font-family="Segoe UI, Arial, sans-serif" font-size="11" fill="#1F7A41">context to orchestrator</text>
+<line x1="600.0" y1="1248" x2="600.0" y2="1286" stroke="#8069D6" stroke-width="1.8" marker-end="url(#arrowhead)"/>
+<text x="610.0" y="1263.0" font-family="Segoe UI, Arial, sans-serif" font-size="11" fill="#4B3494">orchestrator combines memory + reasoning</text>
+<rect x="440.0" y="1292" width="320" height="60" rx="10" fill="#F1EEFC" stroke="#8069D6" stroke-width="1.3"/>
+<text x="600.0" y="1318.0" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="14.5" font-weight="600" fill="#4B3494">Final AI Response</text>
+<text x="600.0" y="1336.0" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="11.5" fill="#6650B0">Validated, context-aware answer</text>
+<line x1="600.0" y1="1352" x2="600.0" y2="1392" stroke="#7A7A72" stroke-width="1.8" marker-end="url(#arrowhead)"/>
+<rect x="470.0" y="1392" width="260" height="56" rx="10" fill="#EAF2FD" stroke="#3B82C4" stroke-width="1.3"/>
+<rect x="586.0" y="1400.0" width="28" height="20" rx="3" fill="none" stroke="#3B82C4" stroke-width="1.6"/>
+    <line x1="586.0" y1="1406.0" x2="614.0" y2="1406.0" stroke="#3B82C4" stroke-width="1.2"/>
+<text x="600.0" y="1426.0" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="14.5" font-weight="600" fill="#0E4A82">React UI</text>
+<text x="600.0" y="1444.0" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="11.5" fill="#2C6FA8">Response rendered to student</text>
+<rect x="1150" y="296" width="260" height="496" rx="18" fill="#F3F3F1" fill-opacity="0.35" stroke="#9C9C93" stroke-width="1.6" stroke-dasharray="0"/>
+<text x="1172" y="326" font-family="Segoe UI, Arial, sans-serif" font-size="13.5" font-weight="700" fill="#4A4A44">Infrastructure &amp; platform services</text>
+<rect x="1168" y="342" width="224" height="56" rx="8" fill="#F3F3F1" stroke="#9C9C93" stroke-width="1.3"/>
+<text x="1280.0" y="375.0" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="12.5" font-weight="600" fill="#4A4A44">Authentication</text>
+<rect x="1168" y="420" width="224" height="56" rx="8" fill="#F3F3F1" stroke="#9C9C93" stroke-width="1.3"/>
+<text x="1280.0" y="453.0" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="12.5" font-weight="600" fill="#4A4A44">API Gateway</text>
+<rect x="1168" y="498" width="224" height="56" rx="8" fill="#F3F3F1" stroke="#9C9C93" stroke-width="1.3"/>
+<text x="1280.0" y="531.0" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="12.5" font-weight="600" fill="#4A4A44">Conversation Memory</text>
+<rect x="1168" y="576" width="224" height="56" rx="8" fill="#F3F3F1" stroke="#9C9C93" stroke-width="1.3"/>
+<text x="1280.0" y="609.0" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="12.5" font-weight="600" fill="#4A4A44">Chat History</text>
+<rect x="1168" y="654" width="224" height="56" rx="8" fill="#F3F3F1" stroke="#9C9C93" stroke-width="1.3"/>
+<text x="1280.0" y="687.0" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="12.5" font-weight="600" fill="#4A4A44">Logging</text>
+<rect x="1168" y="732" width="224" height="56" rx="8" fill="#F3F3F1" stroke="#9C9C93" stroke-width="1.3"/>
+<text x="1280.0" y="765.0" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="12.5" font-weight="600" fill="#4A4A44">Monitoring</text>
+<path d="M 1150 326 L 1150 326 L 760.0 326 L 760.0 339.0" fill="none" stroke="#9C9C93" stroke-width="1.4" stroke-dasharray="6 5" marker-end="url(#arrowhead)"/>
+<line x1="90" y1="1478" x2="1410" y2="1478" stroke="#E4E4DE" stroke-width="1"/>
+<text x="90" y="1498" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="700" fill="#1A1A18">Legend</text>
+<rect x="90" y="1511" width="18" height="18" rx="4" fill="#EAF2FD" stroke="#3B82C4" stroke-width="1.3"/>
+<text x="116" y="1525" font-family="Segoe UI, Arial, sans-serif" font-size="12.5" fill="#3A3A35">Frontend &amp; Backend</text>
+<rect x="285.6" y="1511" width="18" height="18" rx="4" fill="#F1EEFC" stroke="#8069D6" stroke-width="1.3"/>
+<text x="311.6" y="1525" font-family="Segoe UI, Arial, sans-serif" font-size="12.5" fill="#3A3A35">LangGraph Orchestration</text>
+<rect x="517.2" y="1511" width="18" height="18" rx="4" fill="#EAF7EF" stroke="#3FAE68" stroke-width="1.3"/>
+<text x="543.2" y="1525" font-family="Segoe UI, Arial, sans-serif" font-size="12.5" fill="#3A3A35">LangChain RAG Components</text>
+<rect x="756.0" y="1511" width="18" height="18" rx="4" fill="#FDF1E4" stroke="#E0972F" stroke-width="1.3"/>
+<text x="782.0" y="1525" font-family="Segoe UI, Arial, sans-serif" font-size="12.5" fill="#3A3A35">University Knowledge Base</text>
+<rect x="1002.0" y="1511" width="18" height="18" rx="4" fill="#E3F7F5" stroke="#2BAA9A" stroke-width="1.3"/>
+<text x="1028.0" y="1525" font-family="Segoe UI, Arial, sans-serif" font-size="12.5" fill="#3A3A35">AI Models</text>
+<rect x="1132.8" y="1511" width="18" height="18" rx="4" fill="#F3F3F1" stroke="#9C9C93" stroke-width="1.3"/>
+<text x="1158.8" y="1525" font-family="Segoe UI, Arial, sans-serif" font-size="12.5" fill="#3A3A35">Infrastructure</text>
+</svg>
