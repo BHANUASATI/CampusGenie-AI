@@ -1,0 +1,68 @@
+COURSE MATERIALS AND INFORMATION
+
+## Computer Science Department
+
+### CS101 - Introduction to Programming
+- Credits: 4
+- Prerequisites: None
+- Instructor: Dr. Sarah Johnson
+- Schedule: Mon/Wed/Fri 10:00-11:00 AM, Room 305
+- Lab: Tue 2:00-4:00 PM, Computer Lab A
+- Textbook: "Python Programming: An Introduction" by John Smith
+- Topics: Variables, loops, functions, basic data structures, file I/O
+
+### CS201 - Data Structures
+- Credits: 4
+- Prerequisites: CS101
+- Instructor: Prof. Michael Chen
+- Schedule: Mon/Wed/Fri 11:00 AM-12:00 PM, Room 310
+- Lab: Thu 3:00-5:00 PM, Computer Lab B
+- Textbook: "Data Structures and Algorithms" by Jane Doe
+- Topics: Arrays, linked lists, stacks, queues, trees, hash tables
+
+### CS301 - Algorithms
+- Credits: 4
+- Prerequisites: CS201, MATH201
+- Instructor: Dr. Emily Rodriguez
+- Schedule: Tue/Thu 1:00-3:00 PM, Room 405
+- Textbook: "Introduction to Algorithms" by CLRS
+- Topics: Sorting, searching, dynamic programming, graph algorithms
+
+### CS401 - Machine Learning
+- Credits: 4
+- Prerequisites: CS301, MATH301
+- Instructor: Dr. David Kim
+- Schedule: Tue/Thu 3:00-5:00 PM, Room 410
+- Lab: Fri 2:00-4:00 PM, Computer Lab C
+- Textbook: "Machine Learning" by Tom Mitchell
+- Topics: Supervised learning, unsupervised learning, neural networks
+
+## Mathematics Department
+
+### MATH101 - Calculus I
+- Credits: 4
+- Prerequisites: High school calculus
+- Instructor: Prof. Lisa Anderson
+- Schedule: Mon/Wed/Fri 9:00-10:00 AM, Room 201
+- Topics: Limits, derivatives, integrals, applications
+
+### MATH201 - Linear Algebra
+- Credits: 3
+- Prerequisites: MATH101
+- Instructor: Dr. Robert Wilson
+- Schedule: Tue/Thu 10:00-11:30 AM, Room 205
+- Topics: Vectors, matrices, linear transformations, eigenvalues
+
+### MATH301 - Probability and Statistics
+- Credits: 3
+- Prerequisites: MATH201
+- Instructor: Dr. Jennifer Lee
+- Schedule: Mon/Wed 2:00-3:30 PM, Room 210
+- Topics: Probability distributions, hypothesis testing, regression
+
+## Course Registration Guidelines
+- Maximum credits per semester: 18
+- Minimum credits for full-time status: 12
+- Add/drop period: First 10 days of semester
+- Waitlist priority: Based on GPA and graduation year
+- Override requests: Submit to department chair
