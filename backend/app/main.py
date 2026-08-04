@@ -1,31 +1,60 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.api.v1 import auth
-from app.db.database import engine, Base
+from app.core.config import settings
+from app.core.logging import setup_logging, logger
+from app.api.health import router as health_router
+from app.api.auth import router as auth_router
+from app.api.rag import router as rag_router
+from app.models.database import init_db
 
-# Create database tables
-Base.metadata.create_all(bind=engine)
+# Setup logging
+setup_logging()
 
-app = FastAPI(title="CampusGenie API", version="1.0.0")
+# Create FastAPI application
+app = FastAPI(
+    title=settings.APP_NAME,
+    version=settings.APP_VERSION,
+    debug=settings.DEBUG,
+)
 
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:5173"],
+    allow_origins=["*"],  # Configure appropriately for production
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 # Include routers
-app.include_router(auth.router, prefix="/api/v1/auth", tags=["authentication"])
+app.include_router(health_router, prefix="/health", tags=["health"])
+app.include_router(auth_router, prefix="/auth", tags=["authentication"])
+app.include_router(rag_router, prefix="/rag", tags=["rag"])
+
+
+@app.on_event("startup")
+async def startup_event():
+    """Initialize application on startup."""
+    logger.info(f"Starting {settings.APP_NAME} v{settings.APP_VERSION}")
+    logger.info(f"LLM Provider: {settings.LLM_PROVIDER}")
+    logger.info(f"Vector DB: {settings.VECTOR_DB_TYPE}")
+    
+    # Initialize database
+    init_db()
+    logger.info("Database initialized successfully")
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Cleanup on shutdown."""
+    logger.info("Shutting down application")
 
 
 @app.get("/")
-def root():
-    return {"message": "Welcome to CampusGenie API"}
-
-
-@app.get("/health")
-def health_check():
-    return {"status": "healthy"}
+async def root():
+    """Root endpoint."""
+    return {
+        "message": "CampusGenie AI - AI for Smarter Learning",
+        "version": settings.APP_VERSION,
+        "status": "operational"
+    }
