@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🎓 CampusGenie AI Major Project 
+# 🎓 CampusGenie AI With ERP
 
 ### *AI for Smarter Learning*
 
