@@ -1,4 +1,4 @@
-# Python
+# ─── Python ─────────────────────────────────────────────────────────────────
 __pycache__/
 *.py[cod]
 *$py.class
@@ -23,65 +23,182 @@ share/python-wheels/
 *.egg
 MANIFEST
 
-# Virtual Environment
+# ─── Virtual Environments ────────────────────────────────────────────────────
 venv/
 env/
 ENV/
 env.bak/
 venv.bak/
 .venv/
+.virtualenv/
 
-# PyCharm
-.idea/
-
-# VS Code
-.vscode/
-*.code-workspace
-
-# Environment Variables
+# ─── Environment Variables ───────────────────────────────────────────────────
 .env
 .env.local
+.env.development
 .env.development.local
+.env.test
 .env.test.local
+.env.staging
+.env.production
 .env.production.local
 *.env
+!.env.example
 
-# Database
-*.db
-*.sqlite
-*.sqlite3
-
-# Logs
-*.log
-logs/
-*.log.*
-
-# Node.js / React
+# ─── Node.js / React / Frontend ──────────────────────────────────────────────
 node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 lerna-debug.log*
 .pnpm-debug.log*
-
-# Testing
-.coverage
-.pytest_cache/
-htmlcov/
-.tox/
-.nox/
-coverage/
-*.cover
-*.py,cover
-.hypothesis/
+.pnp/
+.pnp.js
+.yarn/cache
+.yarn/unplugged
+.yarn/build-state.yml
+.yarn/install-state.gz
 
 # Build outputs
 frontend/build/
 frontend/dist/
-*.tsbuildinfo
+dist/
+build/
+out/
+.next/
+.nuxt/
+.svelte-kit/
 
-# macOS
+# TypeScript
+*.tsbuildinfo
+tsconfig.tsbuildinfo
+
+# Parcel
+.parcel-cache/
+
+# Vite
+.vite/
+
+# ─── Testing & Coverage ──────────────────────────────────────────────────────
+coverage/
+.coverage
+.coverage.*
+*.cover
+*.py,cover
+htmlcov/
+.pytest_cache/
+.tox/
+.nox/
+.hypothesis/
+junit.xml
+test-results/
+playwright-report/
+test-results.xml
+
+# Jest
+jest_html_reporters-attach/
+
+# ─── IDEs & Editors ──────────────────────────────────────────────────────────
+# VS Code
+.vscode/
+!.vscode/extensions.json
+*.code-workspace
+
+# JetBrains / PyCharm
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+
+# Vim / Neovim
+*.swp
+*.swo
+*.swn
+*~
+.netrwhist
+Session.vim
+
+# Emacs
+\#*\#
+.\#*
+*.elc
+auto-save-list
+tramp
+.\#
+
+# Kiro IDE
+.kiro/
+
+# Sublime Text
+*.tmlanguage.cache
+*.tmPreferences.cache
+*.stTheme.cache
+*.sublime-workspace
+*.sublime-project
+
+# ─── Databases ───────────────────────────────────────────────────────────────
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+dump.rdb
+*.sql.gz
+*.sql.bak
+mysql_data/
+postgres_data/
+
+# ─── Logs ────────────────────────────────────────────────────────────────────
+*.log
+logs/
+log/
+*.log.*
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# ─── AI Engine / ML ──────────────────────────────────────────────────────────
+# ChromaDB persistent vector store (regenerated from documents)
+backend/chroma_db/
+
+# Hugging Face / sentence-transformers model cache
+.cache/huggingface/
+backend/.cache/
+~/.cache/huggingface/
+
+# PyTorch / model weights downloaded at runtime
+*.pt
+*.pth
+*.bin
+*.safetensors
+
+# ONNX runtime models
+*.onnx
+
+
+uploads/
+backend/uploads/ai_documents/*
+!backend/uploads/ai_documents/.gitkeep
+media/
+*.pdf
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.bmp
+*.tiff
+*.ico
+*.webp
+# Allow SVGs committed intentionally
+!frontend/public/*.svg
+!frontend/src/**/*.svg
+!**/Documents/**/*.svg
+!**/Documents/**/*.png
+
+# ─── macOS ───────────────────────────────────────────────────────────────────
 .DS_Store
+.DS_Store?
 .AppleDouble
 .LSOverride
 Icon
@@ -99,7 +216,7 @@ Network Trash Folder
 Temporary Items
 .apdisk
 
-# Windows
+# ─── Windows ─────────────────────────────────────────────────────────────────
 Thumbs.db
 Thumbs.db:encryptable
 ehthumbs.db
@@ -114,110 +231,88 @@ $RECYCLE.BIN/
 *.msp
 *.lnk
 
-# Linux
+# ─── Linux ───────────────────────────────────────────────────────────────────
 *~
 .fuse_hidden*
 .directory
 .Trash-*
 .nfs*
 
-# Uploads / User Files
-uploads/
-backend/uploads/
-*.pdf
-*.jpg
-*.jpeg
-*.png
-*.gif
-*.bmp
-*.tiff
-*.ico
-*.svg
-!frontend/public/*.svg
-!frontend/src/**/*.svg
-
-# Jupyter Notebook
-.ipynb_checkpoints
-*.ipynb
-
-# IPython
-profile_default/
-ipython_config.py
-
-# pyenv
-.python-version
-
-# Celery
-celerybeat-schedule
-celerybeat.pid
-
-# SageMath
-*.sage.py
-
-# Spyder
-.spyderproject
-.spyproject
-
-# Rope
-.ropeproject
-
-# mkdocs
-/site
-
-# mypy
-.mypy_cache/
-.dmypy.json
-dmypy.json
-
-# Pyre
-.pyre/
-
-# pytype
-.pytype/
-
-# Cython
-cython_debug/
-
-# Temporary files
-*.tmp
-*.temp
-*.swp
-*.swo
-*~
-
-# Backup files
-*.bak
-*.backup
-
-# Package files
-*.tar.gz
-*.zip
-*.rar
-
-# SSL Certificates (if any)
+# ─── Secrets & Credentials ───────────────────────────────────────────────────
 *.pem
 *.key
 *.crt
 *.cert
+*.p12
+*.pfx
+secrets/
+credentials/
+service-account*.json
+*-credentials.json
+*-service-account.json
+google-credentials.json
+firebase-adminsdk*.json
 
-# MySQL dumps
-*.sql.gz
-*.sql.bak
+# ─── Docker ──────────────────────────────────────────────────────────────────
+.dockerignore
+docker-compose.override.yml
+docker-compose.local.yml
 
-# Redis
-dump.rdb
-
-# Session files
-.session
-
-# Cache
+# ─── Caches ──────────────────────────────────────────────────────────────────
 .cache/
 *.cache
-
-# ESLint
 .eslintcache
-
-# Misc
+.stylelintcache
+.prettiercache
 .sass-cache/
+.rpt2_cache/
+.rts2_cache_cjs/
+.rts2_cache_es/
+.rts2_cache_umd/
+
+# ─── Python scientific / notebook ────────────────────────────────────────────
+.ipynb_checkpoints
+*.ipynb
+profile_default/
+ipython_config.py
+.python-version
+
+# ─── Task runners / CI ───────────────────────────────────────────────────────
+celerybeat-schedule
+celerybeat.pid
+*.sage.py
+.spyderproject
+.spyproject
+.ropeproject
+/site
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pyre/
+.pytype/
+cython_debug/
+
+# ─── Temporary & Backup ──────────────────────────────────────────────────────
+*.tmp
+*.temp
+*.bak
+*.backup
+*.orig
+*.rej
+
+# ─── Archives ────────────────────────────────────────────────────────────────
+*.tar.gz
+*.zip
+*.rar
+*.7z
+*.tgz
+
+# ─── Misc ────────────────────────────────────────────────────────────────────
+.session
 connect.lock
 typings/
+.serverless/
+.fusebox/
+.dynamodb/
+.tern-port
+.env.vault

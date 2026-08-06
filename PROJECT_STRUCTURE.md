@@ -1,6 +1,6 @@
-# NetACAD Project Structure
+# CampusGenie Project Structure
 
-This document describes the organized folder structure of the NetACAD project.
+This document describes the organized folder structure of the CampusGenie project.
 
 ## Root Directory Structure
 

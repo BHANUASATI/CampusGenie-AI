@@ -480,7 +480,9 @@ class StudentCreate(BaseModel):
     email: str
     personal_email: str  # For sending credentials, not stored in database
     phone: Optional[str] = None
+    school_id: Optional[int] = None
     department_id: Optional[int] = None
+    course_id: Optional[int] = None
     semester: Optional[int] = 1
     batch: Optional[str] = None
     admission_year: Optional[int] = None
@@ -544,7 +546,9 @@ def create_student(
             first_name=student_data.first_name,
             last_name=student_data.last_name,
             phone=student_data.phone,
+            school_id=student_data.school_id,
             department_id=student_data.department_id,
+            course_id=student_data.course_id,
             semester=student_data.semester,
             batch=student_data.batch,
             admission_year=student_data.admission_year,

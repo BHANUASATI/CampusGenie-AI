@@ -1,13 +1,26 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { aiAssistantService } from '../services/api';
 import './AIAssistant.css';
-import AIDebugInfo from './AIDebugInfo';
+
+// ─── Types ───────────────────────────────────────────────────────────────────
+
+interface Source {
+  filename: string;
+  doc_type: string;
+  relevance: number;
+  excerpt?: string;
+}
 
 interface Message {
   id: number;
   content: string;
   sender_type: 'user' | 'ai';
   created_at: string;
+  // Rich fields from the new AI engine (optional — old messages won't have them)
+  confidence?: number;
+  sources?: Source[];
+  follow_up_questions?: string[];
+  intent_detected?: string;
 }
 
 interface Conversation {
@@ -22,368 +35,592 @@ interface AIAssistantProps {
   onClose: () => void;
 }
 
+// ─── Markdown-lite renderer ───────────────────────────────────────────────────
+// Handles **bold**, *italic*, `code`, ## headers, bullet lists, numbered lists.
+// No external dep needed.
+function renderMarkdown(text: string): React.ReactNode[] {
+  const lines = text.split('\n');
+  const nodes: React.ReactNode[] = [];
+  let listBuffer: string[] = [];
+  let listType: 'ul' | 'ol' | null = null;
+
+  const flushList = (key: string) => {
+    if (listBuffer.length === 0) return;
+    if (listType === 'ul') {
+      nodes.push(
+        <ul key={key} className="cg-ai-list">
+          {listBuffer.map((item, i) => (
+            <li key={i}>{inlineFormat(item)}</li>
+          ))}
+        </ul>
+      );
+    } else {
+      nodes.push(
+        <ol key={key} className="cg-ai-list cg-ai-list-ol">
+          {listBuffer.map((item, i) => (
+            <li key={i}>{inlineFormat(item)}</li>
+          ))}
+        </ol>
+      );
+    }
+    listBuffer = [];
+    listType = null;
+  };
+
+  lines.forEach((line, i) => {
+    // H1/H2
+    if (/^## /.test(line)) {
+      flushList(`fl${i}`);
+      nodes.push(<h3 key={i} className="cg-ai-h3">{inlineFormat(line.slice(3))}</h3>);
+    } else if (/^# /.test(line)) {
+      flushList(`fl${i}`);
+      nodes.push(<h2 key={i} className="cg-ai-h2">{inlineFormat(line.slice(2))}</h2>);
+    }
+    // Unordered list
+    else if (/^[•\-\*] /.test(line)) {
+      if (listType === 'ol') flushList(`fl${i}`);
+      listType = 'ul';
+      listBuffer.push(line.slice(2));
+    }
+    // Ordered list
+    else if (/^\d+\. /.test(line)) {
+      if (listType === 'ul') flushList(`fl${i}`);
+      listType = 'ol';
+      listBuffer.push(line.replace(/^\d+\. /, ''));
+    }
+    // Blank line
+    else if (line.trim() === '') {
+      flushList(`fl${i}`);
+      nodes.push(<br key={i} />);
+    }
+    // Normal paragraph line
+    else {
+      flushList(`fl${i}`);
+      nodes.push(<p key={i} className="cg-ai-p">{inlineFormat(line)}</p>);
+    }
+  });
+  flushList('final');
+  return nodes;
+}
+
+function inlineFormat(text: string): React.ReactNode {
+  // Process **bold**, *italic*, `code` inline
+  const parts: React.ReactNode[] = [];
+  const regex = /(\*\*(.+?)\*\*|\*(.+?)\*|`(.+?)`)/g;
+  let last = 0;
+  let match: RegExpExecArray | null;
+  while ((match = regex.exec(text)) !== null) {
+    if (match.index > last) parts.push(text.slice(last, match.index));
+    if (match[2]) parts.push(<strong key={match.index}>{match[2]}</strong>);
+    else if (match[3]) parts.push(<em key={match.index}>{match[3]}</em>);
+    else if (match[4]) parts.push(<code key={match.index} className="cg-ai-code">{match[4]}</code>);
+    last = match.index + match[0].length;
+  }
+  if (last < text.length) parts.push(text.slice(last));
+  return parts.length === 1 ? parts[0] : <>{parts}</>;
+}
+
+// ─── Confidence bar ───────────────────────────────────────────────────────────
+const ConfidenceBar: React.FC<{ value: number }> = ({ value }) => {
+  const pct = Math.round(value * 100);
+  const color = pct >= 80 ? '#10b981' : pct >= 60 ? '#f59e0b' : '#ef4444';
+  return (
+    <div className="cg-confidence">
+      <span className="cg-confidence-label">Confidence</span>
+      <div className="cg-confidence-track">
+        <div className="cg-confidence-fill" style={{ width: `${pct}%`, background: color }} />
+      </div>
+      <span className="cg-confidence-value" style={{ color }}>{pct}%</span>
+    </div>
+  );
+};
+
+// ─── Source chips ─────────────────────────────────────────────────────────────
+const SourceChips: React.FC<{ sources: Source[] }> = ({ sources }) => {
+  if (!sources?.length) return null;
+  return (
+    <div className="cg-sources">
+      <span className="cg-sources-label">📄 Sources</span>
+      <div className="cg-sources-chips">
+        {sources.map((s, i) => (
+          <span key={i} className="cg-source-chip" title={s.excerpt || s.filename}>
+            {s.filename}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+// ─── Follow-up suggestions ────────────────────────────────────────────────────
+const FollowUpSuggestions: React.FC<{ questions: string[]; onSelect: (q: string) => void }> = ({ questions, onSelect }) => {
+  if (!questions?.length) return null;
+  return (
+    <div className="cg-followup">
+      <span className="cg-followup-label">💡 You might also ask</span>
+      <div className="cg-followup-pills">
+        {questions.slice(0, 3).map((q, i) => (
+          <button key={i} className="cg-followup-pill" onClick={() => onSelect(q)}>
+            {q}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+// ─── Main Component ───────────────────────────────────────────────────────────
 const AIAssistant: React.FC<AIAssistantProps> = ({ isOpen, onClose }) => {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [currentConversation, setCurrentConversation] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [showConversationList, setShowConversationList] = useState(true);
+  const [view, setView] = useState<'list' | 'chat'>('list');
+  const [loadingConversations, setLoadingConversations] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  const scrollToBottom = useCallback(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, []);
 
   useEffect(() => {
     if (isOpen) {
       loadConversations();
+      setView('list');
     }
   }, [isOpen]);
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages]);
+  }, [messages, scrollToBottom]);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
+  useEffect(() => {
+    if (view === 'chat') {
+      setTimeout(() => inputRef.current?.focus(), 100);
+    }
+  }, [view]);
 
   const loadConversations = async () => {
+    setLoadingConversations(true);
     try {
       const data = await aiAssistantService.getConversations() as Conversation[];
       setConversations(data);
-    } catch (error) {
-      console.error('Error loading conversations:', error);
+    } catch (err) {
+      console.error('Error loading conversations:', err);
+    } finally {
+      setLoadingConversations(false);
     }
   };
 
   const createNewConversation = async () => {
     try {
-      const newConversation = await aiAssistantService.createConversation() as Conversation;
-      setConversations([newConversation, ...conversations]);
-      setCurrentConversation(newConversation);
+      setError(null);
+      const conv = await aiAssistantService.createConversation() as Conversation;
+      setConversations(prev => [conv, ...prev]);
+      setCurrentConversation(conv);
       setMessages([]);
-      setShowConversationList(false);
-    } catch (error) {
-      console.error('Error creating conversation:', error);
+      setView('chat');
+    } catch (err) {
+      setError('Failed to start a new chat. Please try again.');
     }
   };
 
-  const loadConversation = async (conversationId: number) => {
+  const openConversation = async (conversationId: number) => {
     try {
+      setError(null);
       const data = await aiAssistantService.getConversation(conversationId.toString()) as any;
       setCurrentConversation(data);
       setMessages(data.messages || []);
-      setShowConversationList(false);
-    } catch (error) {
-      console.error('Error loading conversation:', error);
+      setView('chat');
+    } catch (err) {
+      setError('Failed to load conversation.');
     }
   };
 
-  const sendMessage = async () => {
-    if (!inputMessage.trim() || !currentConversation) return;
+  const sendMessage = async (textOverride?: string) => {
+    const text = (textOverride ?? inputMessage).trim();
+    if (!text || !currentConversation || isLoading) return;
 
-    const userMessage = inputMessage;
     setInputMessage('');
     setIsLoading(true);
+    setError(null);
+
+    // Optimistically append user bubble
+    const tempUserMsg: Message = {
+      id: Date.now(),
+      content: text,
+      sender_type: 'user',
+      created_at: new Date().toISOString(),
+    };
+    setMessages(prev => [...prev, tempUserMsg]);
 
     try {
-      console.log('🔍 Sending message to AI:', userMessage);
       const response = await aiAssistantService.sendMessage(
         currentConversation.id.toString(),
-        userMessage
+        text,
       ) as any;
-      
-      console.log('🔍 AI Response received:', response);
-      console.log('🔍 User message:', response.user_message);
-      console.log('🔍 AI message:', response.ai_message);
-      
-      setMessages([...messages, response.user_message, response.ai_message]);
-      console.log('🔍 Messages updated:', messages.length + 2);
-    } catch (error) {
-      console.error('Error sending message:', error);
-      // Add error message
-      setMessages([...messages, {
-        id: Date.now(),
-        content: "Sorry, I'm having trouble responding right now. Please try again later.",
-        sender_type: 'ai',
-        created_at: new Date().toISOString()
-      }]);
+
+      const aiMsg = response.ai_message as Message;
+
+      // Replace temp user message with real one and append AI message
+      setMessages(prev => {
+        const withoutTemp = prev.filter(m => m.id !== tempUserMsg.id);
+        return [...withoutTemp, response.user_message, aiMsg];
+      });
+    } catch (err: any) {
+      setMessages(prev => prev.filter(m => m.id !== tempUserMsg.id));
+      setError('Failed to send message. Please check your connection and try again.');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const deleteConversation = async (conversationId: number) => {
+  const deleteConversation = async (e: React.MouseEvent, convId: number) => {
+    e.stopPropagation();
     try {
-      await aiAssistantService.deleteConversation(conversationId.toString());
-      setConversations(conversations.filter(c => c.id !== conversationId));
-      if (currentConversation?.id === conversationId) {
+      await aiAssistantService.deleteConversation(convId.toString());
+      setConversations(prev => prev.filter(c => c.id !== convId));
+      if (currentConversation?.id === convId) {
         setCurrentConversation(null);
         setMessages([]);
-        setShowConversationList(true);
+        setView('list');
       }
-    } catch (error) {
-      console.error('Error deleting conversation:', error);
+    } catch (err) {
+      console.error('Delete failed:', err);
     }
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
+  const handleKey = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       sendMessage();
     }
   };
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const autoResize = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setInputMessage(e.target.value);
+    e.target.style.height = 'auto';
+    e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px';
+  };
+
+  const formatRelative = (dateStr: string) => {
+    const d = new Date(dateStr);
+    const now = new Date();
+    const diff = now.getTime() - d.getTime();
+    if (diff < 60000) return 'just now';
+    if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
+    if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
+    return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
   };
 
   if (!isOpen) return null;
 
   return (
-    <div className="ai-assistant-overlay">
-      <div className="ai-assistant-modal">
-        <div className="ai-assistant-header">
-          <h3>AI Assistant</h3>
-          <button className="close-button" onClick={onClose}>×</button>
-        </div>
-        
-        <div className="ai-assistant-content">
-          {showConversationList ? (
-            <div className="conversation-list">
-              <div className="conversation-list-header">
-                <div className="header-content">
-                  <div className="ai-welcome-icon">
-                    <svg 
-                      width="40" 
-                      height="40" 
-                      viewBox="0 0 24 24" 
-                      fill="none" 
-                      xmlns="http://www.w3.org/2000/svg"
-                    >
-                      <style>
-                        {`
-                          @keyframes welcomeFloat {
-                            0%, 100% { transform: translateY(0px) rotate(0deg); }
-                            50% { transform: translateY(-5px) rotate(5deg); }
-                          }
-                          @keyframes welcomeSparkle {
-                            0%, 100% { opacity: 0; transform: scale(0); }
-                            50% { opacity: 1; transform: scale(1); }
-                          }
-                          .ai-welcome-icon {
-                            animation: welcomeFloat 3s ease-in-out infinite;
-                          }
-                          .sparkle {
-                            animation: welcomeSparkle 2s ease-in-out infinite;
-                          }
-                        `}
-                      </style>
-                      
-                      {/* Robot Body */}
-                      <rect x="7" y="10" width="10" height="8" rx="2" fill="url(#robotGradient)" />
-                      
-                      {/* Robot Head */}
-                      <rect x="8" y="6" width="8" height="6" rx="1.5" fill="url(#robotGradient)" />
-                      
-                      {/* Robot Eyes */}
-                      <circle cx="10" cy="8" r="1" fill="#667eea" />
-                      <circle cx="14" cy="8" r="1" fill="#667eea" />
-                      
-                      {/* Robot Mouth */}
-                      <path d="M10 10 Q12 11 14 10" stroke="#667eea" strokeWidth="0.5" fill="none" />
-                      
-                      {/* Robot Antenna */}
-                      <line x1="12" y1="6" x2="12" y2="4" stroke="#667eea" strokeWidth="1" />
-                      <circle cx="12" cy="3" r="0.5" fill="#667eea" className="sparkle" />
-                      
-                      {/* Sparkles */}
-                      <circle cx="6" cy="8" r="0.5" fill="#667eea" className="sparkle" style={{ animationDelay: '0.5s' }} />
-                      <circle cx="18" cy="10" r="0.5" fill="#667eea" className="sparkle" style={{ animationDelay: '1s' }} />
-                      <circle cx="16" cy="14" r="0.5" fill="#667eea" className="sparkle" style={{ animationDelay: '1.5s' }} />
-                      
-                      {/* Gradient Definition */}
-                      <defs>
-                        <linearGradient id="robotGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                          <stop offset="0%" stopColor="#667eea" />
-                          <stop offset="100%" stopColor="#764ba2" />
-                        </linearGradient>
-                      </defs>
-                    </svg>
-                  </div>
-                  <div className="header-text">
-                    <h4>AI Assistant</h4>
-                    <p>Your academic companion</p>
-                  </div>
-                </div>
-                <button className="new-conversation-btn" onClick={createNewConversation}>
-                  + New Chat
-                </button>
+    <div className="cg-ai-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="cg-ai-panel">
+
+        {/* ── Header ─────────────────────────────────────────── */}
+        <header className="cg-ai-header">
+          <div className="cg-ai-header-left">
+            {view === 'chat' && (
+              <button className="cg-ai-back" onClick={() => setView('list')} title="Back to conversations">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <path d="M19 12H5M12 5l-7 7 7 7"/>
+                </svg>
+              </button>
+            )}
+            <div className="cg-ai-logo">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                <defs>
+                  <linearGradient id="cg-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stopColor="#818cf8"/>
+                    <stop offset="100%" stopColor="#a78bfa"/>
+                  </linearGradient>
+                </defs>
+                <rect x="6" y="8" width="12" height="10" rx="2.5" fill="url(#cg-grad)"/>
+                <circle cx="9.5" cy="12" r="1.5" fill="white" opacity="0.9"/>
+                <circle cx="14.5" cy="12" r="1.5" fill="white" opacity="0.9"/>
+                <rect x="10" y="15" width="4" height="1" rx="0.5" fill="white" opacity="0.7"/>
+                <line x1="12" y1="8" x2="12" y2="5.5" stroke="url(#cg-grad)" strokeWidth="1.5"/>
+                <circle cx="12" cy="4.5" r="1.2" fill="#818cf8"/>
+              </svg>
+            </div>
+            <div className="cg-ai-header-text">
+              <span className="cg-ai-title">
+                {view === 'chat' && currentConversation
+                  ? currentConversation.title
+                  : 'CampusGenie AI'}
+              </span>
+              <span className="cg-ai-subtitle">
+                {view === 'chat' ? 'Powered by Gemini 2.5 Flash + RAG' : 'Your academic assistant'}
+              </span>
+            </div>
+          </div>
+          <div className="cg-ai-header-right">
+            {view === 'list' && (
+              <button className="cg-ai-new-btn" onClick={createNewConversation} title="New chat">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <path d="M12 5v14M5 12h14"/>
+                </svg>
+                New Chat
+              </button>
+            )}
+            <button className="cg-ai-close" onClick={onClose} title="Close">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <path d="M18 6L6 18M6 6l12 12"/>
+              </svg>
+            </button>
+          </div>
+        </header>
+
+        {/* ── Error banner ────────────────────────────────────── */}
+        {error && (
+          <div className="cg-ai-error">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/>
+            </svg>
+            {error}
+            <button onClick={() => setError(null)} className="cg-ai-error-dismiss">✕</button>
+          </div>
+        )}
+
+        {/* ── Conversation list ────────────────────────────────── */}
+        {view === 'list' && (
+          <div className="cg-ai-list-view">
+            {/* Hero */}
+            <div className="cg-ai-hero">
+              <div className="cg-ai-hero-icon">
+                <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+                  <defs>
+                    <linearGradient id="hero-g" x1="0%" y1="0%" x2="100%" y2="100%">
+                      <stop offset="0%" stopColor="#818cf8"/>
+                      <stop offset="100%" stopColor="#a78bfa"/>
+                    </linearGradient>
+                  </defs>
+                  <rect x="12" y="16" width="24" height="20" rx="5" fill="url(#hero-g)"/>
+                  <circle cx="19" cy="24" r="3" fill="white" opacity="0.9"/>
+                  <circle cx="29" cy="24" r="3" fill="white" opacity="0.9"/>
+                  <rect x="20" y="29" width="8" height="2" rx="1" fill="white" opacity="0.7"/>
+                  <line x1="24" y1="16" x2="24" y2="10" stroke="#818cf8" strokeWidth="3"/>
+                  <circle cx="24" cy="8" r="3" fill="#a78bfa"/>
+                </svg>
+                <div className="cg-ai-hero-pulse"/>
               </div>
-              
-              <div className="conversations">
-                {conversations.length === 0 ? (
-                  <div className="no-conversations">
-                    <p>No conversations yet. Start a new chat!</p>
-                  </div>
-                ) : (
-                  conversations.map(conversation => (
-                    <div key={conversation.id} className="conversation-item">
-                      <div 
-                        className="conversation-info"
-                        onClick={() => loadConversation(conversation.id)}
-                      >
-                        <div className="conversation-title">{conversation.title}</div>
-                        <div className="conversation-date">
-                          {formatDate(conversation.updated_at)}
-                        </div>
-                      </div>
-                      <button 
-                        className="delete-conversation-btn"
-                        onClick={() => deleteConversation(conversation.id)}
-                      >
-                        🗑️
-                      </button>
-                    </div>
-                  ))
-                )}
+              <h2 className="cg-ai-hero-title">Hi! I'm CampusGenie 👋</h2>
+              <p className="cg-ai-hero-desc">
+                Ask me anything about courses, attendance, policies, notices, faculty, exams, or placements.
+              </p>
+              <div className="cg-ai-capabilities">
+                {['📚 Course Info', '📊 Attendance Rules', '📋 Policies', '📢 Notices', '👨‍🏫 Faculty', '💼 Placements'].map(cap => (
+                  <span key={cap} className="cg-ai-cap-chip">{cap}</span>
+                ))}
               </div>
             </div>
-          ) : (
-            <div className="chat-view">
-              <div className="chat-header">
-                <button 
-                  className="back-button"
-                  onClick={() => setShowConversationList(true)}
-                >
-                  ← Back
-                </button>
-                <h4>{currentConversation?.title}</h4>
-              </div>
-              
-              <div className="messages-container">
-                {messages.length === 0 ? (
-                  <div className="welcome-message">
-                    <div className="welcome-robot">
-                      <svg 
-                        width="60" 
-                        height="60" 
-                        viewBox="0 0 24 24" 
-                        fill="none" 
-                        xmlns="http://www.w3.org/2000/svg"
-                      >
-                        <style>
-                          {`
-                            @keyframes welcomeRobotFloat {
-                              0%, 100% { transform: translateY(0px) rotate(0deg); }
-                              50% { transform: translateY(-8px) rotate(3deg); }
-                            }
-                            @keyframes welcomeRobotBlink {
-                              0%, 90%, 100% { opacity: 1; }
-                              95% { opacity: 0; }
-                            }
-                            @keyframes welcomeRobotWave {
-                              0%, 100% { transform: rotate(0deg); }
-                              25% { transform: rotate(-15deg); }
-                              75% { transform: rotate(15deg); }
-                            }
-                            .welcome-robot svg {
-                              animation: welcomeRobotFloat 4s ease-in-out infinite;
-                            }
-                            .welcome-robot-eye {
-                              animation: welcomeRobotBlink 5s ease-in-out infinite;
-                            }
-                            .welcome-robot-arm {
-                              animation: welcomeRobotWave 2s ease-in-out infinite;
-                              transform-origin: 12px 14px;
-                            }
-                          `}
-                        </style>
-                        
-                        {/* Robot Body */}
-                        <rect x="6" y="12" width="12" height="8" rx="2" fill="url(#welcomeRobotGradient)" opacity="0.9"/>
-                        
-                        {/* Robot Head */}
-                        <rect x="7" y="6" width="10" height="7" rx="2" fill="url(#welcomeRobotGradient)" />
-                        
-                        {/* Robot Eyes */}
-                        <circle cx="9.5" cy="9" r="1.2" fill="#667eea" className="welcome-robot-eye"/>
-                        <circle cx="14.5" cy="9" r="1.2" fill="#667eea" className="welcome-robot-eye"/>
-                        
-                        {/* Robot Mouth */}
-                        <path d="M10 11 Q12 12.5 14 11" stroke="#667eea" strokeWidth="1" fill="none" />
-                        
-                        {/* Robot Antenna */}
-                        <line x1="12" y1="6" x2="12" y2="3" stroke="#667eea" strokeWidth="1.5" />
-                        <circle cx="12" cy="2" r="1" fill="#667eea" />
-                        
-                        {/* Robot Arms */}
-                        <rect x="4" y="13" width="3" height="1.5" rx="0.5" fill="url(#welcomeRobotGradient)" className="welcome-robot-arm" />
-                        <rect x="17" y="13" width="3" height="1.5" rx="0.5" fill="url(#welcomeRobotGradient)" />
-                        
-                        {/* Gradient Definition */}
-                        <defs>
-                          <linearGradient id="welcomeRobotGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                            <stop offset="0%" stopColor="#667eea" />
-                            <stop offset="100%" stopColor="#764ba2" />
-                          </linearGradient>
-                        </defs>
+
+            {/* Conversation list */}
+            <div className="cg-ai-convs-header">
+              <span>Recent Conversations</span>
+              <span className="cg-ai-conv-count">{conversations.length}</span>
+            </div>
+
+            <div className="cg-ai-convs-list">
+              {loadingConversations ? (
+                <div className="cg-ai-loading-state">
+                  <div className="cg-ai-spinner"/>
+                  <span>Loading conversations…</span>
+                </div>
+              ) : conversations.length === 0 ? (
+                <div className="cg-ai-empty-state">
+                  <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" opacity="0.3">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                  </svg>
+                  <p>No conversations yet</p>
+                  <span>Start a new chat to get help</span>
+                </div>
+              ) : (
+                conversations.map(conv => (
+                  <div key={conv.id} className="cg-ai-conv-item" onClick={() => openConversation(conv.id)}>
+                    <div className="cg-ai-conv-icon">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
                       </svg>
                     </div>
-                    <div className="welcome-text">
-                      <h3>Hello! I'm your AI Assistant 🤖</h3>
-                      <p>I'm here to help you with your studies, assignments, and academic questions. What can I help you with today?</p>
+                    <div className="cg-ai-conv-info">
+                      <span className="cg-ai-conv-title">{conv.title}</span>
+                      <span className="cg-ai-conv-date">{formatRelative(conv.updated_at)}</span>
                     </div>
-                  </div>
-                ) : (
-                  messages.map(message => (
-                    <div 
-                      key={message.id} 
-                      className={`message ${message.sender_type === 'user' ? 'user-message' : 'ai-message'}`}
+                    <button
+                      className="cg-ai-conv-delete"
+                      onClick={(e) => deleteConversation(e, conv.id)}
+                      title="Delete"
                     >
-                      <div className="message-content">
-                        {message.content}
-                      </div>
-                      <div className="message-time">
-                        {formatDate(message.created_at)}
-                      </div>
-                    </div>
-                  ))
-                )}
-                
-                {isLoading && (
-                  <div className="message ai-message">
-                    <div className="message-content typing-indicator">
-                      <span></span>
-                      <span></span>
-                      <span></span>
-                    </div>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/>
+                        <path d="M10 11v6M14 11v6M9 6V4h6v2"/>
+                      </svg>
+                    </button>
                   </div>
-                )}
-                
-                <div ref={messagesEndRef} />
-              </div>
-              
-              <div className="input-container">
+                ))
+              )}
+            </div>
+
+            {/* Start chat CTA */}
+            <div className="cg-ai-start-cta">
+              <button className="cg-ai-start-btn" onClick={createNewConversation}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <path d="M12 5v14M5 12h14"/>
+                </svg>
+                Start New Conversation
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ── Chat view ─────────────────────────────────────────── */}
+        {view === 'chat' && (
+          <div className="cg-ai-chat-view">
+            {/* Messages */}
+            <div className="cg-ai-messages">
+              {messages.length === 0 && !isLoading && (
+                <div className="cg-ai-chat-welcome">
+                  <div className="cg-ai-chat-welcome-icon">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
+                      <defs>
+                        <linearGradient id="chat-g" x1="0%" y1="0%" x2="100%" y2="100%">
+                          <stop offset="0%" stopColor="#818cf8"/>
+                          <stop offset="100%" stopColor="#a78bfa"/>
+                        </linearGradient>
+                      </defs>
+                      <rect x="6" y="8" width="12" height="10" rx="2.5" fill="url(#chat-g)"/>
+                      <circle cx="9.5" cy="12" r="1.5" fill="white"/>
+                      <circle cx="14.5" cy="12" r="1.5" fill="white"/>
+                      <line x1="12" y1="8" x2="12" y2="5.5" stroke="#818cf8" strokeWidth="1.5"/>
+                      <circle cx="12" cy="4.5" r="1.2" fill="#a78bfa"/>
+                    </svg>
+                  </div>
+                  <p className="cg-ai-chat-welcome-text">
+                    Ask me anything — I'll search university documents and your data to give you accurate answers.
+                  </p>
+                  <div className="cg-ai-quick-prompts">
+                    {[
+                      'What is the minimum attendance required?',
+                      'Show me my upcoming assignment deadlines',
+                      'What courses am I enrolled in?',
+                    ].map(q => (
+                      <button key={q} className="cg-ai-quick-btn" onClick={() => sendMessage(q)}>
+                        {q}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {messages.map((msg) => (
+                <div
+                  key={msg.id}
+                  className={`cg-ai-bubble-wrapper ${msg.sender_type === 'user' ? 'cg-user' : 'cg-bot'}`}
+                >
+                  {msg.sender_type === 'ai' && (
+                    <div className="cg-ai-avatar">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                        <rect x="6" y="8" width="12" height="10" rx="2.5" fill="#818cf8"/>
+                        <circle cx="9.5" cy="12" r="1.5" fill="white"/>
+                        <circle cx="14.5" cy="12" r="1.5" fill="white"/>
+                      </svg>
+                    </div>
+                  )}
+                  <div className="cg-ai-bubble">
+                    <div className="cg-ai-bubble-content">
+                      {msg.sender_type === 'ai'
+                        ? renderMarkdown(msg.content)
+                        : <p className="cg-ai-p">{msg.content}</p>
+                      }
+                    </div>
+
+                    {/* Rich metadata for AI messages */}
+                    {msg.sender_type === 'ai' && (
+                      <div className="cg-ai-bubble-meta">
+                        {typeof msg.confidence === 'number' && (
+                          <ConfidenceBar value={msg.confidence} />
+                        )}
+                        {msg.sources && msg.sources.length > 0 && (
+                          <SourceChips sources={msg.sources} />
+                        )}
+                        {msg.follow_up_questions && msg.follow_up_questions.length > 0 && (
+                          <FollowUpSuggestions
+                            questions={msg.follow_up_questions}
+                            onSelect={(q) => sendMessage(q)}
+                          />
+                        )}
+                      </div>
+                    )}
+
+                    <span className="cg-ai-bubble-time">{formatRelative(msg.created_at)}</span>
+                  </div>
+                </div>
+              ))}
+
+              {/* Typing indicator */}
+              {isLoading && (
+                <div className="cg-ai-bubble-wrapper cg-bot">
+                  <div className="cg-ai-avatar">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                      <rect x="6" y="8" width="12" height="10" rx="2.5" fill="#818cf8"/>
+                      <circle cx="9.5" cy="12" r="1.5" fill="white"/>
+                      <circle cx="14.5" cy="12" r="1.5" fill="white"/>
+                    </svg>
+                  </div>
+                  <div className="cg-ai-bubble cg-ai-typing-bubble">
+                    <div className="cg-ai-dots">
+                      <span/><span/><span/>
+                    </div>
+                    <span className="cg-ai-thinking">Thinking…</span>
+                  </div>
+                </div>
+              )}
+
+              <div ref={messagesEndRef}/>
+            </div>
+
+            {/* Input area */}
+            <div className="cg-ai-input-area">
+              <div className="cg-ai-input-wrapper">
                 <textarea
+                  ref={inputRef}
+                  className="cg-ai-textarea"
                   value={inputMessage}
-                  onChange={(e) => setInputMessage(e.target.value)}
-                  onKeyPress={(e) => handleKeyPress(e)}
-                  placeholder="Type your message..."
-                  className="message-input"
+                  onChange={autoResize}
+                  onKeyDown={handleKey}
+                  placeholder="Ask me anything… (Enter to send, Shift+Enter for new line)"
                   rows={1}
                   disabled={isLoading}
                 />
-                <button 
-                  className="send-button"
-                  onClick={sendMessage}
+                <button
+                  className="cg-ai-send"
+                  onClick={() => sendMessage()}
                   disabled={!inputMessage.trim() || isLoading}
+                  title="Send message"
                 >
-                  Send
+                  {isLoading ? (
+                    <div className="cg-ai-spinner-sm"/>
+                  ) : (
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <line x1="22" y1="2" x2="11" y2="13"/>
+                      <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+                    </svg>
+                  )}
                 </button>
               </div>
+              <p className="cg-ai-footer-note">
+                Answers grounded in university documents · Powered by Gemini 2.5 Flash
+              </p>
             </div>
-          )}
-        </div>
+          </div>
+        )}
+
       </div>
     </div>
   );

@@ -2,7 +2,7 @@
 -- This file contains sample data to test the complete workflow
 -- Compatible with database_schema_mysql_final.sql
 
-USE NetACAD;
+USE CampusGenie;
 
 -- Clear all data (using TRUNCATE to avoid safe mode issues)
 SET FOREIGN_KEY_CHECKS = 0;

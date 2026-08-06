@@ -532,7 +532,9 @@ const RegistrarDashboard: React.FC = () => {
       if (response.ok) {
         const data = await response.json();
         setCourses(data);
+        console.log('Courses fetched successfully:', data);
       } else {
+        console.error('Failed to fetch courses:', response.status, response.statusText);
         // Set mock courses if API fails
         setCourses([
           { id: 1, name: "Bachelor of Computer Applications", code: "BCA", duration_years: 3, type: "undergraduate", department_id: 1 },
@@ -1757,7 +1759,7 @@ const RegistrarDashboard: React.FC = () => {
               </button>
               <div className="flex items-center ml-0 lg:ml-2">
                 <div className="ml-2">
-                  <h1 className="text-sm sm:text-base lg:text-lg xl:text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">AcadDNA</h1>
+                  <h1 className="text-sm sm:text-base lg:text-lg xl:text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">CampusGenie</h1>
                 </div>
               </div>
             </div>
@@ -1923,7 +1925,7 @@ const RegistrarDashboard: React.FC = () => {
                   <GraduationCap className="w-6 h-6 text-white" />
                 </div>
                 <div>
-                  <h2 className="text-xl font-bold text-white">AcadDNA</h2>
+                  <h2 className="text-xl font-bold text-white">CampusGenie</h2>
                   <p className="text-xs text-blue-300">Registrar Portal</p>
                 </div>
               </div>

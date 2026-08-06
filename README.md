@@ -1,1362 +1,452 @@
 <div align="center">
 
-# 🎓 NetACAD - Educational Management System
+# CampusGenie — AI for Smarter Learning
 
-### *Transforming Educational Administration Through Technology*
+### Transforming Educational Administration Through Agentic AI
 
-[![Python](https://img.shields.io/badge/Python-3.9+-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.104+-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
-[![React](https://img.shields.io/badge/React-19.2.4-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://reactjs.org/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.104-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+[![React](https://img.shields.io/badge/React-19.2-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://reactjs.org/)
+[![LangGraph](https://img.shields.io/badge/LangGraph-0.2-FF6B35?style=for-the-badge&logo=langchain&logoColor=white)](https://langchain-ai.github.io/langgraph/)
+[![ChromaDB](https://img.shields.io/badge/ChromaDB-0.4-4A90D9?style=for-the-badge)](https://www.trychroma.com/)
 [![MySQL](https://img.shields.io/badge/MySQL-8.0+-4479A1?style=for-the-badge&logo=mysql&logoColor=white)](https://www.mysql.com/)
-[![TailwindCSS](https://img.shields.io/badge/Tailwind-3.0+-06B6D4?style=for-the-badge&logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=for-the-badge)](http://makeapullrequest.com)
 
-[Features](#-key-features) • [Demo](#-demo) • [Installation](#-installation) • [Documentation](#-documentation) • [Contributing](#-contributing)
+[Features](#-features) • [Architecture](#-architecture) • [Quick Start](#-quick-start) • [AI Engine](#-ai-engine) • [API Docs](#-api-reference) • [Contributing](#-contributing)
 
 </div>
 
 ---
 
-## 🎯 Overview
+## Overview
 
-**NetACAD** is a comprehensive, full-stack educational management system that digitizes and automates all academic administrative processes. Built with modern technologies, it eliminates paperwork and reduces processing time by **80%**, making it the perfect solution for universities, colleges, and educational institutions.
+**CampusGenie** is a full-stack university management platform built around an enterprise-grade AI assistant. Students, faculty, and registrars get a single portal to handle documents, timetables, attendance, grades, and calendars — with a conversational AI agent that answers academic queries using Retrieval-Augmented Generation (RAG) over university knowledge documents.
 
-### 💡 Why NetACAD?
+### Why CampusGenie?
 
-- **🚀 Lightning Fast** - Real-time updates and instant notifications
-- **📱 Fully Responsive** - Works seamlessly on desktop, tablet, and mobile
-- **🔒 Secure & Reliable** - JWT authentication with role-based access control
-- **📊 Data-Driven** - Comprehensive analytics and reporting dashboards
-- **🎨 Modern UI/UX** - Beautiful, intuitive interface built with React & Tailwind CSS
-- **⚡ High Performance** - FastAPI backend ensures blazing-fast API responses
-
-## ✨ Key Features
-
-<table>
-<tr>
-<td width="50%">
-
-### 🎓 Academic Management
-- **Multi-School Architecture** - Engineering, Management, Sciences, Arts & Humanities
-- **Smart Course Selection** - Cascading dropdowns (School → Department → Course)
-- **Student Enrollment** - Automated profile generation
-- **Academic Records** - GPA tracking and performance analytics
-
-</td>
-<td width="50%">
-
-### 📋 Document Management
-- **Real-Time Tracking** - Live upload and verification status
-- **Smart Upload Modal** - Drag & drop with file validation
-- **Status Updates** - Pending/Verified/Rejected/Missing
-- **Email Alerts** - Instant notifications on status changes
-
-</td>
-</tr>
-<tr>
-<td width="50%">
-
-### 👥 Multi-Role System
-- **Student Portal** - Document upload, profile management
-- **Faculty Portal** - Document verification, student records
-- **Admin Dashboard** - User management, system configuration
-- **Registrar Panel** - Complete oversight and analytics
-
-</td>
-<td width="50%">
-
-### 🔐 Security & Performance
-- **JWT Authentication** - Secure token-based auth
-- **Role-Based Access** - Granular permission control
-- **Real-Time Updates** - Live dashboard refresh (30s)
-- **High Performance** - Optimized queries and caching
-
-</td>
-</tr>
-</table>
+- **Agentic AI** — LangGraph orchestrates intent classification, parallel RAG retrieval + live DB tool calls, and answer generation in a single graph
+- **Dual LLM providers** — Gemini 2.5 Flash as primary, OpenRouter as automatic fallback (zero downtime if Gemini quota is hit)
+- **Semantic search** — ChromaDB vector store with sentence-transformers embeddings + cross-encoder reranking
+- **Multi-role** — Student, Faculty, Admin, and Registrar portals with JWT + RBAC
+- **Real-time** — Live document verification status, attendance tracking, calendar events
 
 ---
 
-## 📸 Demo
+## Features
 
-### Student Dashboard
-> Real-time document tracking with live status updates
+### AI Assistant
+- Conversational academic Q&A with memory (last 6 turns)
+- RAG over admin-uploaded knowledge documents (PDF, DOCX, TXT, CSV, MD)
+- Live database tool calls — timetable, attendance, grades, deadlines
+- Intent classification routes each query to the right pipeline
+- Automatic Gemini → OpenRouter fallback on API failures
+
+### Academic Management
+- Multi-school hierarchy: School → Department → Course
+- Student enrollment with auto-generated profiles
+- GPA tracking and academic performance analytics
+- Task and deadline management
+
+### Document Management
+- Drag-and-drop upload with file validation
+- Real-time status: Pending / Verified / Rejected / Missing
+- Faculty review queue with rejection reasons
+- Email notifications on status changes
+
+### User Portals
+| Role | Key Capabilities |
+|------|----------------|
+| **Student** | Upload documents, view grades/attendance, chat with AI |
+| **Faculty** | Verify documents, view student records, manage timetables |
+| **Admin** | User management, course setup, system configuration |
+| **Registrar** | Full oversight, analytics, bulk operations |
+
+---
+
+## Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  📊 Student Dashboard                    � John Doe        │
-├─────────────────────────────────────────────────────────────┤
-│  📈 Academic Stats                                          │
-│  ┌──────────┬──────────┬──────────┐                        │
-│  │ GPA: 3.8 │ Attend:  │ Tasks:   │                        │
-│  │    ⭐    │  92% ✅  │  85% 📝  │                        │
-│  └──────────┴──────────┴──────────┘                        │
+│                        Frontend                             │
+│              React 19 + TypeScript + Tailwind               │
+│                    localhost:3000                           │
+└──────────────────────────┬──────────────────────────────────┘
+                           │ REST API
+┌──────────────────────────▼──────────────────────────────────┐
+│                    FastAPI Backend                          │
+│                    localhost:8002                           │
 │                                                             │
-│  📋 Document Status                                         │
-│  ✅ Birth Certificate        - Verified                    │
-│  ⏳ Mark Sheet 10th          - Pending Review              │
-│  ✅ Mark Sheet 12th          - Verified                    │
-│  ❌ Aadhaar Card             - Rejected (Re-upload)        │
-│  � Migration Certificate    - Missing                     │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │                  AI Engine (LangGraph)              │   │
+│  │                                                     │   │
+│  │  START → load_memory → classify_intent             │   │
+│  │               ↙              ↘                     │   │
+│  │   retrieve_context      tool_call                  │   │
+│  │    (ChromaDB RAG)     (Live DB queries)            │   │
+│  │               ↘              ↙                     │   │
+│  │            generate_answer                         │   │
+│  │         (Gemini / OpenRouter)                      │   │
+│  │               ↓                                    │   │
+│  │           save_memory → END                        │   │
+│  └─────────────────────────────────────────────────────┘   │
+│                                                             │
+│  MySQL (user data, documents, timetables, attendance)      │
+│  ChromaDB (knowledge document embeddings)                  │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-### Registrar Dashboard
-> Comprehensive analytics and document verification management
+### Tech Stack
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│  🎓 Registrar Dashboard                                     │
-├─────────────────────────────────────────────────────────────┤
-│  📊 System Overview                                         │
-│  ┌────────────────┬────────────────┬────────────────┐      │
-│  │ Total Students │ Total Docs     │ Pending Review │      │
-│  │      21        │      36        │       8        │      │
-│  └────────────────┴────────────────┴────────────────┘      │
-│                                                             │
-│  📈 Verification Statistics                                 │
-│  ✅ Verified:  18 (50%)  ████████████░░░░░░░░░░░░          │
-│  ⏳ Pending:    8 (22%)  ████████░░░░░░░░░░░░░░░░          │
-│  ❌ Rejected:   6 (17%)  ██████░░░░░░░░░░░░░░░░░░          │
-│  📄 Missing:    4 (11%)  ████░░░░░░░░░░░░░░░░░░░░          │
-└─────────────────────────────────────────────────────────────┘
-```
+| Layer | Technology |
+|-------|-----------|
+| Frontend | React 19, TypeScript, Tailwind CSS, React Router v7 |
+| Backend | Python 3.11, FastAPI 0.104, SQLAlchemy 2.0, Pydantic v2 |
+| AI Orchestration | LangGraph 0.2, LangChain 0.2 |
+| LLM (primary) | Google Gemini 2.5 Flash |
+| LLM (fallback) | OpenRouter — nvidia/nemotron-3-ultra-550b |
+| Embeddings | sentence-transformers `all-MiniLM-L6-v2` (local, CPU) |
+| Reranking | CrossEncoder `ms-marco-MiniLM-L-6-v2` (local, CPU) |
+| Vector Store | ChromaDB 0.4 (persistent) |
+| Database | MySQL 8.0+ |
+| Auth | JWT (python-jose) + bcrypt |
+| Observability | LangSmith tracing |
 
-## 🛠️ Technology Stack
+---
 
-<div align="center">
-
-### Frontend Stack
-
-| Technology | Purpose | Version |
-|------------|---------|----------|
-| ![React](https://img.shields.io/badge/-React-61DAFB?style=flat-square&logo=react&logoColor=black) | UI Framework | 19.2.4 |
-| ![TypeScript](https://img.shields.io/badge/-TypeScript-3178C6?style=flat-square&logo=typescript&logoColor=white) | Type Safety | 5.0+ |
-| ![TailwindCSS](https://img.shields.io/badge/-Tailwind-06B6D4?style=flat-square&logo=tailwindcss&logoColor=white) | Styling | 3.0+ |
-| ![React Router](https://img.shields.io/badge/-React_Router-CA4245?style=flat-square&logo=react-router&logoColor=white) | Navigation | Latest |
-| ![Axios](https://img.shields.io/badge/-Axios-5A29E4?style=flat-square&logo=axios&logoColor=white) | HTTP Client | Latest |
-
-### Backend Stack
-
-| Technology | Purpose | Version |
-|------------|---------|----------|
-| ![Python](https://img.shields.io/badge/-Python-3776AB?style=flat-square&logo=python&logoColor=white) | Language | 3.9+ |
-| ![FastAPI](https://img.shields.io/badge/-FastAPI-009688?style=flat-square&logo=fastapi&logoColor=white) | Web Framework | 0.104+ |
-| ![MySQL](https://img.shields.io/badge/-MySQL-4479A1?style=flat-square&logo=mysql&logoColor=white) | Database | 8.0+ |
-| ![SQLAlchemy](https://img.shields.io/badge/-SQLAlchemy-D71F00?style=flat-square&logo=sqlalchemy&logoColor=white) | ORM | Latest |
-| ![JWT](https://img.shields.io/badge/-JWT-000000?style=flat-square&logo=json-web-tokens&logoColor=white) | Authentication | Latest |
-| ![Pydantic](https://img.shields.io/badge/-Pydantic-E92063?style=flat-square&logo=pydantic&logoColor=white) | Validation | Latest |
-
-</div>
-
-## 🚀 Installation
+## Quick Start
 
 ### Prerequisites
 
-```bash
-✅ Node.js 16+
-✅ Python 3.9+
-✅ MySQL 8.0+
-✅ Git
+```
+Node.js 18+
+Python 3.11+
+MySQL 8.0+
+Git
 ```
 
-### Quick Setup (5 Minutes)
-
-#### 1️⃣ Clone the Repository
+### 1. Clone
 
 ```bash
-git clone https://github.com/yourusername/NetACAD.git
-cd NetACAD
+git clone https://github.com/yourusername/CampusGenie.git
+cd CampusGenie
 ```
 
-#### 2️⃣ Database Setup
+### 2. Database
 
 ```bash
-# Start MySQL and create database
 mysql -u root -p
 ```
 
 ```sql
-CREATE DATABASE NetACAD;
-USE NetACAD;
-source database/sample_data_mysql_final.sql;
+CREATE DATABASE CampusGenie;
+USE CampusGenie;
+SOURCE database/sample_data_mysql_final.sql;
 EXIT;
 ```
 
-#### 3️⃣ Backend Configuration
+### 3. Backend
 
 ```bash
 cd backend
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Create environment file
-cp .env.example .env
-
-# Edit .env with your credentials
-nano .env
-```
-
-**Required Environment Variables:**
-
-```env
-DATABASE_URL=mysql://root:your_password@localhost/NetACAD
-SECRET_KEY=your-secret-key-here
-ACCESS_TOKEN_EXPIRE_MINUTES=30
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=587
-SMTP_USER=your-email@gmail.com
-SMTP_PASSWORD=your-app-password
-```
-
-#### 4️⃣ Frontend Setup
-
-```bash
-cd ../frontend
-
-# Install dependencies
-npm install
-```
-
-#### 5️⃣ Start the Application
-
-**Option A: Using the startup script (Recommended)**
-
-```bash
-cd ..
-chmod +x start_project.sh
-./start_project.sh
-```
-
-**Option B: Manual start**
-
-```bash
-# Terminal 1 - Backend
-cd backend
-python3 main.py
-
-# Terminal 2 - Frontend
-cd frontend
-npm start
-```
-
-#### 6️⃣ Access the Application
-
-| Service | URL | Description |
-|---------|-----|-------------|
-| 🌐 **Frontend** | http://localhost:3000 | Main application |
-| ⚡ **Backend API** | http://localhost:8002 | REST API |
-| 📚 **API Docs** | http://localhost:8002/docs | Swagger documentation |
-
-### 🔐 Default Login Credentials
-
-```yaml
-Registrar Account:
-  Email: registrar@university.edu.in
-  Password: registrar123
-
-Student Account:
-  Email: student@university.edu.in
-  Password: student123
-
-Faculty Account:
-  Email: faculty@university.edu.in
-  Password: faculty123
-```
-
-> ⚠️ **Security Note:** Change these credentials in production!
-
-## 📁 Project Structure
-
-```bash
-NetACAD/
-├── 📂 backend/                      # Python FastAPI Backend
-│   ├── 🐍 main.py                  # Application entry point
-│   ├── 📊 models.py                # SQLAlchemy database models
-│   ├── 📋 schemas.py               # Pydantic validation schemas
-│   ├── 🔐 auth.py                  # JWT authentication logic
-│   ├── 📂 routes/                  # API route handlers
-│   │   ├── student_routes.py       # Student endpoints
-│   │   ├── admin_routes.py         # Admin endpoints
-│   │   ├── document_routes.py      # Document management
-│   │   ├── school_routes.py        # School/Course endpoints
-│   │   └── calendar_routes.py      # Calendar integration
-│   ├── 📂 services/                # Business logic layer
-│   ├── 📂 utils/                   # Helper functions
-│   ├── 📄 requirements.txt         # Python dependencies
-│   └── 🔧 .env                     # Environment variables
-│
-├── 📂 frontend/                     # React TypeScript Frontend
-│   ├── 📂 src/
-│   │   ├── 📂 components/          # Reusable UI components
-│   │   │   ├── DocumentUpload.tsx
-│   │   │   ├── StudentCard.tsx
-│   │   │   └── StatusBadge.tsx
-│   │   ├── 📂 pages/               # Page components
-│   │   │   ├── StudentDashboard.tsx
-│   │   │   ├── RegistrarDashboard.tsx
-│   │   │   ├── AdminDashboard.tsx
-│   │   │   └── Login.tsx
-│   │   ├── 📂 services/            # API integration
-│   │   │   └── api.ts
-│   │   ├── 📂 types/               # TypeScript definitions
-│   │   ├── 📂 utils/               # Utility functions
-│   │   └── 📂 styles/              # Global styles
-│   ├── 📂 public/                  # Static assets
-│   └── 📄 package.json             # Node dependencies
-│
-├── 📂 database/                     # Database Scripts
-│   ├── sample_data_mysql_final.sql # Sample data with 21 students
-│   └── school_course_migration.sql # Schema migrations
-│
-├── 📂 docs/                         # Documentation
-│   ├── DOCUMENT_MANAGEMENT_IMPLEMENTATION.md
-│   ├── SCHOOL_COURSE_IMPLEMENTATION.md
-│   └── COURSE_SELECTION_GUIDE.md
-│
-├── 📄 README.md                     # This file
-├── 📄 .gitignore                    # Git ignore rules
-└── 🚀 start_project.sh              # Quick start script
-```
-
-## 🔄 System Workflows
-
-### 📝 Student Registration Flow
-
-```mermaid
-graph LR
-    A[Admin Portal] --> B[Create Student]
-    B --> C[Select School]
-    C --> D[Select Department]
-    D --> E[Select Course]
-    E --> F[Generate Profile]
-    F --> G[Send Credentials]
-    G --> H[Student Login]
-```
-
-**Steps:**
-1. 👨‍💼 Admin creates student account with enrollment details
-2. 🎓 Smart course selection via cascading dropdowns (School → Department → Course)
-3. 📋 Automatic profile generation with academic information
-4. 📧 Login credentials sent to student email
-
-### 📄 Document Management Flow
-
-```mermaid
-graph TD
-    A[Student Upload] --> B{File Validation}
-    B -->|Valid| C[Status: Pending]
-    B -->|Invalid| A
-    C --> D[Faculty Review]
-    D -->|Approve| E[Status: Verified]
-    D -->|Reject| F[Status: Rejected]
-    F --> G[Re-upload Required]
-    G --> A
-    E --> H[Email Notification]
-```
-
-**Steps:**
-1. 📤 Student uploads documents through smart upload modal
-2. ⏱️ Real-time status tracking (Pending/Verified/Rejected/Missing)
-3. 🔔 Faculty receives notifications for pending verifications
-4. ✉️ Instant status updates sent to students via email alerts
-5. 🔄 Re-upload process for rejected documents
-
-### 📊 Academic Monitoring Flow
-
-**Real-Time Updates:**
-- 🔄 Live dashboard updates every 30 seconds
-- 📈 Automatic GPA calculations based on academic records
-- 📅 Attendance tracking with percentage calculations
-- ✅ Task completion monitoring with progress indicators
-
-## 🏫 Academic Structure
-
-<div align="center">
-
-### 🎓 Schools & Programs
-
-</div>
-
-<table>
-<tr>
-<td width="50%">
-
-#### 🔧 School of Engineering and Technology (SOET)
-
-**Departments:**
-- 💻 Computer Science & Engineering
-- ⚙️ Mechanical Engineering
-- ⚡ Electrical Engineering
-- 🏗️ Civil Engineering
-- 📡 Electronics Engineering
-
-**Sample Courses:**
-- BTech Computer Science (4 years)
-- MTech Computer Science (2 years)
-- BTech Mechanical (4 years)
-- PhD Engineering (4 years)
-
-</td>
-<td width="50%">
-
-#### 💼 School of Management Studies (SOMS)
-
-**Departments:**
-- 📊 Business Administration
-- 📈 Management Studies
-- 💰 Finance & Accounting
-
-**Sample Courses:**
-- BBA - Business Administration (3 years)
-- MBA - Business Administration (2 years)
-- BCom - Commerce (3 years)
-- MCom - Commerce (2 years)
-
-</td>
-</tr>
-<tr>
-<td width="50%">
-
-#### 🔬 School of Sciences (SOS)
-
-**Departments:**
-- ⚛️ Physics
-- 🧪 Chemistry
-- 📐 Mathematics
-- 🧬 Biology
-
-**Sample Courses:**
-- BSc Physics (3 years)
-- MSc Physics (2 years)
-- BSc Chemistry (3 years)
-- PhD Sciences (4 years)
-
-</td>
-<td width="50%">
-
-#### 🎨 School of Arts and Humanities (SOAH)
-
-**Departments:**
-- 📚 English Literature
-- 🌍 History
-- 🗣️ Languages
-- 🎭 Fine Arts
-
-**Sample Courses:**
-- BA English (3 years)
-- MA English (2 years)
-- BA History (3 years)
-- MA Fine Arts (2 years)
-
-</td>
-</tr>
-</table>
-
-### 📊 Course Hierarchy
-
-```
-🏛️ University
-  ├── 🏫 School of Engineering (SOET)
-  │     ├── 💻 Computer Science Department
-  │     │     ├── BCA (3 years)
-  │     │     ├── MCA (2 years)
-  │     │     ├── BTech CS (4 years)
-  │     │     ├── MTech CS (2 years)
-  │     │     └── PhD CS (4 years)
-  │     └── ⚙️ Mechanical Engineering Department
-  │           ├── BTech Mech (4 years)
-  │           └── MTech Mech (2 years)
-  ├── 🏫 School of Management (SOMS)
-  │     └── 📊 Business Administration
-  │           ├── BBA (3 years)
-  │           └── MBA (2 years)
-  └── 🏫 School of Sciences (SOS)
-        └── ⚛️ Physics Department
-              ├── BSc Physics (3 years)
-              └── MSc Physics (2 years)
-```
-
-## 📋 Document Management
-
-### 📑 Document Types
-
-<table>
-<tr>
-<td width="50%">
-
-#### ✅ Required Documents
-- 📄 Birth Certificate
-- 📝 Mark Sheet 10th
-- 📝 Mark Sheet 12th
-- 🆔 Aadhaar Card
-- 📸 Passport Size Photo
-- 📋 Transfer Certificate
-
-</td>
-<td width="50%">
-
-#### 📎 Optional Documents
-- 🔄 Migration Certificate
-- 💰 Income Certificate
-- 🏠 Domicile Certificate
-- 🏆 Achievement Certificates
-- 🎓 Previous Degree Certificates
-
-</td>
-</tr>
-</table>
-
-### 🎯 Status Tracking System
-
-| Status | Icon | Description | Action Required |
-|--------|------|-------------|----------------|
-| **Missing** | 📄 | Not uploaded yet | Upload document |
-| **Pending** | ⏳ | Under faculty review | Wait for verification |
-| **Verified** | ✅ | Approved by faculty | No action needed |
-| **Rejected** | ❌ | Needs correction | Re-upload with fixes |
-
-### ⚡ Key Features
-
-- 🔄 **Real-Time Updates** - Instant status synchronization
-- 👁️ **Document Preview** - View before download
-- 📥 **Secure Download** - Protected file access
-- ✔️ **File Validation** - Type, size, and format checks
-- 💬 **Rejection Reasons** - Detailed feedback for corrections
-- ⏰ **Upload Timestamps** - Complete audit trail
-- 📧 **Email Alerts** - Automatic notifications on status changes
-- 🔒 **Secure Storage** - Encrypted file management
-
-## 👥 User Roles & Permissions
-
-<table>
-<tr>
-<td width="50%">
-
-### 🎓 Student Portal
-
-**Capabilities:**
-- 👤 View academic profile
-- 📤 Upload and manage documents
-- 📊 Track verification status
-- 📈 View GPA and attendance
-- 📚 Access course information
-- 📅 View academic calendar
-- 🔔 Receive notifications
-
-**Dashboard Features:**
-- Real-time document status
-- Academic performance metrics
-- Task completion tracking
-- Personal information management
-
-</td>
-<td width="50%">
-
-### 👨‍🏫 Faculty Portal
-
-**Capabilities:**
-- ✅ Verify student documents
-- 📋 View student academic records
-- 🔄 Update document status
-- 💬 Add rejection reasons
-- 📊 Access department analytics
-- 🔔 Receive verification alerts
-
-**Dashboard Features:**
-- Pending verifications queue
-- Student performance overview
-- Document review interface
-- Bulk verification tools
-
-</td>
-</tr>
-<tr>
-<td width="50%">
-
-### 👨‍💼 Admin/Registrar Portal
-
-**Capabilities:**
-- 👥 Complete user management
-- 📝 Student registration
-- 🎓 Course assignment
-- 🏫 Department and school management
-- ⚙️ System configuration
-- 📊 Generate reports
-- 📧 Send bulk notifications
-
-**Dashboard Features:**
-- System-wide analytics
-- User management tools
-- Document verification overview
-- Enrollment statistics
-
-</td>
-<td width="50%">
-
-### 🔧 System Administrator
-
-**Capabilities:**
-- 🗄️ Database management
-- ⚙️ System configuration
-- 🔐 User role management
-- 💾 Backup and maintenance
-- 🔍 System monitoring
-- 📈 Performance optimization
-- 🛡️ Security management
-
-**Dashboard Features:**
-- System health monitoring
-- Database statistics
-- API performance metrics
-- Error logs and debugging
-
-</td>
-</tr>
-</table>
-
-## 📊 Analytics & Reporting
-
-### Student Dashboard
-- Real-time GPA display
-- Attendance percentage
-- Task completion metrics
-- Document submission progress
-- Academic performance charts
-
-### Admin Dashboard
-- User statistics
-- Document verification status
-- System usage metrics
-- Course enrollment data
-- Department-wise analytics
-
-## 🔐 Security Features
-
-### Authentication
-- JWT-based authentication
-- Secure password hashing
-- Session management
-- Automatic logout
-
-### Access Control
-- Role-based permissions
-- API endpoint protection
-- File access restrictions
-- Audit trail logging
-
-### Data Protection
-- Encrypted file storage
-- Secure data transmission
-- Privacy controls
-- Regular backups
-
-## 📧 Alert & Notification System
-
-### Email Notifications
-- Document status changes
-- Account creation confirmation
-- Password reset requests
-- System announcements
-
-### In-App Notifications
-- Real-time status updates
-- Task reminders
-- System alerts
-- User messages
-
-### Mobile Support
-- Responsive design
-- Touch-friendly interface
-- Mobile notifications
-- Optimized performance
-
-## 🛠️ Development Guidelines
-
-### Code Standards
-- TypeScript for frontend
-- Python type hints for backend
-- ESLint and Prettier configuration
-- Comprehensive error handling
-
-### Testing
-- Unit tests for critical functions
-- API endpoint testing
-- Frontend component testing
-- Integration testing
-
-### Documentation
-- API documentation with Swagger
-- Code comments
-- User manuals
-- Deployment guides
-
-## 📈 Performance Optimization
-
-### Frontend
-- Component lazy loading
-- Image optimization
-- Bundle size optimization
-- Caching strategies
-
-### Backend
-- Database query optimization
-- API response caching
-- Connection pooling
-- Efficient file handling
-
-### Database
-- Indexed columns
-- Normalized schema
-- Query optimization
-- Regular maintenance
-
-## 🚀 Deployment
-
-### Production Setup
-1. Configure production environment variables
-2. Set up MySQL database
-3. Build frontend assets
-4. Deploy backend to production server
-5. Configure reverse proxy (nginx)
-6. Set up SSL certificates
-7. Configure monitoring
-
-### Environment Variables
-```bash
-# Database
-DATABASE_URL=mysql://user:password@localhost/NetACAD
-
-# JWT
-SECRET_KEY=your-secret-key
-ACCESS_TOKEN_EXPIRE_MINUTES=30
-
-# Email
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=587
-SMTP_USER=your-email@gmail.com
-SMTP_PASSWORD=your-app-password
-
-# File Upload
-UPLOAD_DIR=./uploads
-MAX_FILE_SIZE=10485760  # 10MB
-```
-
-## 🔄 API Documentation
-
-### 🔐 Authentication Endpoints
-
-| Method | Endpoint | Description | Auth Required |
-|--------|----------|-------------|---------------|
-| `POST` | `/auth/login` | User login | ❌ |
-| `POST` | `/auth/register` | User registration | ❌ |
-| `POST` | `/auth/refresh` | Refresh access token | ✅ |
-| `POST` | `/auth/logout` | User logout | ✅ |
-
-### 🎓 Student Endpoints
-
-| Method | Endpoint | Description | Auth Required |
-|--------|----------|-------------|---------------|
-| `GET` | `/students/me` | Get current student profile | ✅ |
-| `PUT` | `/students/me` | Update student profile | ✅ |
-| `GET` | `/students/stats` | Get student statistics | ✅ |
-| `GET` | `/students/{id}` | Get student by ID | ✅ (Admin) |
-| `GET` | `/students/` | List all students | ✅ (Admin) |
-
-### 📄 Document Endpoints
-
-| Method | Endpoint | Description | Auth Required |
-|--------|----------|-------------|---------------|
-| `GET` | `/documents/my-documents-status` | Get document status | ✅ |
-| `POST` | `/documents/upload` | Upload document | ✅ |
-| `GET` | `/documents/{id}/download` | Download document | ✅ |
-| `PUT` | `/documents/{id}/verify` | Verify document | ✅ (Faculty) |
-| `PUT` | `/documents/{id}/reject` | Reject document | ✅ (Faculty) |
-| `DELETE` | `/documents/{id}` | Delete document | ✅ |
-
-### 🏫 School & Course Endpoints
-
-| Method | Endpoint | Description | Auth Required |
-|--------|----------|-------------|---------------|
-| `GET` | `/schools/` | Get all schools | ✅ |
-| `GET` | `/schools/{id}/departments` | Get departments by school | ✅ |
-| `GET` | `/schools/departments/{id}/courses` | Get courses by department | ✅ |
-| `POST` | `/schools/` | Create new school | ✅ (Admin) |
-
-### 📊 Analytics Endpoints
-
-| Method | Endpoint | Description | Auth Required |
-|--------|----------|-------------|---------------|
-| `GET` | `/analytics/dashboard` | Get dashboard stats | ✅ (Admin) |
-| `GET` | `/analytics/documents` | Document statistics | ✅ (Admin) |
-| `GET` | `/analytics/students` | Student statistics | ✅ (Admin) |
-
-### 📚 Interactive API Documentation
-
-Access the full interactive API documentation at:
-- **Swagger UI:** http://localhost:8002/docs
-- **ReDoc:** http://localhost:8002/redoc
-
-## 🧪 Testing
-
-### Run Tests
-```bash
-# Backend tests
-cd backend
-python -m pytest
-
-# Frontend tests
-cd frontend
-npm test
-```
-
-### API Testing
-```bash
-# Test API endpoints
-cd backend
-python test_document_api.py
-python test_school_course_api.py
-```
-
-## � Troubleshooting
-
-### ❗ Common Issues & Solutions
-
-<details>
-<summary><b>🔴 Database Connection Error</b></summary>
-
-**Symptoms:**
-```
-ERROR: Can't connect to MySQL server on 'localhost'
-```
-
-**Solutions:**
-1. Check if MySQL is running:
-   ```bash
-   # macOS
-   brew services list
-   
-   # Linux
-   sudo systemctl status mysql
-   ```
-
-2. Verify credentials in `.env` file
-3. Ensure database exists:
-   ```sql
-   SHOW DATABASES;
-   ```
-
-4. Check port availability:
-   ```bash
-   lsof -i :3306
-   ```
-
-</details>
-
-<details>
-<summary><b>📁 File Upload Issues</b></summary>
-
-**Symptoms:**
-```
-ERROR: Failed to upload document
-```
-
-**Solutions:**
-1. Check upload directory permissions:
-   ```bash
-   chmod 755 backend/uploads
-   ```
-
-2. Verify file size limits in backend config
-3. Ensure file type is allowed (PDF, JPG, PNG)
-4. Check available disk space:
-   ```bash
-   df -h
-   ```
-
-</details>
-
-<details>
-<summary><b>🔐 Authentication Problems</b></summary>
-
-**Symptoms:**
-```
-ERROR: Invalid token or Token expired
-```
-
-**Solutions:**
-1. Clear browser cookies and localStorage:
-   ```javascript
-   localStorage.clear();
-   ```
-
-2. Verify JWT secret key in `.env`
-3. Check token expiration settings
-4. Re-login to get fresh token
-
-</details>
-
-<details>
-<summary><b>⚛️ Frontend Build Errors</b></summary>
-
-**Symptoms:**
-```
-ERROR: Module not found
-```
-
-**Solutions:**
-1. Delete node_modules and reinstall:
-   ```bash
-   rm -rf node_modules package-lock.json
-   npm install
-   ```
-
-2. Clear npm cache:
-   ```bash
-   npm cache clean --force
-   ```
-
-3. Check Node.js version compatibility
-
-</details>
-
-<details>
-<summary><b>🐍 Backend Import Errors</b></summary>
-
-**Symptoms:**
-```
-ModuleNotFoundError: No module named 'fastapi'
-```
-
-**Solutions:**
-1. Reinstall dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-2. Check Python version (3.9+ required)
-3. Use virtual environment:
-   ```bash
-   python3 -m venv venv
-   source venv/bin/activate
-   ```
-
-</details>
-
-### 🔍 Debug Mode
-
-**Backend Debug Mode:**
-```bash
-cd backend
-uvicorn main:app --reload --log-level debug --host 0.0.0.0 --port 8002
-```
-
-**Frontend Debug Mode:**
-```bash
-cd frontend
-REACT_APP_DEBUG=true npm start --verbose
-```
-
-**Database Query Logging:**
-```python
-# Add to main.py
-import logging
-logging.basicConfig()
-logging.getLogger('sqlalchemy.engine').setLevel(logging.INFO)
-```
-
-## 🤝 Contributing
-
-We welcome contributions from the community! Here's how you can help:
-
-### 🌟 How to Contribute
-
-1. **🍴 Fork the Repository**
-   ```bash
-   git clone https://github.com/yourusername/NetACAD.git
-   cd NetACAD
-   ```
-
-2. **🌿 Create a Feature Branch**
-   ```bash
-   git checkout -b feature/amazing-feature
-   ```
-
-3. **💻 Make Your Changes**
-   - Write clean, documented code
-   - Follow existing code style
-   - Add tests if applicable
-
-4. **✅ Test Your Changes**
-   ```bash
-   # Backend tests
-   cd backend
-   pytest
-   
-   # Frontend tests
-   cd frontend
-   npm test
-   ```
-
-5. **📝 Commit Your Changes**
-   ```bash
-   git add .
-   git commit -m '✨ Add amazing feature'
-   ```
-   
-   **Commit Message Guidelines:**
-   - ✨ `:sparkles:` - New feature
-   - 🐛 `:bug:` - Bug fix
-   - 📝 `:memo:` - Documentation
-   - 🎨 `:art:` - Code style/formatting
-   - ⚡ `:zap:` - Performance improvement
-   - 🔒 `:lock:` - Security fix
-
-6. **🚀 Push to Your Fork**
-   ```bash
-   git push origin feature/amazing-feature
-   ```
-
-7. **🎯 Open a Pull Request**
-   - Go to the original repository
-   - Click "New Pull Request"
-   - Describe your changes
-   - Link any related issues
-
-### 📋 Contribution Guidelines
-
-- **Code Quality:** Maintain high code quality standards
-- **Documentation:** Update docs for new features
-- **Testing:** Add tests for new functionality
-- **Commits:** Use clear, descriptive commit messages
-- **Issues:** Check existing issues before creating new ones
-
-### 🐛 Reporting Bugs
-
-Found a bug? Please create an issue with:
-- Clear description of the problem
-- Steps to reproduce
-- Expected vs actual behavior
-- Screenshots (if applicable)
-- Environment details (OS, browser, versions)
-
-### 💡 Feature Requests
-
-Have an idea? We'd love to hear it!
-- Open an issue with the `enhancement` label
-- Describe the feature and its benefits
-- Provide use cases and examples
-
-## � Deployment
-
-### Production Deployment Guide
-
-#### Prerequisites
-- Production server (Ubuntu 20.04+ recommended)
-- Domain name with DNS configured
-- SSL certificate (Let's Encrypt recommended)
-
-#### Step-by-Step Deployment
-
-**1. Server Setup**
-```bash
-# Update system
-sudo apt update && sudo apt upgrade -y
-
-# Install dependencies
-sudo apt install python3-pip python3-venv nginx mysql-server nodejs npm -y
-```
-
-**2. Database Configuration**
-```bash
-# Secure MySQL installation
-sudo mysql_secure_installation
-
-# Create production database
-mysql -u root -p
-CREATE DATABASE NetACAD_prod;
-CREATE USER 'netacad_user'@'localhost' IDENTIFIED BY 'strong_password';
-GRANT ALL PRIVILEGES ON NetACAD_prod.* TO 'netacad_user'@'localhost';
-FLUSH PRIVILEGES;
-```
-
-**3. Backend Deployment**
-```bash
-# Clone repository
-git clone https://github.com/yourusername/NetACAD.git
-cd NetACAD/backend
-
-# Create virtual environment
-python3 -m venv venv
-source venv/bin/activate
 
 # Install dependencies
 pip install -r requirements.txt
 
 # Configure environment
 cp .env.example .env
-nano .env  # Update with production values
+# Edit .env — set DATABASE_URL, GEMINI_API_KEY, OPENROUTER_API_KEY, etc.
+
+# Start the server
+PYTHONPATH=src uvicorn src.main:app --host 0.0.0.0 --port 8002 --reload
 ```
 
-**4. Frontend Build**
+### 4. Frontend
+
 ```bash
-cd ../frontend
+cd frontend
 npm install
-npm run build
+npm start          # opens http://localhost:3000
 ```
 
-**5. Nginx Configuration**
-```nginx
-server {
-    listen 80;
-    server_name yourdomain.com;
-    
-    # Frontend
-    location / {
-        root /var/www/NetACAD/frontend/build;
-        try_files $uri /index.html;
-    }
-    
-    # Backend API
-    location /api {
-        proxy_pass http://localhost:8002;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-    }
-}
+### 5. Access
+
+| Service | URL |
+|---------|-----|
+| Frontend app | http://localhost:3000 |
+| Backend API | http://localhost:8002 |
+| Swagger docs | http://localhost:8002/docs |
+| AI health check | http://localhost:8002/api/ai/health |
+
+### Default Login Credentials
+
+```
+Registrar:  registrar@university.edu.in  /  registrar123
+Student:    student@university.edu.in    /  student123
+Faculty:    faculty@university.edu.in    /  faculty123
 ```
 
-**6. SSL Certificate (Let's Encrypt)**
+> Change these before any public deployment.
+
+---
+
+## AI Engine
+
+The AI engine lives in `backend/ai_engine/` and is a fully self-contained agentic system.
+
+### How a Chat Message Flows
+
+1. **load_memory** — loads the last 6 conversation turns from MySQL
+2. **classify_intent** — LLM call classifies the query into one of: `greeting`, `timetable`, `attendance`, `grades`, `documents`, `general_academic`, `unknown`
+3. **Parallel fan-out** (based on classification):
+   - `retrieve_context` — embeds the query, searches ChromaDB, reranks top-3 chunks
+   - `tool_call` — runs a live SQL query (timetable, attendance, grades, etc.)
+4. **generate_answer** — LLM call with system prompt + retrieved docs + tool result + conversation history → structured JSON response
+5. **save_memory** — persists both turns to MySQL
+
+### LLM Fallback
+
+Every LLM call goes through `ai_engine/llm/client.py`:
+
+```
+call_llm(prompt)
+  ├── try: Gemini 2.5 Flash  ✅ → return result
+  └── except: log warning
+        └── try: OpenRouter (nvidia/nemotron) ✅ → return result (fallback_used=True)
+              └── except: raise RuntimeError (both failed)
+```
+
+Configure via `.env`:
+
+```env
+# Primary
+GEMINI_API_KEY=...
+GEMINI_CHAT_MODEL=gemini-2.5-flash
+
+# Fallback
+OPENROUTER_API_KEY=sk-or-v1-...
+LLM_MODEL=nvidia/nemotron-3-ultra-550b-a55b:free
+LLM_BASE_URL=https://openrouter.ai/api/v1
+LLM_TEMPERATURE=0.3
+```
+
+### Uploading Knowledge Documents
+
+Admins can upload documents that feed the RAG pipeline via:
+
+```
+POST /api/ai/documents/upload
+```
+
+Supported formats: `.pdf`, `.docx`, `.txt`, `.csv`, `.md` (up to 50 MB).
+
+Documents are chunked (512 tokens, 50 overlap), embedded locally, and stored in ChromaDB.
+
+---
+
+## Project Structure
+
+```
+CampusGenie/
+├── backend/
+│   ├── src/                        # FastAPI app (routes, models, auth)
+│   │   ├── main.py                 # Entry point — mounts all routers
+│   │   ├── models.py               # SQLAlchemy models
+│   │   ├── auth.py                 # JWT helpers
+│   │   └── *_routes.py             # Feature routers
+│   ├── ai_engine/                  # Agentic AI system
+│   │   ├── agents/                 # LangGraph nodes
+│   │   │   ├── answer_generator.py
+│   │   │   ├── intent_classifier.py
+│   │   │   ├── memory_manager.py
+│   │   │   ├── retriever.py
+│   │   │   └── tool_caller.py
+│   │   ├── api/                    # AI FastAPI routers
+│   │   ├── core/                   # Config, logging, exceptions
+│   │   ├── document_pipeline/      # Chunking, extraction, indexing
+│   │   ├── embeddings/             # Embedding + reranker models
+│   │   ├── graph/                  # LangGraph orchestrator + edges
+│   │   ├── llm/                    # LLM client with fallback
+│   │   │   └── client.py           # Gemini → OpenRouter fallback
+│   │   ├── prompts/                # System, RAG, intent prompts
+│   │   ├── repositories/           # Conversation DB repo
+│   │   ├── schemas/                # AgentState, response types
+│   │   ├── services/               # ChatService, DocumentService
+│   │   └── vectorstore/            # ChromaDB client + collections
+│   ├── chroma_db/                  # ChromaDB data (git-ignored)
+│   ├── uploads/ai_documents/       # Uploaded knowledge docs (git-ignored)
+│   ├── requirements.txt
+│   └── .env.example
+├── frontend/
+│   ├── src/
+│   │   ├── components/             # Shared UI components
+│   │   ├── pages/                  # Route-level pages
+│   │   └── services/               # Axios API clients
+│   └── package.json
+├── database/
+│   ├── database_schema_mysql_final.sql
+│   └── sample_data_mysql_final.sql
+├── docs/                           # Project documentation
+├── .gitignore
+└── README.md
+```
+
+---
+
+## Environment Variables
+
+Copy `backend/.env.example` to `backend/.env` and fill in:
+
+```env
+# Database
+DATABASE_URL=mysql+mysqlconnector://root:password@localhost:3306/CampusGenie
+
+# JWT
+SECRET_KEY=change-me-in-production
+ACCESS_TOKEN_EXPIRE_MINUTES=30
+
+# University domain (only emails from this domain can register)
+UNIVERSITY_EMAIL_DOMAIN=university.edu.in
+
+# Email (optional — for notifications)
+SMTP_SERVER=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USERNAME=you@gmail.com
+SMTP_PASSWORD=your-app-password
+
+# Gemini (primary LLM)
+GEMINI_API_KEY=your-gemini-key
+GEMINI_CHAT_MODEL=gemini-2.5-flash
+
+# OpenRouter (fallback LLM)
+OPENROUTER_API_KEY=sk-or-v1-...
+LLM_MODEL=nvidia/nemotron-3-ultra-550b-a55b:free
+LLM_BASE_URL=https://openrouter.ai/api/v1
+LLM_TEMPERATURE=0.3
+
+# LangSmith (optional tracing)
+ENABLE_LANGSMITH_TRACING=false
+LANGSMITH_API_KEY=
+LANGSMITH_PROJECT=CampusGenie
+```
+
+---
+
+## API Reference
+
+### Authentication
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/api/auth/login` | Login, returns JWT |
+| `POST` | `/api/auth/register` | Register new user |
+| `GET` | `/api/auth/me` | Get current user |
+
+### AI Assistant
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/ai/conversations` | List conversations |
+| `POST` | `/api/ai/conversations` | Start new conversation |
+| `POST` | `/api/ai/conversations/{id}/messages` | Send message |
+| `GET` | `/api/ai/health` | AI engine health check |
+| `POST` | `/api/ai/documents/upload` | Upload knowledge doc (admin) |
+
+### Documents
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/documents/my-documents-status` | Student doc status |
+| `POST` | `/documents/upload` | Upload document |
+| `PUT` | `/documents/{id}/verify` | Verify doc (faculty) |
+| `PUT` | `/documents/{id}/reject` | Reject doc (faculty) |
+
+### Students / Faculty / Admin
+
+Full Swagger docs at **http://localhost:8002/docs**
+
+---
+
+## Troubleshooting
+
+**`ModuleNotFoundError: No module named 'sqlalchemy'`**
 ```bash
-sudo apt install certbot python3-certbot-nginx
-sudo certbot --nginx -d yourdomain.com
+pip install -r backend/requirements.txt
 ```
 
-**7. Process Management (systemd)**
+**`Address already in use` on port 8002**
 ```bash
-# Create service file
-sudo nano /etc/systemd/system/netacad.service
+lsof -ti:8002 | xargs kill -9
 ```
 
-```ini
-[Unit]
-Description=NetACAD FastAPI Application
-After=network.target
+**`InvalidUpdateError` in LangGraph (parallel branch merge)**
+Ensure `backend/ai_engine/schemas/agent_state.py` uses `Annotated[T, _keep_last]` on all input and classification fields. This is already fixed in the current version.
 
-[Service]
-User=www-data
-WorkingDirectory=/var/www/NetACAD/backend
-Environment="PATH=/var/www/NetACAD/backend/venv/bin"
-ExecStart=/var/www/NetACAD/backend/venv/bin/uvicorn main:app --host 0.0.0.0 --port 8002
-Restart=always
-
-[Install]
-WantedBy=multi-user.target
-```
-
+**`ImportError: cannot import name 'cached_download' from 'huggingface_hub'`**
 ```bash
-# Enable and start service
-sudo systemctl enable netacad
-sudo systemctl start netacad
+pip install "sentence-transformers>=2.7.0"
 ```
 
-### 🐳 Docker Deployment (Alternative)
-
-**Docker Compose Configuration:**
-```yaml
-version: '3.8'
-
-services:
-  backend:
-    build: ./backend
-    ports:
-      - "8002:8002"
-    environment:
-      - DATABASE_URL=mysql://user:pass@db:3306/NetACAD
-    depends_on:
-      - db
-  
-  frontend:
-    build: ./frontend
-    ports:
-      - "3000:80"
-    depends_on:
-      - backend
-  
-  db:
-    image: mysql:8.0
-    environment:
-      - MYSQL_ROOT_PASSWORD=rootpass
-      - MYSQL_DATABASE=NetACAD
-    volumes:
-      - mysql_data:/var/lib/mysql
-
-volumes:
-  mysql_data:
-```
-
-**Deploy with Docker:**
+**Frontend stuck on a different port**
 ```bash
-docker-compose up -d
+pkill -f "react-scripts"
+PORT=3000 npm start
 ```
 
----
-
-## 📈 Performance Optimization
-
-### Frontend Optimization
-- ⚡ **Code Splitting** - Lazy loading for routes and components
-- 🖼️ **Image Optimization** - WebP format with fallbacks
-- 📦 **Bundle Analysis** - Minimized bundle size (<500KB)
-- 💾 **Caching Strategy** - Service workers for offline support
-- 🔄 **React.memo** - Prevent unnecessary re-renders
-
-### Backend Optimization
-- 🚀 **Database Indexing** - Optimized queries with proper indexes
-- 💾 **Redis Caching** - Cache frequently accessed data
-- 🔗 **Connection Pooling** - Efficient database connections
-- 📊 **Query Optimization** - N+1 query prevention
-- ⚡ **Async Operations** - Non-blocking I/O operations
-
-### Database Optimization
-```sql
--- Add indexes for better performance
-CREATE INDEX idx_student_email ON students(email);
-CREATE INDEX idx_document_status ON documents(status);
-CREATE INDEX idx_course_school ON courses(school_id);
-```
+**Gemini quota exceeded**
+The fallback to OpenRouter is automatic. Check backend logs for `llm.call.gemini.failed` followed by `llm.call.openrouter.success`.
 
 ---
 
-## �️ Roadmap
+## Contributing
 
-### ✅ Completed Features
-- [x] Multi-role authentication system
-- [x] Document management with real-time tracking
-- [x] School/Department/Course hierarchy
-- [x] Student and Registrar dashboards
-- [x] Email notification system
-- [x] Academic analytics
+1. Fork the repo and create a branch: `git checkout -b feature/my-feature`
+2. Make changes, following existing code style
+3. Test your changes
+4. Commit with a clear message: `git commit -m "feat: add X"`
+5. Push and open a Pull Request
 
-### 🚧 In Progress
-- [ ] Mobile application (React Native)
-- [ ] Advanced analytics with charts
-- [ ] Bulk document upload
-- [ ] Calendar integration (Google Calendar)
+### Commit convention
 
-### 🔮 Future Plans
-- [ ] AI-powered document verification
-- [ ] Blockchain-based certificate verification
-- [ ] Multi-language support (i18n)
-- [ ] Advanced reporting and exports (PDF/Excel)
-- [ ] Integration with payment gateways
-- [ ] Video conferencing integration
-- [ ] Mobile push notifications
-- [ ] Advanced search with filters
-- [ ] Automated backup system
-- [ ] Two-factor authentication (2FA)
+| Prefix | Use for |
+|--------|---------|
+| `feat:` | New feature |
+| `fix:` | Bug fix |
+| `docs:` | Documentation only |
+| `refactor:` | Code change, no feature/fix |
+| `perf:` | Performance improvement |
+| `chore:` | Build / tooling |
 
 ---
 
-## 📊 Project Statistics
+## Roadmap
 
-<div align="center">
-
-| Metric | Value |
-|--------|-------|
-| **Total Lines of Code** | ~15,000+ |
-| **Backend Endpoints** | 25+ |
-| **React Components** | 30+ |
-| **Database Tables** | 12 |
-| **Supported Document Types** | 9 |
-| **User Roles** | 4 |
-| **Schools Supported** | 4 |
-| **Test Coverage** | 75%+ |
-
-</div>
+- [x] Multi-role JWT authentication
+- [x] Document upload and verification workflow
+- [x] LangGraph agentic AI assistant
+- [x] RAG with ChromaDB + sentence-transformers
+- [x] Gemini → OpenRouter automatic fallback
+- [x] LangSmith observability tracing
+- [ ] Streaming responses (SSE)
+- [ ] Mobile app (React Native)
+- [ ] Bulk document upload for admins
+- [ ] Two-factor authentication
+- [ ] Docker Compose for one-command startup
+- [ ] CI/CD pipeline (GitHub Actions)
 
 ---
 
-## 📄 License
+## License
 
-<div align="center">
-
-This project is licensed under the **MIT License**
-
-See the [LICENSE](LICENSE) file for details.
-
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
-
-</div>
-
----
-
-## 📞 Support & Contact
-
-<div align="center">
-
-### Get Help
-
-[![GitHub Issues](https://img.shields.io/badge/GitHub-Issues-red?style=for-the-badge&logo=github)](https://github.com/yourusername/NetACAD/issues)
-[![Email](https://img.shields.io/badge/Email-Support-blue?style=for-the-badge&logo=gmail)](mailto:support@netacad.com)
-[![Documentation](https://img.shields.io/badge/Docs-NetACAD-green?style=for-the-badge&logo=readthedocs)](https://docs.netacad.com)
-
-**For Support:**
-- 🐛 **Bug Reports:** [Create an Issue](https://github.com/yourusername/NetACAD/issues/new?template=bug_report.md)
-- 💡 **Feature Requests:** [Request a Feature](https://github.com/yourusername/NetACAD/issues/new?template=feature_request.md)
-- 📧 **Email:** support@netacad.com
-- 💬 **Discussions:** [GitHub Discussions](https://github.com/yourusername/NetACAD/discussions)
-
-</div>
-
----
-
-## 🙏 Acknowledgments
-
-<div align="center">
-
-**Built with ❤️ using amazing open-source technologies**
-
-[![React](https://img.shields.io/badge/-React-61DAFB?style=flat-square&logo=react&logoColor=black)](https://reactjs.org/)
-[![FastAPI](https://img.shields.io/badge/-FastAPI-009688?style=flat-square&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
-[![TypeScript](https://img.shields.io/badge/-TypeScript-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![TailwindCSS](https://img.shields.io/badge/-Tailwind-06B6D4?style=flat-square&logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
-[![MySQL](https://img.shields.io/badge/-MySQL-4479A1?style=flat-square&logo=mysql&logoColor=white)](https://www.mysql.com/)
-
-**Special Thanks To:**
-- 🎯 React team for the amazing framework
-- ⚡ FastAPI for the high-performance backend
-- 🎨 Tailwind CSS for the utility-first CSS framework
-- 🗄️ MySQL team for the robust database
-- 👥 All contributors and users of NetACAD
-- 🌟 Open-source community
-
-</div>
+MIT — see [LICENSE](LICENSE) for details.
 
 ---
 
 <div align="center">
 
-## 🌟 Star History
+Built with Python, FastAPI, React, LangGraph, and Gemini
 
-[![Star History Chart](https://api.star-history.com/svg?repos=yourusername/NetACAD&type=Date)](https://star-history.com/#yourusername/NetACAD&Date)
-
----
-
-### 🚀 **NetACAD** - Transforming Educational Management Through Technology
-
-**Made with 💙 by developers, for educators**
-
-[![GitHub stars](https://img.shields.io/github/stars/yourusername/NetACAD?style=social)](https://github.com/yourusername/NetACAD/stargazers)
-[![GitHub forks](https://img.shields.io/github/forks/yourusername/NetACAD?style=social)](https://github.com/yourusername/NetACAD/network/members)
-[![GitHub watchers](https://img.shields.io/github/watchers/yourusername/NetACAD?style=social)](https://github.com/yourusername/NetACAD/watchers)
-
-**If you find this project helpful, please consider giving it a ⭐!**
-
-[⬆ Back to Top](#-netacad---educational-management-system)
+**If you find this useful, drop a ⭐**
 
 </div>

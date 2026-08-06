@@ -23,7 +23,7 @@ class EmailService:
             message = EmailMessage()
             message["From"] = self.from_email
             message["To"] = to_email
-            message["Subject"] = "Your NetACAD Student Account Credentials"
+            message["Subject"] = "Your CampusGenie Student Account Credentials"
             
             # HTML email body (student template)
             html_body = f"""
@@ -32,15 +32,15 @@ class EmailService:
                 
                 <!-- Header -->
                 <div style="background: linear-gradient(135deg, #007bff, #0056b3); color: white; padding: 30px; border-radius: 10px 10px 0 0; text-align: center;">
-                    <h1 style="margin: 0; font-size: 28px;">🎓 Welcome to NetACAD!</h1>
-                    <p style="margin: 10px 0 0 0; font-size: 16px; opacity: 0.9;">Your Academic Journey Starts Here</p>
+                    <h1 style="margin: 0; font-size: 28px;">🎓 Welcome to CampusGenie!</h1>
+                    <p style="margin: 10px 0 0 0; font-size: 16px; opacity: 0.9;">AI for Smarter Learning</p>
                 </div>
                 
                 <!-- Welcome Message -->
                 <div style="background-color: white; padding: 30px; border-radius: 0 0 10px 10px; margin-bottom: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
                     <p style="font-size: 16px; color: #333; line-height: 1.6;">Dear <strong>{student_name}</strong>,</p>
                     <p style="font-size: 16px; color: #333; line-height: 1.6;">
-                        Congratulations! Your student account has been successfully created at NetACAD - the University Document Management System. 
+                        Congratulations! Your student account has been successfully created at CampusGenie - AI for Smarter Learning. 
                         We're excited to have you join our academic community!
                     </p>
                 </div>
@@ -65,7 +65,7 @@ class EmailService:
                 <!-- Platform Features -->
                 <div style="background-color: #f8fff8; padding: 25px; border-radius: 10px; margin-bottom: 20px; border-left: 5px solid #28a745;">
                     <h3 style="color: #28a745; margin-top: 0; display: flex; align-items: center;">
-                        🚀 What You Can Do With NetACAD
+                        🚀 What You Can Do With CampusGenie
                     </h3>
                     <ul style="color: #333; line-height: 1.8; margin-bottom: 0;">
                         <li><strong>📚 Document Management:</strong> Upload and manage your academic documents securely</li>
@@ -134,7 +134,7 @@ class EmailService:
                     <h4 style="color: #0277bd; margin-top: 0;">Quick Links</h4>
                     <div style="margin-top: 15px;">
                         <a href="http://localhost:3000" style="display: inline-block; background-color: #007bff; color: white; padding: 12px 25px; text-decoration: none; border-radius: 5px; margin: 5px; font-weight: bold;">
-                            🚀 Access NetACAD
+                            🚀 Access CampusGenie
                         </a>
                         <a href="#" style="display: inline-block; background-color: #28a745; color: white; padding: 12px 25px; text-decoration: none; border-radius: 5px; margin: 5px; font-weight: bold;">
                             📖 Student Handbook
@@ -149,7 +149,7 @@ class EmailService:
                     </p>
                     <p style="color: #6c757d; font-size: 12px; margin-bottom: 5px;">
                         Best regards,<br>
-                        The NetACAD Team<br>
+                        The CampusGenie Team<br>
                         University Administration
                     </p>
                     <p style="color: #adb5bd; font-size: 11px; margin-top: 15px;">
@@ -170,7 +170,7 @@ class EmailService:
 
 Dear {student_name},
 
-Congratulations! Your student account has been successfully created at NetACAD - the University Document Management System. We're excited to have you join our academic community!
+Congratulations! Your student account has been successfully created at CampusGenie - AI for Smarter Learning. We're excited to have you join our academic community!
 
 🔑 YOUR ACCOUNT CREDENTIALS
 ═══════════════════════════════════════════════════════════════
@@ -210,13 +210,13 @@ Temporary Password: {password}
 
 🚀 QUICK ACCESS
 ═══════════════════════════════════════════════════════════════
-Access NetACAD: http://localhost:3000
+Access CampusGenie: http://localhost:3000
 Student Handbook: Available in the platform
 
 We're excited to be part of your academic journey! 🎓
 
 Best regards,
-The NetACAD Team
+The CampusGenie Team
 University Administration
 
 This is an automated message. Please do not reply to this email.
@@ -250,7 +250,7 @@ If you need assistance, use the contact information provided above.
             message = EmailMessage()
             message["From"] = self.from_email
             message["To"] = to_email
-            message["Subject"] = "Your NetACAD Faculty Account Credentials"
+            message["Subject"] = "Your CampusGenie Faculty Account Credentials"
             
             # HTML email body (faculty template)
             html_body = f"""
@@ -259,7 +259,7 @@ If you need assistance, use the contact information provided above.
                 
                 <!-- Header -->
                 <div style="background: linear-gradient(135deg, #6f42c1, #563d7c); color: white; padding: 30px; border-radius: 10px 10px 0 0; text-align: center;">
-                    <h1 style="margin: 0; font-size: 28px;">👨‍🏫 Welcome to NetACAD Faculty Portal!</h1>
+                    <h1 style="margin: 0; font-size: 28px;">👨‍🏫 Welcome to CampusGenie Faculty Portal!</h1>
                     <p style="margin: 10px 0 0 0; font-size: 16px; opacity: 0.9;">Your Academic Teaching Journey Starts Here</p>
                 </div>
                 
@@ -267,7 +267,7 @@ If you need assistance, use the contact information provided above.
                 <div style="background-color: white; padding: 30px; border-radius: 0 0 10px 10px; margin-bottom: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
                     <p style="font-size: 16px; color: #333; line-height: 1.6;">Dear <strong>{faculty_name}</strong>,</p>
                     <p style="font-size: 16px; color: #333; line-height: 1.6;">
-                        Congratulations! Your faculty account has been successfully created at NetACAD - the University Document Management System. 
+                        Congratulations! Your faculty account has been successfully created at CampusGenie - the University Document Management System. 
                         We're excited to have you join our academic team!
                     </p>
                 </div>
@@ -292,7 +292,7 @@ If you need assistance, use the contact information provided above.
                 <!-- Faculty Features -->
                 <div style="background-color: #f8fff8; padding: 25px; border-radius: 10px; margin-bottom: 20px; border-left: 5px solid #28a745;">
                     <h3 style="color: #28a745; margin-top: 0; display: flex; align-items: center;">
-                        🚀 What You Can Do With NetACAD Faculty Portal
+                        🚀 What You Can Do With CampusGenie Faculty Portal
                     </h3>
                     <ul style="color: #333; line-height: 1.8; margin-bottom: 0;">
                         <li><strong>📚 Document Verification:</strong> Review and verify student academic documents</li>
@@ -377,7 +377,7 @@ If you need assistance, use the contact information provided above.
                     </p>
                     <p style="color: #6c757d; font-size: 12px; margin-bottom: 5px;">
                         Best regards,<br>
-                        The NetACAD Team<br>
+                        The CampusGenie Team<br>
                         University Administration
                     </p>
                     <p style="color: #adb5bd; font-size: 11px; margin-top: 15px;">
@@ -398,7 +398,7 @@ If you need assistance, use the contact information provided above.
 
 Dear {faculty_name},
 
-Congratulations! Your faculty account has been successfully created at NetACAD - the University Document Management System. We're excited to have you join our academic team!
+Congratulations! Your faculty account has been successfully created at CampusGenie - the University Document Management System. We're excited to have you join our academic team!
 
 🔑 YOUR FACULTY ACCOUNT CREDENTIALS
 ═══════════════════════════════════════════════════════════════
@@ -445,7 +445,7 @@ Faculty Handbook: Available in the portal
 We're excited to have you join our academic team! 👨‍�
 
 Best regards,
-The NetACAD Team
+The CampusGenie Team
 University Administration
 
 This is an automated message. Please do not reply to this email.

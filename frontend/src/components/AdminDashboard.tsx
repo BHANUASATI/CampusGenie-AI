@@ -23,8 +23,10 @@ import {
   AlertCircle,
   CheckCircle,
   Eye,
-  EyeOff
+  EyeOff,
+  Brain
 } from 'lucide-react';
+import AIKnowledgeBase from './admin/AIKnowledgeBase';
 
 interface User {
   id: number;
@@ -379,7 +381,7 @@ const AdminDashboard: React.FC = () => {
               </button>
               <div className="flex items-center ml-0 lg:ml-2">
                 <div className="ml-2">
-                  <h1 className="text-sm sm:text-base lg:text-lg xl:text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">AcadDNA</h1>
+                  <h1 className="text-sm sm:text-base lg:text-lg xl:text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">CampusGenie</h1>
                 </div>
               </div>
             </div>
@@ -491,6 +493,18 @@ const AdminDashboard: React.FC = () => {
               <span>Settings</span>
             </button>
 
+            <button
+              onClick={() => setActiveMenuItem('ai-knowledge')}
+              className={`w-full flex items-center space-x-3 px-3 py-2.5 text-sm font-medium rounded-lg transition-colors ${
+                activeMenuItem === 'ai-knowledge'
+                  ? 'bg-violet-600 text-white'
+                  : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+              }`}
+            >
+              <Brain className="w-4 h-4" />
+              <span>AI Knowledge Base</span>
+            </button>
+
             {/* Divider */}
             <div className="border-t border-slate-700 pt-2 mt-2"></div>
 
@@ -520,6 +534,14 @@ const AdminDashboard: React.FC = () => {
 
         {/* Main Content */}
         <main className="flex-1 p-4 lg:p-6 pt-14 sm:pt-16 lg:pt-20 lg:ml-64">
+          {/* AI Knowledge Base view */}
+          {activeMenuItem === 'ai-knowledge' && (
+            <AIKnowledgeBase />
+          )}
+
+          {/* Default dashboard + user management */}
+          {activeMenuItem !== 'ai-knowledge' && (
+            <>
           {/* Stats Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
             <div className="bg-white rounded-xl shadow-lg p-6 border border-slate-200">
@@ -689,6 +711,8 @@ const AdminDashboard: React.FC = () => {
               </table>
             </div>
           </div>
+            </>
+          )}
         </main>
       </div>
 

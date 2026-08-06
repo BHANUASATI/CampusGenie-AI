@@ -12,7 +12,7 @@ class Settings(BaseSettings):
         extra="ignore"  # Allow extra fields in .env
     )
     # Database
-    DATABASE_URL: str = "mysql+mysqlconnector://root:@localhost:3306/NetACAD"
+    DATABASE_URL: str = "mysql+mysqlconnector://root:@localhost:3306/CampusGenie"
     
     # JWT
     SECRET_KEY: str = "your-secret-key-change-in-production"
@@ -37,6 +37,12 @@ class Settings(BaseSettings):
 
     # Google Gemini Configuration
     GEMINI_API_KEY: Optional[str] = os.getenv("GEMINI_API_KEY")
+    
+    # Microsoft Azure AD Configuration
+    AZURE_CLIENT_ID: Optional[str] = os.getenv("AZURE_CLIENT_ID")
+    AZURE_CLIENT_SECRET: Optional[str] = os.getenv("AZURE_CLIENT_SECRET")
+    AZURE_TENANT_ID: Optional[str] = os.getenv("AZURE_TENANT_ID", "38fd5a4b-955f-455a-9ad2-d2daa5a4e4d0")
+    AZURE_REDIRECT_URI: str = os.getenv("AZURE_REDIRECT_URI", "http://localhost:3000/auth/callback")
 
 # Create global settings instance
 settings = Settings()

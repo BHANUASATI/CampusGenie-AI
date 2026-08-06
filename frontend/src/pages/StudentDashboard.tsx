@@ -5,69 +5,22 @@ import { useLanguage } from '../context/LanguageContext';
 import { authService, studentService, facultyService, adminService, calendarService, documentService } from '../services/api';
 import { Student } from '../types';
 import AIAssistantButton from '../components/AIAssistantButton';
-import { 
-  Bell, 
-  Search, 
-  Menu, 
-  X as CloseIcon, 
-  Settings, 
-  LogOut, 
-  User,
-  Trophy,
-  Users,
-  BookOpen,
-  Calendar,
-  AlertTriangle,
-  AlertCircle,
-  CheckCircle,
-  XCircle,
-  Info,
-  Briefcase,
-  Library,
-  DollarSign,
-  MessageSquare,
-  HelpCircle,
-  Building,
-  UserCheck,
-  Home,
-  BarChart3,
-  FileText,
-  CreditCard,
-  Plus,
-  Filter,
-  Clock,
-  Flag,
-  Play,
-  Code,
-  Brain,
-  Beaker,
-  Presentation,
-  FileText as DocumentIcon,
-  Search as ResearchIcon,
-  FolderOpen as ProjectIcon,
-  Lock,
-  Upload,
-  Download,
-  Eye,
-  Trash2,
-  File,
-  Folder,
-  Paperclip,
-  Check,
-  AlertTriangle as WarningIcon,
-  CalendarDays,
-  CalendarCheck,
-  CalendarPlus,
-  TrendingUp,
-  ChevronDown,
-  Sun,
-  Moon,
-  Shield,
-  Key
+import AIAssistantEmbed from '../components/AIAssistantEmbed';
+import {
+  Bell, Search, Menu, X as CloseIcon, Settings, LogOut, User,
+  Trophy, Users, BookOpen, Calendar, AlertTriangle, AlertCircle,
+  CheckCircle, XCircle, Info, Briefcase, Library, DollarSign,
+  MessageSquare, HelpCircle, Building, UserCheck, Home, BarChart3,
+  FileText, CreditCard, Plus, Filter, Clock, Flag, Play, Code,
+  Brain, Beaker, Presentation, FileText as DocumentIcon,
+  Search as ResearchIcon, FolderOpen as ProjectIcon, Lock,
+  Upload, Download, Eye, Trash2, File, Folder, Paperclip,
+  Check, AlertTriangle as WarningIcon, CalendarDays, CalendarCheck,
+  CalendarPlus, TrendingUp, ChevronDown, Sun, Moon, Shield, Key,
+  Star, Zap, Award, Activity, GraduationCap, Sparkles
 } from 'lucide-react';
 import { ThemeToggle } from '../components/common/ThemeToggle';
 
-// Define task types
 type TaskPriority = 'high' | 'medium' | 'low' | 'urgent';
 type TaskStatus = 'pending' | 'in-progress' | 'completed' | 'locked';
 type TaskType = 'document' | 'code' | 'exam' | 'lab' | 'presentation' | 'research' | 'project';
@@ -94,7 +47,6 @@ interface CategoryProgress {
   totalRequired: number;
 }
 
-// Document Management Types
 type DocumentStatus = 'pending' | 'uploaded' | 'reviewing' | 'approved' | 'rejected';
 type DocumentCategory = 'academic' | 'personal' | 'research' | 'project' | 'administrative';
 
@@ -111,7 +63,6 @@ interface UploadedDocument {
   tags: string[];
 }
 
-// Calendar Types
 type CalendarType = 'academic' | 'personal';
 type TodoStatus = 'pending' | 'in-progress' | 'completed';
 
@@ -140,8 +91,7 @@ export const StudentDashboard: React.FC = () => {
   const { t, language } = useLanguage();
   const { currentUser } = state;
   const currentStudent = currentUser as Student;
-  
-  // Real data state
+
   const [studentProfile, setStudentProfile] = useState<any>(null);
   const [studentDocuments, setStudentDocuments] = useState<any[]>([]);
   const [studentTasks, setStudentTasks] = useState<any[]>([]);
@@ -149,63 +99,42 @@ export const StudentDashboard: React.FC = () => {
   const [documentTypesStatus, setDocumentTypesStatus] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Fetch real student data
   useEffect(() => {
     const fetchStudentData = async () => {
       try {
         setLoading(true);
-        
-        // Fetch student profile
         const profileData = await studentService.getProfile() as any;
         setStudentProfile(profileData);
-        
-        // Fetch student documents
         const documentsData = await studentService.getDocuments() as any[];
         setStudentDocuments(documentsData);
-        
-        // Fetch document types with status
         const documentStatusData = await studentService.getDocumentsStatus() as any[];
         setDocumentTypesStatus(documentStatusData);
-        
-        // Transform documents data for display
         const transformedDocuments = documentsData.map((doc: any) => ({
           id: doc.id.toString(),
           name: doc.file_name || doc.document_type?.name || 'Document',
           type: doc.document_type?.name || 'document',
-          size: (doc.file_size_mb || 0) * 1024 * 1024, // Convert MB to bytes
+          size: (doc.file_size_mb || 0) * 1024 * 1024,
           category: 'academic' as DocumentCategory,
-          status: doc.verification_status === 'verified' ? 'approved' as DocumentStatus : 
-                  doc.verification_status === 'rejected' ? 'rejected' as DocumentStatus : 
-                  'pending' as DocumentStatus,
+          status: doc.verification_status === 'verified' ? 'approved' as DocumentStatus :
+                  doc.verification_status === 'rejected' ? 'rejected' as DocumentStatus : 'pending' as DocumentStatus,
           uploadDate: new Date(doc.uploaded_at || doc.created_at || Date.now()),
           url: doc.file_path ? `/uploads/documents/${doc.student?.enrollment_number}/${doc.file_name}` : '#',
           description: `${doc.document_type?.name || 'Document'} - ${doc.verification_status || 'pending'}`,
           tags: [doc.verification_status || 'pending', doc.document_type?.name?.toLowerCase() || 'document'],
-          document_type_id: doc.document_type_id, // Add this for filtering
-          verification_status: doc.verification_status // Add this for filtering
+          document_type_id: doc.document_type_id,
+          verification_status: doc.verification_status
         }));
         setUploadedDocuments(transformedDocuments);
-        
-        // Fetch student tasks
         const tasksData = await studentService.getTasks() as any[];
         setStudentTasks(tasksData);
-        
-        // Transform tasks data for display
         const transformedTasks = tasksData.map((task: any) => ({
           id: task.id,
           title: task.title,
           description: task.description,
           course: `${task.task_type?.toUpperCase()}${task.department_id ? ` - Dept ${task.department_id}` : ''}`,
-          dueDate: task.due_date ? new Date(task.due_date).toLocaleDateString('en-US', {
-            month: 'short',
-            day: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit'
-          }) : 'No due date',
+          dueDate: task.due_date ? new Date(task.due_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'No due date',
           priority: (task.priority || 'medium') as TaskPriority,
-          status: (task.status === 'published' ? 'pending' : 
-                  task.status === 'completed' ? 'completed' : 
-                  'pending') as TaskStatus,
+          status: (task.status === 'published' ? 'pending' : task.status === 'completed' ? 'completed' : 'pending') as TaskStatus,
           progress: 0,
           type: (task.task_type || 'document') as TaskType,
           submitted: false,
@@ -213,198 +142,69 @@ export const StudentDashboard: React.FC = () => {
           unlocksCategory: undefined
         }));
         setTasks(transformedTasks);
-        
-        // Fetch dashboard stats
         const statsData = await studentService.getDashboardStats() as any;
         setDashboardStats(statsData);
-        
       } catch (error) {
         console.error('Error fetching student data:', error);
       } finally {
         setLoading(false);
       }
     };
-
-    if (currentUser) {
-      fetchStudentData();
-    }
+    if (currentUser) fetchStudentData();
   }, [currentUser]);
 
-  // Fetch calendar data
   useEffect(() => {
     if (!currentUser) return;
-
     const fetchCalendarData = async () => {
       try {
-        // Fetch all calendar events
         const eventsData = await calendarService.getEvents() as any;
         const transformedEvents = eventsData.events.map((event: any) => ({
-          id: event.id.toString(),
-          title: event.title,
-          description: event.description,
-          date: new Date(event.start_date),
-          type: event.event_type,
-          status: event.status,
-          priority: event.priority,
-          riskLevel: event.risk_level,
-          category: event.category,
-          location: event.location,
-          startDate: event.start_date,
-          endDate: event.end_date,
-          alertDate: event.alert_date,
-          alertMessage: event.alert_message,
-          alertEnabled: event.alert_enabled,
-          alertSent: event.alert_sent
+          id: event.id.toString(), title: event.title, description: event.description,
+          date: new Date(event.start_date), type: event.event_type, status: event.status,
+          priority: event.priority, riskLevel: event.risk_level, category: event.category,
+          location: event.location, startDate: event.start_date, endDate: event.end_date,
+          alertDate: event.alert_date, alertMessage: event.alert_message,
+          alertEnabled: event.alert_enabled, alertSent: event.alert_sent
         }));
-        
         setCalendarEvents(transformedEvents);
-        
-      } catch (error) {
-        console.error('Error fetching calendar data:', error);
-      }
+      } catch (error) { console.error('Error fetching calendar data:', error); }
     };
-
     fetchCalendarData();
   }, [currentUser]);
 
-  // Generate Alert Messages
   const generateAlertMessages = () => {
     const today = new Date();
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const nextWeek = new Date(today);
-    nextWeek.setDate(nextWeek.getDate() + 7);
-
-    const academicEvents = calendarEvents.filter(event => event.type === 'academic');
-    const personalEvents = calendarEvents.filter(event => event.type === 'personal');
-
-    const academicAlerts: string[] = [];
-    const personalAlerts: string[] = [];
-
-    // Academic Alerts
-    const pendingAcademic = academicEvents.filter(event => 
-      event.status === 'pending' || event.status === 'in-progress'
-    );
-
-    // Urgent academic tasks (due today or tomorrow)
-    const urgentAcademic = pendingAcademic.filter(event => {
-      if (!event.startDate) return false;
-      const eventDate = new Date(event.startDate);
-      return eventDate <= tomorrow;
-    });
-
-    // High priority academic tasks
-    const highPriorityAcademic = pendingAcademic.filter(event => 
-      event.priority === 'high' || event.priority === 'urgent'
-    );
-
-    // High risk academic tasks
-    const highRiskAcademic = pendingAcademic.filter(event => 
-      event.riskLevel === 'high' || event.riskLevel === 'critical'
-    );
-
-    if (urgentAcademic.length > 0) {
-      academicAlerts.push(`🔴 URGENT: ${urgentAcademic.length} academic task(s) due today or tomorrow!`);
-    }
-
-    if (highPriorityAcademic.length > 0) {
-      academicAlerts.push(`⚠️ PRIORITY: ${highPriorityAcademic.length} high priority academic task(s) pending`);
-    }
-
-    if (highRiskAcademic.length > 0) {
-      academicAlerts.push(`⚡ RISK: ${highRiskAcademic.length} high risk academic task(s) require attention`);
-    }
-
-    // Upcoming academic tasks this week
-    const upcomingAcademic = academicEvents.filter(event => {
-      if (!event.startDate) return false;
-      const eventDate = new Date(event.startDate);
-      return eventDate > tomorrow && eventDate <= nextWeek;
-    });
-
-    if (upcomingAcademic.length > 0) {
-      academicAlerts.push(`📅 UPCOMING: ${upcomingAcademic.length} academic task(s) due this week`);
-    }
-
-    // Personal Alerts
-    const pendingPersonal = personalEvents.filter(event => 
-      event.status === 'pending' || event.status === 'in-progress'
-    );
-
-    // Urgent personal tasks (due today or tomorrow)
-    const urgentPersonal = pendingPersonal.filter(event => {
-      if (!event.startDate) return false;
-      const eventDate = new Date(event.startDate);
-      return eventDate <= tomorrow;
-    });
-
-    // High priority personal tasks
-    const highPriorityPersonal = pendingPersonal.filter(event => 
-      event.priority === 'high' || event.priority === 'urgent'
-    );
-
-    // High risk personal tasks
-    const highRiskPersonal = pendingPersonal.filter(event => 
-      event.riskLevel === 'high' || event.riskLevel === 'critical'
-    );
-
-    if (urgentPersonal.length > 0) {
-      personalAlerts.push(`🔴 URGENT: ${urgentPersonal.length} personal task(s) due today or tomorrow!`);
-    }
-
-    if (highPriorityPersonal.length > 0) {
-      personalAlerts.push(`⚠️ PRIORITY: ${highPriorityPersonal.length} high priority personal task(s) pending`);
-    }
-
-    if (highRiskPersonal.length > 0) {
-      personalAlerts.push(`⚡ RISK: ${highRiskPersonal.length} high risk personal task(s) require attention`);
-    }
-
-    // Upcoming personal tasks this week
-    const upcomingPersonal = personalEvents.filter(event => {
-      if (!event.startDate) return false;
-      const eventDate = new Date(event.startDate);
-      return eventDate > tomorrow && eventDate <= nextWeek;
-    });
-
-    if (upcomingPersonal.length > 0) {
-      personalAlerts.push(`📅 UPCOMING: ${upcomingPersonal.length} personal task(s) due this week`);
-    }
-
-    // Alert enabled tasks
-    const alertEnabledAcademic = academicEvents.filter(event => 
-      event.alertEnabled && event.alertDate && !event.alertSent
-    );
-
-    const alertEnabledPersonal = personalEvents.filter(event => 
-      event.alertEnabled && event.alertDate && !event.alertSent
-    );
-
-    if (alertEnabledAcademic.length > 0) {
-      academicAlerts.push(`🔔 ALERTS: ${alertEnabledAcademic.length} academic task(s) have active alerts`);
-    }
-
-    if (alertEnabledPersonal.length > 0) {
-      personalAlerts.push(`🔔 ALERTS: ${alertEnabledPersonal.length} personal task(s) have active alerts`);
-    }
-
-    setAlertMessages({
-      academic: academicAlerts,
-      personal: personalAlerts
-    });
-
+    const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1);
+    const nextWeek = new Date(today); nextWeek.setDate(nextWeek.getDate() + 7);
+    const academicEvents = calendarEvents.filter(e => e.type === 'academic');
+    const personalEvents = calendarEvents.filter(e => e.type === 'personal');
+    const academicAlerts: string[] = []; const personalAlerts: string[] = [];
+    const pendingAcademic = academicEvents.filter(e => e.status === 'pending' || e.status === 'in-progress');
+    const urgentAcademic = pendingAcademic.filter(e => e.startDate && new Date(e.startDate) <= tomorrow);
+    const highPriorityAcademic = pendingAcademic.filter(e => e.priority === 'high' || e.priority === 'urgent');
+    const highRiskAcademic = pendingAcademic.filter(e => e.riskLevel === 'high' || e.riskLevel === 'critical');
+    if (urgentAcademic.length > 0) academicAlerts.push(`🔴 URGENT: ${urgentAcademic.length} academic task(s) due today or tomorrow!`);
+    if (highPriorityAcademic.length > 0) academicAlerts.push(`⚠️ PRIORITY: ${highPriorityAcademic.length} high priority academic task(s) pending`);
+    if (highRiskAcademic.length > 0) academicAlerts.push(`⚡ RISK: ${highRiskAcademic.length} high risk academic task(s) require attention`);
+    const upcomingAcademic = academicEvents.filter(e => e.startDate && new Date(e.startDate) > tomorrow && new Date(e.startDate) <= nextWeek);
+    if (upcomingAcademic.length > 0) academicAlerts.push(`📅 UPCOMING: ${upcomingAcademic.length} academic task(s) due this week`);
+    const pendingPersonal = personalEvents.filter(e => e.status === 'pending' || e.status === 'in-progress');
+    const urgentPersonal = pendingPersonal.filter(e => e.startDate && new Date(e.startDate) <= tomorrow);
+    const highPriorityPersonal = pendingPersonal.filter(e => e.priority === 'high' || e.priority === 'urgent');
+    if (urgentPersonal.length > 0) personalAlerts.push(`🔴 URGENT: ${urgentPersonal.length} personal task(s) due today or tomorrow!`);
+    if (highPriorityPersonal.length > 0) personalAlerts.push(`⚠️ PRIORITY: ${highPriorityPersonal.length} high priority personal task(s) pending`);
+    const upcomingPersonal = personalEvents.filter(e => e.startDate && new Date(e.startDate) > tomorrow && new Date(e.startDate) <= nextWeek);
+    if (upcomingPersonal.length > 0) personalAlerts.push(`📅 UPCOMING: ${upcomingPersonal.length} personal task(s) due this week`);
+    setAlertMessages({ academic: academicAlerts, personal: personalAlerts });
     return academicAlerts.length > 0 || personalAlerts.length > 0;
   };
 
-  // Document Management Functions
-  
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [activeView, setActiveView] = useState<'tasks' | 'documents' | 'placements' | 'library' | 'fees' | 'messages' | 'help' | 'services' | 'attendance'>('tasks');
+  const [activeView, setActiveView] = useState<'tasks' | 'documents' | 'placements' | 'library' | 'fees' | 'messages' | 'help' | 'services' | 'attendance' | 'ai-assistant'>('tasks');
   const [showNotifications, setShowNotifications] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string>('document');
   const [tasks, setTasks] = useState<Task[]>([]);
   const [dragActive, setDragActive] = useState(false);
-
   const [categoryProgress, setCategoryProgress] = useState<CategoryProgress[]>([
     { type: 'document', unlocked: true, requiredCompleted: 0, totalRequired: 9 },
     { type: 'code', unlocked: false, requiredCompleted: 0, totalRequired: 1 },
@@ -414,8 +214,6 @@ export const StudentDashboard: React.FC = () => {
     { type: 'research', unlocked: false, requiredCompleted: 0, totalRequired: 1 },
     { type: 'project', unlocked: false, requiredCompleted: 0, totalRequired: 2 }
   ]);
-
-  // Document Management State
   const [uploadedDocuments, setUploadedDocuments] = useState<UploadedDocument[]>([]);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [selectedDocument, setSelectedDocument] = useState<UploadedDocument | null>(null);
@@ -424,120 +222,74 @@ export const StudentDashboard: React.FC = () => {
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [selectedFileName, setSelectedFileName] = useState<string>('');
 
-  // Real-time document status updates
   useEffect(() => {
     if (!currentUser) return;
-
     const pollDocumentStatus = async () => {
       try {
-        // Fetch both documents and document types status
         const [documentsData, documentStatusData] = await Promise.all([
           studentService.getDocuments() as Promise<any[]>,
           studentService.getDocumentsStatus() as Promise<any[]>
         ]);
-        
-        // Update document types status
         setDocumentTypesStatus(documentStatusData);
-        
         const transformedDocuments = documentsData.map((doc: any) => ({
-          id: doc.id.toString(),
-          name: doc.file_name || doc.document_type?.name || 'Document',
-          type: doc.document_type?.name || 'document',
-          size: (doc.file_size_mb || 0) * 1024 * 1024, // Convert MB to bytes
+          id: doc.id.toString(), name: doc.file_name || doc.document_type?.name || 'Document',
+          type: doc.document_type?.name || 'document', size: (doc.file_size_mb || 0) * 1024 * 1024,
           category: 'academic' as DocumentCategory,
-          status: doc.verification_status === 'verified' ? 'approved' as DocumentStatus : 
-                  doc.verification_status === 'rejected' ? 'rejected' as DocumentStatus : 
-                  'pending' as DocumentStatus,
+          status: doc.verification_status === 'verified' ? 'approved' as DocumentStatus :
+                  doc.verification_status === 'rejected' ? 'rejected' as DocumentStatus : 'pending' as DocumentStatus,
           uploadDate: new Date(doc.uploaded_at || doc.created_at || Date.now()),
           url: doc.file_path ? `/uploads/documents/${doc.student?.enrollment_number}/${doc.file_name}` : '#',
           description: `${doc.document_type?.name || 'Document'} - ${doc.verification_status || 'pending'}`,
           tags: [doc.verification_status || 'pending', doc.document_type?.name?.toLowerCase() || 'document'],
-          document_type_id: doc.document_type_id, // Add this for filtering
-          verification_status: doc.verification_status // Add this for filtering
+          document_type_id: doc.document_type_id, verification_status: doc.verification_status
         }));
-        
-        // Always update the documents list
         setUploadedDocuments(prev => {
-          // Check if any document status has changed
-          const hasChanges = transformedDocuments.some((newDoc) => {
+          const hasChanges = transformedDocuments.some((newDoc: any) => {
             const oldDoc = prev.find(d => d.id === newDoc.id);
             return !oldDoc || oldDoc.status !== newDoc.status;
           });
-          
           if (hasChanges) {
-            // Show notification for status changes
-            transformedDocuments.forEach((newDoc) => {
+            transformedDocuments.forEach((newDoc: any) => {
               const oldDoc = prev.find(d => d.id === newDoc.id);
               if (oldDoc && oldDoc.status !== newDoc.status) {
-                if (newDoc.status === 'approved') {
-                  alert(`🎉 Good news! Your document "${newDoc.name}" has been approved!`);
-                } else if (newDoc.status === 'rejected') {
-                  alert(`⚠️ Your document "${newDoc.name}" has been rejected. Please upload a new document.`);
-                }
+                if (newDoc.status === 'approved') alert(`🎉 Your document "${newDoc.name}" has been approved!`);
+                else if (newDoc.status === 'rejected') alert(`⚠️ Your document "${newDoc.name}" has been rejected.`);
               }
             });
           }
-          
           return transformedDocuments;
         });
-      } catch (error) {
-        console.error('Error polling document status:', error);
-      }
+      } catch (error) { console.error('Error polling document status:', error); }
     };
-
-    // Poll every 30 seconds for document status updates
     const interval = setInterval(pollDocumentStatus, 30000);
-    
     return () => clearInterval(interval);
   }, [currentUser]);
 
-  // Handle document type selection changes
   useEffect(() => {
     const handleDocumentTypeChange = () => {
       const documentTypeSelect = document.getElementById('documentType') as HTMLSelectElement;
       const fileUploadArea = document.querySelector('[data-file-upload-area]') as HTMLElement;
       const statusReasonSection = document.getElementById('statusReasonSection') as HTMLElement;
-      
       if (documentTypeSelect && fileUploadArea && statusReasonSection) {
         const selectedValue = documentTypeSelect.value;
-        
         if (selectedValue === 'not_applicable' || selectedValue === 'not_present') {
-          // Show reason section, hide file upload
-          statusReasonSection.classList.remove('hidden');
-          fileUploadArea.style.display = 'none';
+          statusReasonSection.classList.remove('hidden'); fileUploadArea.style.display = 'none';
         } else if (selectedValue) {
-          // Show file upload, hide reason section
-          statusReasonSection.classList.add('hidden');
-          fileUploadArea.style.display = 'block';
+          statusReasonSection.classList.add('hidden'); fileUploadArea.style.display = 'block';
         } else {
-          // Hide both when no selection
-          statusReasonSection.classList.add('hidden');
-          fileUploadArea.style.display = 'block';
+          statusReasonSection.classList.add('hidden'); fileUploadArea.style.display = 'block';
         }
       }
     };
-
-    // Add event listener
     const documentTypeSelect = document.getElementById('documentType');
-    if (documentTypeSelect) {
-      documentTypeSelect.addEventListener('change', handleDocumentTypeChange);
-    }
+    if (documentTypeSelect) documentTypeSelect.addEventListener('change', handleDocumentTypeChange);
+    return () => { if (documentTypeSelect) documentTypeSelect.removeEventListener('change', handleDocumentTypeChange); };
+  }, [showUploadModal]);
 
-    // Cleanup
-    return () => {
-      if (documentTypeSelect) {
-        documentTypeSelect.removeEventListener('change', handleDocumentTypeChange);
-      }
-    };
-  }, [showUploadModal]); // Re-run when modal opens/closes
-
-  // Calendar State
   const [showAcademicCalendar, setShowAcademicCalendar] = useState(false);
   const [showPersonalCalendar, setShowPersonalCalendar] = useState(false);
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([]);
-  
-  // Personal Calendar Todo State
   const [showTodoModal, setShowTodoModal] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [todoTitle, setTodoTitle] = useState('');
@@ -550,732 +302,251 @@ export const StudentDashboard: React.FC = () => {
   const [todoAlertMessage, setTodoAlertMessage] = useState('');
   const [todoAlertDate, setTodoAlertDate] = useState('');
   const [editingTodo, setEditingTodo] = useState<CalendarEvent | null>(null);
-
-  // Alert System State
   const [showAlertModal, setShowAlertModal] = useState(false);
-  const [alertMessages, setAlertMessages] = useState<{
-    academic: string[];
-    personal: string[];
-  }>({ academic: [], personal: [] });
+  const [alertMessages, setAlertMessages] = useState<{ academic: string[]; personal: string[]; }>({ academic: [], personal: [] });
   const [alertsShown, setAlertsShown] = useState(false);
+  const [openDropdown, setOpenDropdown] = useState<string | null>(null);
+  const [showUserMenu, setShowUserMenu] = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
-  // Show alerts on first login
   useEffect(() => {
     if (calendarEvents.length > 0 && !alertsShown && currentUser) {
       const hasAlerts = generateAlertMessages();
-      if (hasAlerts) {
-        setShowAlertModal(true);
-        setAlertsShown(true);
-      }
+      if (hasAlerts) { setShowAlertModal(true); setAlertsShown(true); }
     }
   }, [calendarEvents, alertsShown, currentUser]);
 
   const handleTaskAction = (taskId: number, action: 'continue' | 'postpone' | 'priority' | 'complete') => {
-    setTasks(prevTasks => 
-      prevTasks.map(task => {
-        if (task.id === taskId) {
-          switch (action) {
-            case 'continue':
-              return { ...task, progress: Math.min(task.progress + 10, 100) };
-            case 'complete':
-              return { ...task, status: 'completed', progress: 100, submitted: true };
-            case 'postpone':
-              const newPriority: 'high' | 'medium' | 'low' | 'urgent' = 
-                task.priority === 'urgent' ? 'high' :
-                task.priority === 'high' ? 'medium' : 'low';
-              return { ...task, priority: newPriority };
-            case 'priority':
-              const priorities: ('high' | 'medium' | 'low' | 'urgent')[] = ['high', 'medium', 'low', 'urgent'];
-              const currentIndex = priorities.indexOf(task.priority);
-              const nextIndex = (currentIndex + 1) % priorities.length;
-              return { ...task, priority: priorities[nextIndex] };
-            default:
-              return task;
-          }
+    setTasks(prevTasks => prevTasks.map(task => {
+      if (task.id === taskId) {
+        switch (action) {
+          case 'continue': return { ...task, progress: Math.min(task.progress + 10, 100) };
+          case 'complete': return { ...task, status: 'completed', progress: 100, submitted: true };
+          case 'postpone': const np: TaskPriority = task.priority === 'urgent' ? 'high' : task.priority === 'high' ? 'medium' : 'low'; return { ...task, priority: np };
+          case 'priority': const ps: TaskPriority[] = ['high','medium','low','urgent']; return { ...task, priority: ps[(ps.indexOf(task.priority)+1)%ps.length] };
+          default: return task;
         }
-        return task;
-      })
-    );
-
-    // Check for unlocks and update category progress
-    setTimeout(() => {
-      checkUnlocks();
-    }, 100);
+      }
+      return task;
+    }));
+    setTimeout(() => checkUnlocks(), 100);
   };
 
   const checkUnlocks = () => {
     const updatedTasks = [...tasks];
     const updatedCategoryProgress = [...categoryProgress];
-
-    // Check each category for unlock conditions
     updatedCategoryProgress.forEach((category, index) => {
       if (!category.unlocked && category.type !== 'document') {
-        // Find tasks that unlock this category
-        const unlockingTasks = updatedTasks.filter(task => task.unlocksCategory === category.type);
-        
-        if (unlockingTasks.length > 0) {
-          // Check if all unlocking tasks are completed
-          const allCompleted = unlockingTasks.every(task => task.status === 'completed');
-          
-          if (allCompleted) {
-            updatedCategoryProgress[index].unlocked = true;
-            
-            // Unlock tasks in this category
-            updatedTasks.forEach(task => {
-              if (task.type === category.type && task.status === 'locked') {
-                // Check if prerequisites are met
-                const prerequisitesMet = !task.prerequisites || 
-                  task.prerequisites.every(prereqId => 
-                    updatedTasks.find(t => t.id === prereqId)?.status === 'completed'
-                  );
-                
-                if (prerequisitesMet) {
-                  task.status = 'pending';
-                }
-              }
-            });
-          }
+        const unlockingTasks = updatedTasks.filter(t => t.unlocksCategory === category.type);
+        if (unlockingTasks.length > 0 && unlockingTasks.every(t => t.status === 'completed')) {
+          updatedCategoryProgress[index].unlocked = true;
+          updatedTasks.forEach(task => {
+            if (task.type === category.type && task.status === 'locked') {
+              const prereqsMet = !task.prerequisites || task.prerequisites.every(pid => updatedTasks.find(t => t.id === pid)?.status === 'completed');
+              if (prereqsMet) task.status = 'pending';
+            }
+          });
         }
       }
     });
-
     setCategoryProgress(updatedCategoryProgress);
     setTasks(updatedTasks);
   };
 
-  const isCategoryUnlocked = (categoryType: string) => {
-    const category = categoryProgress.find(cat => cat.type === categoryType);
-    return category ? category.unlocked : false;
-  };
-
+  const isCategoryUnlocked = (categoryType: string) => categoryProgress.find(cat => cat.type === categoryType)?.unlocked ?? false;
   const getCategoryProgress = (categoryType: string) => {
-    const category = categoryProgress.find(cat => cat.type === categoryType);
-    if (!category) return { completed: 0, total: 0 };
-    
-    const categoryTasks = tasks.filter(task => task.type === categoryType);
-    const completedTasks = categoryTasks.filter(task => task.status === 'completed');
-    
-    return {
-      completed: completedTasks.length,
-      total: categoryTasks.length
-  };
-};
-
-  const deleteDocument = (docId: string) => {
-    setUploadedDocuments(prev => prev.filter(doc => doc.id !== docId));
-    setSelectedDocument(null);
+    const categoryTasks = tasks.filter(t => t.type === categoryType);
+    return { completed: categoryTasks.filter(t => t.status === 'completed').length, total: categoryTasks.length };
   };
 
-  // Upload handlers
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragActive(true);
-  };
+  const deleteDocument = (docId: string) => { setUploadedDocuments(prev => prev.filter(doc => doc.id !== docId)); setSelectedDocument(null); };
 
-  const handleDragLeave = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragActive(false);
-  };
-
+  const handleDragOver = (e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); setDragActive(true); };
+  const handleDragLeave = (e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); setDragActive(false); };
   const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    
-    setDragActive(false);
-    
+    e.preventDefault(); e.stopPropagation(); setDragActive(false);
     const files = e.dataTransfer.files;
     if (files && files[0]) {
       const file = files[0];
-      
-      // Get the selected document type from dropdown
       const documentTypeSelect = document.getElementById('documentType') as HTMLSelectElement;
       const documentType = documentTypeSelect?.value || '';
-      
-      // Generate automatic filename
       const automaticFileName = documentType ? generateFileName(file.name, documentType) : file.name;
-      
-      // Set the automatic file name instead of original
       setSelectedFileName(automaticFileName);
-      
-      // Create a preview URL for the selected file
       if (file.type.startsWith('image/') || file.type === 'application/pdf') {
-        const url = URL.createObjectURL(file);
-        setDocumentPreview({
-          url: url,
-          name: automaticFileName  // Show automatic name in preview
-        });
+        setDocumentPreview({ url: URL.createObjectURL(file), name: automaticFileName });
         setShowPreviewModal(true);
       }
-      
-      console.log('File dropped:', file.name, '->', automaticFileName, file.type, file.size);
     }
   };
 
   const downloadDocument = (doc: any) => {
-    // Create a download link for the document
     const link = document.createElement('a');
-    link.href = doc.file_path || doc.url;
-    link.download = doc.file_name || doc.name;
-    link.target = '_blank';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    link.href = doc.file_path || doc.url; link.download = doc.file_name || doc.name; link.target = '_blank';
+    document.body.appendChild(link); link.click(); document.body.removeChild(link);
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
-      
-      // Get the selected document type from dropdown
       const documentTypeSelect = document.getElementById('documentType') as HTMLSelectElement;
       const documentType = documentTypeSelect?.value || '';
-      
-      // Generate automatic filename
       const automaticFileName = documentType ? generateFileName(file.name, documentType) : file.name;
-      
-      // Set the automatic file name instead of original
       setSelectedFileName(automaticFileName);
-      
-      // Create a preview URL for the selected file
       if (file.type.startsWith('image/') || file.type === 'application/pdf') {
-        const url = URL.createObjectURL(file);
-        setDocumentPreview({
-          url: url,
-          name: automaticFileName  // Show automatic name in preview
-        });
+        setDocumentPreview({ url: URL.createObjectURL(file), name: automaticFileName });
         setShowPreviewModal(true);
       }
-      
-      // You can still proceed with the upload logic
-      console.log('File selected:', file.name, '->', automaticFileName, file.type, file.size);
     }
   };
 
-  const previewDocument = (doc: any) => {
-    // Set document preview and show modal
-    setDocumentPreview({
-      url: doc.file_path || doc.url,
-      name: doc.file_name || doc.name
-    });
-    setShowPreviewModal(true);
-  };
-
-  const closePreviewModal = () => {
-    setShowPreviewModal(false);
-    setDocumentPreview(null);
-  };
-
-  // Reset file selection when modal is closed
+  const previewDocument = (doc: any) => { setDocumentPreview({ url: doc.file_path || doc.url, name: doc.file_name || doc.name }); setShowPreviewModal(true); };
+  const closePreviewModal = () => { setShowPreviewModal(false); setDocumentPreview(null); };
   const closeUploadModal = () => {
-    setShowUploadModal(false);
-    setSelectedFileName('');
-    // Reset file input
+    setShowUploadModal(false); setSelectedFileName('');
     const fileInput = document.getElementById('fileInput') as HTMLInputElement;
-    if (fileInput) {
-      fileInput.value = '';
-    }
+    if (fileInput) fileInput.value = '';
   };
 
   const formatFileSize = (bytes: number) => {
     if (bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const k = 1024; const sizes = ['Bytes', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
   const getStatusColor = (status: DocumentStatus) => {
-    switch (status) {
-      case 'approved': return 'text-green-500';
-      case 'rejected': return 'text-red-500';
-      case 'reviewing': return 'text-yellow-500';
-      case 'uploaded': return 'text-blue-500';
-      default: return 'text-gray-500';
-    }
+    switch (status) { case 'approved': return 'text-emerald-400'; case 'rejected': return 'text-rose-400'; case 'reviewing': return 'text-amber-400'; case 'uploaded': return 'text-blue-400'; default: return 'text-slate-400'; }
   };
-
   const getStatusIcon = (status: DocumentStatus) => {
-    switch (status) {
-      case 'approved': return <CheckCircle className="w-4 h-4" />;
-      case 'rejected': return <WarningIcon className="w-4 h-4" />;
-      case 'reviewing': return <Clock className="w-4 h-4" />;
-      case 'uploaded': return <Upload className="w-4 h-4" />;
-      default: return <File className="w-4 h-4" />;
-    }
+    switch (status) { case 'approved': return <CheckCircle className="w-4 h-4" />; case 'rejected': return <WarningIcon className="w-4 h-4" />; case 'reviewing': return <Clock className="w-4 h-4" />; case 'uploaded': return <Upload className="w-4 h-4" />; default: return <File className="w-4 h-4" />; }
   };
 
-  const getCategoryColor = (category: DocumentCategory) => {
-    switch (category) {
-      case 'academic': return 'bg-blue-500/20 text-blue-500';
-      case 'personal': return 'bg-purple-500/20 text-purple-500';
-      case 'research': return 'bg-indigo-500/20 text-indigo-500';
-      case 'project': return 'bg-teal-500/20 text-teal-500';
-      case 'administrative': return 'bg-orange-500/20 text-orange-500';
-      default: return 'bg-gray-500/20 text-gray-500';
-    }
-  };
-
-  const getBorderColor = (status: DocumentStatus) => {
-    switch (status) {
-      case 'approved': return 'border-green-500/30';
-      case 'rejected': return 'border-red-500/30';
-      case 'reviewing': return 'border-yellow-500/30';
-      case 'uploaded': return 'border-blue-500/30';
-      default: return 'border-gray-500/30';
-    }
-  };
-
-  // Calendar Utility Functions
-  const getDaysInMonth = (date: Date) => {
-    return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
-  };
-
-  const getFirstDayOfMonth = (date: Date) => {
-    return new Date(date.getFullYear(), date.getMonth(), 1).getDay();
-  };
-
-  const getEventsForDate = (date: Date, type: CalendarType) => {
-    return calendarEvents.filter(event => 
-      event.type === type &&
-      event.date.getDate() === date.getDate() &&
-      event.date.getMonth() === date.getMonth() &&
-      event.date.getFullYear() === date.getFullYear()
-    );
-  };
-
+  const getDaysInMonth = (date: Date) => new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+  const getFirstDayOfMonth = (date: Date) => new Date(date.getFullYear(), date.getMonth(), 1).getDay();
+  const getEventsForDate = (date: Date, type: CalendarType) => calendarEvents.filter(event =>
+    event.type === type && event.date.getDate() === date.getDate() && event.date.getMonth() === date.getMonth() && event.date.getFullYear() === date.getFullYear()
+  );
   const getEventStatusColor = (status: TodoStatus) => {
-    switch (status) {
-      case 'completed': return 'bg-green-500/20 text-green-500 border-green-500/30';
-      case 'in-progress': return 'bg-blue-500/20 text-blue-500 border-blue-500/30';
-      case 'pending': return 'bg-yellow-500/20 text-yellow-500 border-yellow-500/30';
-      default: return 'bg-gray-500/20 text-gray-500 border-gray-500/30';
-    }
+    switch (status) { case 'completed': return 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'; case 'in-progress': return 'bg-blue-500/20 text-blue-400 border-blue-500/30'; default: return 'bg-amber-500/20 text-amber-400 border-amber-500/30'; }
   };
-
-  const getPriorityColor = (priority: TaskPriority) => {
-    switch (priority) {
-      case 'high': return 'text-red-500';
-      case 'medium': return 'text-yellow-500';
-      case 'low': return 'text-green-500';
-      default: return 'text-gray-500';
-    }
-  };
-
-  const navigateMonth = (direction: 'prev' | 'next') => {
-    setCurrentMonth(prev => {
-      const newMonth = new Date(prev);
-      if (direction === 'prev') {
-        newMonth.setMonth(prev.getMonth() - 1);
-      } else {
-        newMonth.setMonth(prev.getMonth() + 1);
-      }
-      return newMonth;
-    });
-  };
-
+  const navigateMonth = (direction: 'prev' | 'next') => setCurrentMonth(prev => {
+    const d = new Date(prev); d.setMonth(prev.getMonth() + (direction === 'next' ? 1 : -1)); return d;
+  });
   const getMonthYearString = (date: Date) => {
-    const months = ['January', 'February', 'March', 'April', 'May', 'June', 
-                    'July', 'August', 'September', 'October', 'November', 'December'];
+    const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
     return `${months[date.getMonth()]} ${date.getFullYear()}`;
   };
-
   const getCalendarStats = (type: CalendarType) => {
-    const events = calendarEvents.filter(event => event.type === type);
-    const completed = events.filter(event => event.status === 'completed').length;
-    const pending = events.filter(event => event.status === 'pending').length;
-    const inProgress = events.filter(event => event.status === 'in-progress').length;
-    
-    return { total: events.length, completed, pending, inProgress };
+    const events = calendarEvents.filter(e => e.type === type);
+    return { total: events.length, completed: events.filter(e => e.status === 'completed').length, pending: events.filter(e => e.status === 'pending').length, inProgress: events.filter(e => e.status === 'in-progress').length };
   };
 
-  // Get available document types (excluding already uploaded ones, but including rejected)
-  const getAvailableDocumentTypes = () => {
-    const allDocuments = [
-      // Academic Documents
-      { id: '10th_marksheet', name: '10th Marksheet', category: 'Academic Documents', dbId: 2 },
-      { id: '12th_marksheet', name: '12th Marksheet', category: 'Academic Documents', dbId: 3 },
-      { id: 'transfer_certificate', name: 'Transfer Certificate (TC)', category: 'Academic Documents', dbId: 6 },
-      { id: 'migration_certificate', name: 'Migration Certificate', category: 'Academic Documents', dbId: 7 },
-      // Identity Documents
-      { id: 'birth_certificate', name: 'Birth Certificate', category: 'Identity Documents', dbId: 1 },
-      { id: 'aadhaar_card', name: 'Aadhaar Card', category: 'Identity Documents', dbId: 4 },
-      { id: 'passport_photos', name: 'Passport-size Photographs', category: 'Identity Documents', dbId: 5 },
-      // Residence Documents
-      { id: 'domicile_certificate', name: 'Domicile Certificate', category: 'Residence Documents', dbId: 9 },
-      // Character & Medical Documents
-      { id: 'character_certificate', name: 'Character / Conduct Certificate', category: 'Character & Medical Documents', dbId: 74 },
-      { id: 'medical_fitness', name: 'Medical Fitness Certificate', category: 'Character & Medical Documents', dbId: 75 },
-      { id: 'anti_ragging_affidavit', name: 'Anti-Ragging Affidavit', category: 'Character & Medical Documents', dbId: 76 },
-      // Special Documents
-      { id: 'gap_certificate', name: 'Gap Certificate', category: 'Special Documents', dbId: 77 },
-      { id: 'income_certificate', name: 'Income Certificate', category: 'Special Documents', dbId: 8 }
-    ];
-
-    // Filter out documents that are already uploaded and approved, but keep rejected ones for re-upload
-    const availableDocuments = allDocuments.filter(doc => {
-      // Find if this document type exists in uploaded documents
-      const uploadedDoc = uploadedDocuments.find(uploaded => {
-        // Primary matching by document_type_id
-        if (doc.dbId && (uploaded as any).document_type_id) {
-          return (uploaded as any).document_type_id === doc.dbId;
-        }
-        
-        // Fallback to name matching for documents without dbId
-        if ((uploaded as any).document_type?.name) {
-          return (uploaded as any).document_type.name.toLowerCase() === doc.name.toLowerCase();
-        }
-        
-        // Final fallback to file name matching
-        return uploaded.name && (
-          uploaded.name.toLowerCase().includes(doc.name.toLowerCase()) ||
-          doc.name.toLowerCase().includes(uploaded.name.toLowerCase())
-        );
-      });
-      
-      // Keep document if it's not uploaded OR if it's rejected (for re-upload)
-      // Hide documents that are approved, uploaded, reviewing, or pending
-      if (!uploadedDoc) {
-        return true; // Document not uploaded, show it
-      }
-      
-      // Show rejected documents for re-upload
-      if (uploadedDoc.status === 'rejected') {
-        return true;
-      }
-      
-      // Hide all other statuses (approved, pending, reviewing, uploaded)
-      return false;
-    });
-
-    return availableDocuments;
-  };
-
-  // Helper function to get database document type ID from frontend document type ID
-  const getDocumentTypeId = (frontendDocId: string): number | null => {
-    console.log('🔍 Debug - Looking up document type:', frontendDocId);
-    
-    const allDocs = [
-      { id: '10th_marksheet', dbId: 2 },
-      { id: '12th_marksheet', dbId: 3 },
-      { id: 'transfer_certificate', dbId: 6 },
-      { id: 'migration_certificate', dbId: 7 },
-      { id: 'birth_certificate', dbId: 1 },
-      { id: 'aadhaar_card', dbId: 4 },
-      { id: 'passport_photos', dbId: 5 },
-      { id: 'domicile_certificate', dbId: 9 },
-      { id: 'character_certificate', dbId: 74 },
-      { id: 'medical_fitness', dbId: 75 },
-      { id: 'anti_ragging_affidavit', dbId: 76 },
-      { id: 'gap_certificate', dbId: 77 },
-      { id: 'income_certificate', dbId: 8 }
-    ];
-    
-    const doc = allDocs.find(d => d.id === frontendDocId);
-    const result = doc ? doc.dbId : null;
-    console.log('🔍 Debug - Found doc:', doc, 'Result:', result);
-    return result;
-  };
-
-  // Helper function to get document type name from frontend document type ID
   const getDocumentTypeName = (frontendDocId: string): string => {
     const allDocs = [
-      { id: '10th_marksheet', name: '10th Marksheet' },
-      { id: '12th_marksheet', name: '12th Marksheet' },
-      { id: 'transfer_certificate', name: 'Transfer Certificate' },
-      { id: 'migration_certificate', name: 'Migration Certificate' },
-      { id: 'birth_certificate', name: 'Birth Certificate' },
-      { id: 'aadhaar_card', name: 'Aadhaar Card' },
-      { id: 'passport_photos', name: 'Passport Photos' },
-      { id: 'domicile_certificate', name: 'Domicile Certificate' },
-      { id: 'character_certificate', name: 'Character Certificate' },
-      { id: 'medical_fitness', name: 'Medical Fitness Certificate' },
-      { id: 'anti_ragging_affidavit', name: 'Anti-Ragging Affidavit' },
-      { id: 'gap_certificate', name: 'Gap Certificate' },
+      { id: '10th_marksheet', name: '10th Marksheet' }, { id: '12th_marksheet', name: '12th Marksheet' },
+      { id: 'transfer_certificate', name: 'Transfer Certificate' }, { id: 'migration_certificate', name: 'Migration Certificate' },
+      { id: 'birth_certificate', name: 'Birth Certificate' }, { id: 'aadhaar_card', name: 'Aadhaar Card' },
+      { id: 'passport_photos', name: 'Passport Photos' }, { id: 'domicile_certificate', name: 'Domicile Certificate' },
+      { id: 'character_certificate', name: 'Character Certificate' }, { id: 'medical_fitness', name: 'Medical Fitness Certificate' },
+      { id: 'anti_ragging_affidavit', name: 'Anti-Ragging Affidavit' }, { id: 'gap_certificate', name: 'Gap Certificate' },
       { id: 'income_certificate', name: 'Income Certificate' }
     ];
-    
-    const doc = allDocs.find(d => d.id === frontendDocId);
-    return doc ? doc.name : '';
+    return allDocs.find(d => d.id === frontendDocId)?.name || '';
   };
 
-  // Helper function to generate automatic file name
   const generateFileName = (originalFileName: string, documentType: string): string => {
     const enrollmentNumber = studentProfile?.enrollment_number || studentProfile?.enrollmentNumber || 'Student';
     const documentTypeName = getDocumentTypeName(documentType);
     const fileExtension = originalFileName.split('.').pop() || '';
-    
-    // Remove special characters and spaces from enrollment number
     const cleanEnrollmentNumber = enrollmentNumber.replace(/[^a-zA-Z0-9]/g, '_');
-    // Remove special characters and spaces from document type
     const cleanDocumentType = documentTypeName.replace(/[^a-zA-Z0-9]/g, '_');
-    
     return `${cleanEnrollmentNumber}_${cleanDocumentType}.${fileExtension}`;
   };
 
-  // Personal Calendar Todo Functions
   const openTodoModal = (date: Date, todo?: CalendarEvent) => {
     setSelectedDate(date);
     if (todo) {
-      // Edit mode
-      setEditingTodo(todo);
-      setTodoTitle(todo.title);
-      setTodoDescription(todo.description || '');
-      setTodoPriority(todo.priority as any);
-      setTodoRiskLevel(todo.riskLevel);
-      setTodoCategory(todo.category || 'Personal');
-      setTodoLocation(todo.location || '');
-      setTodoAlertEnabled(todo.alertEnabled || false);
-      setTodoAlertMessage(todo.alertMessage || '');
+      setEditingTodo(todo); setTodoTitle(todo.title); setTodoDescription(todo.description || '');
+      setTodoPriority(todo.priority as any); setTodoRiskLevel(todo.riskLevel);
+      setTodoCategory(todo.category || 'Personal'); setTodoLocation(todo.location || '');
+      setTodoAlertEnabled(todo.alertEnabled || false); setTodoAlertMessage(todo.alertMessage || '');
       setTodoAlertDate(todo.alertDate ? new Date(todo.alertDate).toISOString().split('T')[0] : '');
     } else {
-      // Create mode
-      setEditingTodo(null);
-      setTodoTitle('');
-      setTodoDescription('');
-      setTodoPriority('medium');
-      setTodoRiskLevel('low');
-      setTodoCategory('Personal');
-      setTodoLocation('');
-      setTodoAlertEnabled(false);
-      setTodoAlertMessage('');
-      setTodoAlertDate('');
+      setEditingTodo(null); setTodoTitle(''); setTodoDescription(''); setTodoPriority('medium');
+      setTodoRiskLevel('low'); setTodoCategory('Personal'); setTodoLocation('');
+      setTodoAlertEnabled(false); setTodoAlertMessage(''); setTodoAlertDate('');
     }
     setShowTodoModal(true);
   };
 
   const closeTodoModal = () => {
-    setShowTodoModal(false);
-    setSelectedDate(null);
-    setEditingTodo(null);
-    setTodoTitle('');
-    setTodoDescription('');
-    setTodoPriority('medium');
-    setTodoRiskLevel('low');
-    setTodoCategory('Personal');
-    setTodoLocation('');
-    setTodoAlertEnabled(false);
-    setTodoAlertMessage('');
-    setTodoAlertDate('');
+    setShowTodoModal(false); setSelectedDate(null); setEditingTodo(null);
+    setTodoTitle(''); setTodoDescription(''); setTodoPriority('medium'); setTodoRiskLevel('low');
+    setTodoCategory('Personal'); setTodoLocation(''); setTodoAlertEnabled(false);
+    setTodoAlertMessage(''); setTodoAlertDate('');
+  };
+
+  const refreshCalendarEvents = async () => {
+    const eventsData = await calendarService.getEvents() as any;
+    setCalendarEvents(eventsData.events.map((event: any) => ({
+      id: event.id.toString(), title: event.title, description: event.description,
+      date: new Date(event.start_date), type: event.event_type, status: event.status,
+      priority: event.priority, riskLevel: event.risk_level, category: event.category,
+      location: event.location, startDate: event.start_date, endDate: event.end_date,
+      alertDate: event.alert_date, alertMessage: event.alert_message,
+      alertEnabled: event.alert_enabled, alertSent: event.alert_sent
+    })));
   };
 
   const saveTodo = async () => {
-    if (!todoTitle.trim() || !selectedDate) {
-      alert('Please enter a title and select a date');
-      return;
-    }
-
+    if (!todoTitle.trim() || !selectedDate) { alert('Please enter a title and select a date'); return; }
     try {
-      const todoData = {
-        title: todoTitle,
-        description: todoDescription,
-        event_type: 'personal',
-        priority: todoPriority,
-        risk_level: todoRiskLevel,
-        start_date: selectedDate.toISOString(),
-        category: todoCategory,
-        location: todoLocation,
-        alert_enabled: todoAlertEnabled,
-        alert_message: todoAlertMessage,
-        alert_date: todoAlertDate ? new Date(todoAlertDate).toISOString() : null
-      };
-
-      if (editingTodo) {
-        // Update existing todo
-        await calendarService.updateEvent(editingTodo.id, todoData);
-      } else {
-        // Create new todo
-        await calendarService.createEvent(todoData);
-      }
-
-      // Refresh calendar events
-      const eventsData = await calendarService.getEvents() as any;
-      const transformedEvents = eventsData.events.map((event: any) => ({
-        id: event.id.toString(),
-        title: event.title,
-        description: event.description,
-        date: new Date(event.start_date),
-        type: event.event_type,
-        status: event.status,
-        priority: event.priority,
-        riskLevel: event.risk_level,
-        category: event.category,
-        location: event.location,
-        startDate: event.start_date,
-        endDate: event.end_date,
-        alertDate: event.alert_date,
-        alertMessage: event.alert_message,
-        alertEnabled: event.alert_enabled,
-        alertSent: event.alert_sent
-      }));
-      
-      setCalendarEvents(transformedEvents);
-      closeTodoModal();
-      alert(editingTodo ? 'Todo updated successfully!' : 'Todo created successfully!');
-    } catch (error: any) {
-      console.error('Error saving todo:', error);
-      alert(`Error: ${error.response?.data?.detail || 'Failed to save todo'}`);
-    }
+      const todoData = { title: todoTitle, description: todoDescription, event_type: 'personal', priority: todoPriority, risk_level: todoRiskLevel, start_date: selectedDate.toISOString(), category: todoCategory, location: todoLocation, alert_enabled: todoAlertEnabled, alert_message: todoAlertMessage, alert_date: todoAlertDate ? new Date(todoAlertDate).toISOString() : null };
+      if (editingTodo) await calendarService.updateEvent(editingTodo.id, todoData);
+      else await calendarService.createEvent(todoData);
+      await refreshCalendarEvents(); closeTodoModal(); alert(editingTodo ? 'Todo updated!' : 'Todo created!');
+    } catch (error: any) { alert(`Error: ${error.response?.data?.detail || 'Failed to save todo'}`); }
   };
 
   const deleteTodo = async (todoId: string) => {
-    if (!confirm('Are you sure you want to delete this todo?')) {
-      return;
-    }
-
-    try {
-      await calendarService.deleteEvent(todoId);
-      
-      // Refresh calendar events
-      const eventsData = await calendarService.getEvents() as any;
-      const transformedEvents = eventsData.events.map((event: any) => ({
-        id: event.id.toString(),
-        title: event.title,
-        description: event.description,
-        date: new Date(event.start_date),
-        type: event.event_type,
-        status: event.status,
-        priority: event.priority,
-        riskLevel: event.risk_level,
-        category: event.category,
-        location: event.location,
-        startDate: event.start_date,
-        endDate: event.end_date,
-        alertDate: event.alert_date,
-        alertMessage: event.alert_message,
-        alertEnabled: event.alert_enabled,
-        alertSent: event.alert_sent
-      }));
-      
-      setCalendarEvents(transformedEvents);
-      alert('Todo deleted successfully!');
-    } catch (error: any) {
-      console.error('Error deleting todo:', error);
-      alert(`Error: ${error.response?.data?.detail || 'Failed to delete todo'}`);
-    }
+    if (!confirm('Delete this todo?')) return;
+    try { await calendarService.deleteEvent(todoId); await refreshCalendarEvents(); alert('Todo deleted!'); }
+    catch (error: any) { alert(`Error: ${error.response?.data?.detail || 'Failed to delete todo'}`); }
   };
 
   const toggleTodoStatus = async (todoId: string) => {
-    try {
-      await calendarService.toggleEventStatus(todoId);
-      
-      // Refresh calendar events
-      const eventsData = await calendarService.getEvents() as any;
-      const transformedEvents = eventsData.events.map((event: any) => ({
-        id: event.id.toString(),
-        title: event.title,
-        description: event.description,
-        date: new Date(event.start_date),
-        type: event.event_type,
-        status: event.status,
-        priority: event.priority,
-        riskLevel: event.risk_level,
-        category: event.category,
-        location: event.location,
-        startDate: event.start_date,
-        endDate: event.end_date,
-        alertDate: event.alert_date,
-        alertMessage: event.alert_message,
-        alertEnabled: event.alert_enabled,
-        alertSent: event.alert_sent
-      }));
-      
-      setCalendarEvents(transformedEvents);
-    } catch (error: any) {
-      console.error('Error toggling todo status:', error);
-      alert(`Error: ${error.response?.data?.detail || 'Failed to update todo status'}`);
-    }
+    try { await calendarService.toggleEventStatus(todoId); await refreshCalendarEvents(); }
+    catch (error: any) { alert(`Error: ${error.response?.data?.detail || 'Failed to update todo status'}`); }
   };
 
   const markTodoComplete = async (todoId: string) => {
-    try {
-      await calendarService.markEventComplete(todoId);
-      
-      // Refresh calendar events
-      const eventsData = await calendarService.getEvents() as any;
-      const transformedEvents = eventsData.events.map((event: any) => ({
-        id: event.id.toString(),
-        title: event.title,
-        description: event.description,
-        date: new Date(event.start_date),
-        type: event.event_type,
-        status: event.status,
-        priority: event.priority,
-        riskLevel: event.risk_level,
-        category: event.category,
-        location: event.location,
-        startDate: event.start_date,
-        endDate: event.end_date,
-        alertDate: event.alert_date,
-        alertMessage: event.alert_message,
-        alertEnabled: event.alert_enabled,
-        alertSent: event.alert_sent
-      }));
-      
-      setCalendarEvents(transformedEvents);
-    } catch (error: any) {
-      console.error('Error marking todo complete:', error);
-      alert(`Error: ${error.response?.data?.detail || 'Failed to mark todo complete'}`);
-    }
+    try { await calendarService.markEventComplete(todoId); await refreshCalendarEvents(); }
+    catch (error: any) { alert(`Error: ${error.response?.data?.detail || 'Failed to mark todo complete'}`); }
   };
 
-  // Dropdown state management
-  const [openDropdown, setOpenDropdown] = useState<string | null>(null);
-  const [showUserMenu, setShowUserMenu] = useState(false);
-  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
-
-  const toggleDropdown = (categoryId: string) => {
-    setOpenDropdown(openDropdown === categoryId ? null : categoryId);
-  };
-
-  const isCategoryActive = (category: any) => {
-    return category.items.some((item: any) => activeView === item.id);
-  };
-
-  const handleItemClick = (itemId: string) => {
-    setActiveView(itemId as any);
-    setOpenDropdown(null);
-  };
+  const toggleDropdown = (categoryId: string) => setOpenDropdown(openDropdown === categoryId ? null : categoryId);
+  const isCategoryActive = (category: any) => category.items.some((item: any) => activeView === item.id);
+  const handleItemClick = (itemId: string) => { setActiveView(itemId as any); setOpenDropdown(null); };
 
   const navigationCategories = [
-    {
-      id: 'academic',
-      label: 'Academic',
-      icon: BookOpen,
-      items: [
-        { id: 'tasks', label: t('nav.tasks'), icon: Home },
-        { id: 'documents', label: 'Documents', icon: FileText },
-        { id: 'library', label: t('nav.library'), icon: Library },
-      ]
-    },
-    {
-      id: 'career',
-      label: 'Career',
-      icon: Briefcase,
-      items: [
-        { id: 'placements', label: t('nav.placements'), icon: Briefcase },
-      ]
-    },
-    {
-      id: 'services',
-      label: 'Services',
-      icon: Building,
-      items: [
-        { id: 'fees', label: t('nav.fees'), icon: DollarSign },
-        { id: 'attendance', label: t('nav.attendance'), icon: UserCheck },
-        { id: 'messages', label: t('nav.messages'), icon: MessageSquare },
-        { id: 'services', label: t('nav.services'), icon: Building },
-        { id: 'help', label: t('nav.help'), icon: HelpCircle },
-      ]
-    }
+    { id: 'academic', label: 'Academic', icon: GraduationCap, items: [
+      { id: 'tasks', label: 'Tasks', icon: Home },
+      { id: 'documents', label: 'Documents', icon: FileText },
+      { id: 'library', label: 'Library', icon: BookOpen },
+    ]},
+    { id: 'career', label: 'Career', icon: Briefcase, items: [
+      { id: 'placements', label: 'Placements', icon: Briefcase },
+    ]},
+    { id: 'services', label: 'Services', icon: Building, items: [
+      { id: 'fees', label: 'Fees', icon: DollarSign },
+      { id: 'attendance', label: 'Attendance', icon: UserCheck },
+      { id: 'messages', label: 'Messages', icon: MessageSquare },
+      { id: 'ai-assistant', label: 'AI Assistant', icon: Sparkles },
+      { id: 'services', label: 'Services', icon: Building },
+      { id: 'help', label: 'Help', icon: HelpCircle },
+    ]}
   ];
 
-  const mobileNavigationItems = [
-    ...navigationCategories.flatMap(cat => cat.items),
-  ];
-
-  // Sample notifications data
   const notifications = [
     { id: 1, title: 'Document Approved', message: 'Your Aadhar Card has been verified', type: 'success', time: '2 min ago' },
     { id: 2, title: 'New Task Assigned', message: 'Complete your profile verification', type: 'info', time: '1 hour ago' },
@@ -1283,430 +554,210 @@ export const StudentDashboard: React.FC = () => {
   ];
 
   const userMenuItems = [
-    { id: 'profile', label: 'Profile', icon: User, action: () => console.log('Profile clicked') },
-    { id: 'settings', label: 'Settings', icon: Settings, action: () => console.log('Settings clicked') },
-    { id: 'security', label: 'Security', icon: Shield, action: () => console.log('Security clicked') },
-    { id: 'change-password', label: 'Change Password', icon: Key, action: () => console.log('Change password clicked') },
+    { id: 'profile', label: 'Profile', icon: User, action: () => {} },
+    { id: 'settings', label: 'Settings', icon: Settings, action: () => {} },
+    { id: 'security', label: 'Security', icon: Shield, action: () => {} },
+    { id: 'change-password', label: 'Change Password', icon: Key, action: () => {} },
+  ];
+
+  const isDark = theme === 'dark';
+
+  const taskCategories = [
+    { id: 'document', label: 'Documents', icon: DocumentIcon, color: 'from-blue-500 to-indigo-600' },
+    { id: 'code', label: 'Code', icon: Code, color: 'from-violet-500 to-purple-600' },
+    { id: 'lab', label: 'Labs', icon: Beaker, color: 'from-emerald-500 to-teal-600' },
+    { id: 'exam', label: 'Exams', icon: Brain, color: 'from-rose-500 to-pink-600' },
+    { id: 'presentation', label: 'Presentations', icon: Presentation, color: 'from-orange-500 to-amber-600' },
+    { id: 'research', label: 'Research', icon: ResearchIcon, color: 'from-cyan-500 to-sky-600' },
+    { id: 'project', label: 'Projects', icon: ProjectIcon, color: 'from-indigo-500 to-blue-600' },
   ];
 
   const renderContent = () => {
     switch (activeView) {
       case 'tasks':
         return (
-          <div className="space-y-8">
-            {/* Tasks Header */}
-            <div className={`${theme === 'dark' ? 'bg-gradient-to-br from-gray-800 via-gray-900 to-gray-800' : 'bg-white/10 backdrop-blur-md'} rounded-2xl p-6 lg:p-8 border ${theme === 'dark' ? 'border-gray-700' : 'border-white/20'} shadow-xl relative overflow-hidden`}>
-              {/* Background decoration */}
-              <div className="absolute inset-0 opacity-5">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-emerald-500 to-cyan-500 rounded-full blur-2xl"></div>
-                <div className="absolute bottom-0 left-0 w-32 h-32 bg-gradient-to-br from-blue-500 to-teal-500 rounded-full blur-2xl"></div>
+          <div className="space-y-6 animate-fade-in">
+            {/* Page Header */}
+            <div className={`relative overflow-hidden rounded-2xl p-6 lg:p-8 ${isDark ? 'bg-gradient-to-br from-slate-800 via-indigo-900/40 to-slate-800 border border-indigo-700/30' : 'bg-gradient-to-br from-indigo-600 via-blue-600 to-violet-600'}`}>
+              <div className="absolute inset-0 opacity-10">
+                <div className="absolute -top-8 -right-8 w-48 h-48 bg-white rounded-full blur-3xl" />
+                <div className="absolute -bottom-8 -left-8 w-48 h-48 bg-white rounded-full blur-3xl" />
               </div>
-              
-              <div className="relative z-10 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
-                <div className="transform transition-all duration-300 hover:translate-x-2">
-                  <h2 className={`text-3xl lg:text-4xl font-bold mb-3 bg-gradient-to-r ${theme === 'dark' ? 'from-cyan-400 to-blue-400' : 'from-cyan-300 to-blue-300'} bg-clip-text text-transparent`}>
-                    Academic Tasks
-                  </h2>
-                  <p className={`${theme === 'dark' ? 'text-cyan-300' : 'text-cyan-200'} text-lg`}>Manage your assignments, projects, and deadlines</p>
+              <div className="relative z-10 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                <div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className={`text-xs font-semibold uppercase tracking-widest px-3 py-1 rounded-full ${isDark ? 'bg-indigo-500/20 text-indigo-300' : 'bg-white/20 text-white'}`}>Academic Hub</span>
+                  </div>
+                  <h2 className={`text-3xl lg:text-4xl font-bold ${isDark ? 'text-white' : 'text-white'} mb-1`}>My Tasks</h2>
+                  <p className={`${isDark ? 'text-indigo-300' : 'text-indigo-100'}`}>Track assignments, projects and deadlines</p>
                 </div>
-                <div className="flex flex-col sm:flex-row gap-3">
-                  <button 
-                    onClick={() => setShowUploadModal(true)}
-                    className={`px-6 py-3 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-xl hover:from-green-700 hover:to-green-800 transition-all duration-300 transform hover:scale-105 hover:shadow-lg flex items-center justify-center`}
-                  >
-                    <Upload className="w-5 h-5 mr-2" />
-                    Upload Document
+                <div className="flex flex-wrap gap-2">
+                  <button onClick={() => setShowUploadModal(true)} className="px-4 py-2.5 bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white rounded-xl border border-white/20 transition-all duration-200 flex items-center gap-2 text-sm font-medium">
+                    <Upload className="w-4 h-4" /> Upload
                   </button>
-                  <button className={`px-6 py-3 bg-gradient-to-r from-emerald-600 to-cyan-600 text-white rounded-xl hover:from-emerald-700 hover:to-cyan-700 transition-all duration-300 transform hover:scale-105 hover:shadow-lg flex items-center justify-center`}>
-                    <Filter className="w-5 h-5 mr-2" />
-                    Filter
+                  <button onClick={() => setShowAcademicCalendar(true)} className="px-4 py-2.5 bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white rounded-xl border border-white/20 transition-all duration-200 flex items-center gap-2 text-sm font-medium">
+                    <CalendarDays className="w-4 h-4" /> Academic
                   </button>
-                  <button 
-                    onClick={() => setShowAcademicCalendar(true)}
-                    className={`px-6 py-3 bg-gradient-to-r from-teal-600 to-blue-600 text-white rounded-xl hover:from-teal-700 hover:to-blue-700 transition-all duration-300 transform hover:scale-105 hover:shadow-lg flex items-center justify-center`}
-                  >
-                    <CalendarDays className="w-5 h-5 mr-2" />
-                    Academic Calendar
-                  </button>
-                  <button 
-                    onClick={() => setShowPersonalCalendar(true)}
-                    className={`px-6 py-3 bg-gradient-to-r from-cyan-600 to-indigo-600 text-white rounded-xl hover:from-cyan-700 hover:to-indigo-700 transition-all duration-300 transform hover:scale-105 hover:shadow-lg flex items-center justify-center`}
-                  >
-                    <CalendarPlus className="w-5 h-5 mr-2" />
-                    Personal Calendar
+                  <button onClick={() => setShowPersonalCalendar(true)} className="px-4 py-2.5 bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white rounded-xl border border-white/20 transition-all duration-200 flex items-center gap-2 text-sm font-medium">
+                    <CalendarPlus className="w-4 h-4" /> Personal
                   </button>
                 </div>
               </div>
             </div>
 
-            {/* Task Statistics */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {/* Task Stats */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
               {[
-                { icon: CheckCircle, value: dashboardStats?.submitted_tasks || '0', label: 'Completed', change: 'This semester', color: 'from-emerald-500 to-teal-600' },
-                { icon: Clock, value: dashboardStats?.pending_tasks || '0', label: 'In Progress', change: 'Active now', color: 'from-cyan-500 to-blue-600' },
-                { icon: AlertCircle, value: dashboardStats?.pending_tasks || '0', label: 'Pending', change: 'To be done', color: 'from-amber-500 to-orange-600' },
-                { icon: Calendar, value: dashboardStats?.total_tasks || '0', label: 'Total Tasks', change: 'This semester', color: 'from-indigo-500 to-purple-600' }
-              ].map((stat, index) => (
-                <div key={index} className={`group relative overflow-hidden rounded-2xl bg-gradient-to-br ${stat.color} p-6 shadow-lg transform transition-all duration-300 hover:scale-105 hover:shadow-xl hover:-translate-y-1`} style={{ animationDelay: `${index * 100}ms` }}>
-                  {/* Background decoration */}
-                  <div className="absolute inset-0 bg-white/10 transform rotate-45 scale-150 group-hover:rotate-12 transition-transform duration-500"></div>
-                  
-                  <div className="relative z-10">
-                    <stat.icon className="w-10 h-10 text-white mb-4 transform transition-transform duration-300 group-hover:scale-110" />
-                    <div className="text-3xl font-bold text-white mb-2">{stat.value}</div>
-                    <div className="text-white/90 font-medium">{stat.label}</div>
-                    <div className="text-white/75 text-sm mt-1">{stat.change}</div>
+                { icon: CheckCircle, value: dashboardStats?.submitted_tasks || '0', label: 'Completed', sub: 'This semester', color: 'from-emerald-400 to-teal-500', bg: isDark ? 'bg-emerald-900/20 border-emerald-700/30' : 'bg-emerald-50 border-emerald-200' },
+                { icon: Activity, value: dashboardStats?.pending_tasks || '0', label: 'In Progress', sub: 'Active now', color: 'from-blue-400 to-indigo-500', bg: isDark ? 'bg-blue-900/20 border-blue-700/30' : 'bg-blue-50 border-blue-200' },
+                { icon: Clock, value: dashboardStats?.pending_tasks || '0', label: 'Pending', sub: 'To be done', color: 'from-amber-400 to-orange-500', bg: isDark ? 'bg-amber-900/20 border-amber-700/30' : 'bg-amber-50 border-amber-200' },
+                { icon: BarChart3, value: dashboardStats?.total_tasks || '0', label: 'Total Tasks', sub: 'This semester', color: 'from-violet-400 to-purple-500', bg: isDark ? 'bg-violet-900/20 border-violet-700/30' : 'bg-violet-50 border-violet-200' },
+              ].map((stat, i) => (
+                <div key={i} className={`group rounded-2xl border p-5 ${stat.bg} transition-all duration-300 hover:scale-105 hover:shadow-lg`}>
+                  <div className={`inline-flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br ${stat.color} mb-3 shadow-lg group-hover:scale-110 transition-transform`}>
+                    <stat.icon className="w-5 h-5 text-white" />
                   </div>
+                  <div className={`text-2xl font-bold mb-0.5 ${isDark ? 'text-white' : 'text-slate-800'}`}>{stat.value}</div>
+                  <div className={`text-sm font-medium ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>{stat.label}</div>
+                  <div className={`text-xs mt-0.5 ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>{stat.sub}</div>
                 </div>
               ))}
             </div>
 
             {/* Document Verification Status */}
-            <div className={`${theme === 'dark' ? 'bg-gradient-to-br from-gray-800 via-gray-900 to-gray-800' : 'bg-white/10 backdrop-blur-md'} rounded-2xl p-6 lg:p-8 border ${theme === 'dark' ? 'border-gray-700' : 'border-white/20'} shadow-xl relative overflow-hidden`}>
-              {/* Background decoration */}
-              <div className="absolute inset-0 opacity-5">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-emerald-500 to-cyan-500 rounded-full blur-2xl"></div>
-                <div className="absolute bottom-0 left-0 w-32 h-32 bg-gradient-to-br from-teal-500 to-blue-500 rounded-full blur-2xl"></div>
+            <div className={`rounded-2xl border p-6 ${isDark ? 'bg-slate-800/60 border-slate-700/50' : 'bg-white border-slate-200'} shadow-sm`}>
+              <div className="flex items-center justify-between mb-5">
+                <div>
+                  <h3 className={`text-lg font-bold ${isDark ? 'text-white' : 'text-slate-800'}`}>Document Verification</h3>
+                  <p className={`text-sm mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Track your document submission progress</p>
+                </div>
+                <button onClick={() => setShowUploadModal(true)} className="px-4 py-2 bg-gradient-to-r from-indigo-500 to-violet-600 text-white rounded-xl hover:shadow-lg hover:scale-105 transition-all duration-200 flex items-center gap-2 text-sm font-medium">
+                  <Upload className="w-4 h-4" /> Upload New
+                </button>
               </div>
-              
-              <div className="relative z-10">
-                <div className="flex items-center justify-between mb-6">
-                  <div>
-                    <h3 className={`text-2xl font-bold ${theme === 'dark' ? 'text-cyan-400' : 'text-cyan-300'} mb-2`}>
-                      Document Verification Status
-                    </h3>
-                    <p className={`${theme === 'dark' ? 'text-cyan-300' : 'text-cyan-200'}`}>
-                      Track your document submission and verification progress
-                    </p>
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
+                {[
+                  { label: 'Required', value: '12', icon: FileText, color: 'text-indigo-500', bg: isDark ? 'bg-indigo-900/20' : 'bg-indigo-50' },
+                  { label: 'Verified', value: uploadedDocuments.filter(d => d.status === 'approved' && d.type !== 'status').length, icon: CheckCircle, color: 'text-emerald-500', bg: isDark ? 'bg-emerald-900/20' : 'bg-emerald-50' },
+                  { label: 'Pending', value: uploadedDocuments.filter(d => d.status === 'pending' && d.type !== 'status').length, icon: Clock, color: 'text-amber-500', bg: isDark ? 'bg-amber-900/20' : 'bg-amber-50' },
+                  { label: 'Rejected', value: uploadedDocuments.filter(d => d.status === 'rejected').length, icon: XCircle, color: 'text-rose-500', bg: isDark ? 'bg-rose-900/20' : 'bg-rose-50' },
+                ].map((item, i) => (
+                  <div key={i} className={`rounded-xl p-4 ${item.bg} flex items-center gap-3`}>
+                    <item.icon className={`w-5 h-5 ${item.color} flex-shrink-0`} />
+                    <div>
+                      <div className={`text-xl font-bold ${isDark ? 'text-white' : 'text-slate-800'}`}>{item.value}</div>
+                      <div className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>{item.label}</div>
+                    </div>
                   </div>
-                  <button 
-                    onClick={() => setShowUploadModal(true)}
-                    className={`px-4 py-2 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-lg hover:from-green-700 hover:to-green-800 transition-all duration-300 transform hover:scale-105 flex items-center gap-2`}
-                  >
-                    <Upload className="w-4 h-4" />
-                    Upload New
-                  </button>
-                </div>
-
-                {/* Document Status Overview - Connected to Real Data */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-                  <div className={`p-4 rounded-xl ${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-gradient-to-br from-purple-50 to-pink-50 border-purple-200 animate-gradient'} border`}>
-                    <div className="flex items-center justify-between mb-2">
-                      <span className={`text-sm font-medium ${theme === 'dark' ? 'text-cyan-400' : 'text-cyan-300'}`}>Total Documents</span>
-                      <FileText className={`w-4 h-4 ${theme === 'dark' ? 'text-cyan-500' : 'text-cyan-400'}`} />
-                    </div>
-                    <div className={`text-2xl font-bold ${theme === 'dark' ? 'text-cyan-300' : 'text-cyan-200'}`}>
-                      12
-                    </div>
-                    <p className={`text-xs ${theme === 'dark' ? 'text-cyan-600' : 'text-cyan-500'} mt-1`}>
-                      Required to upload
-                    </p>
-                  </div>
-                  
-                  <div className={`p-4 rounded-xl ${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-gradient-to-br from-purple-50 to-pink-50 border-purple-200 animate-gradient'} border`}>
-                    <div className="flex items-center justify-between mb-2">
-                      <span className={`text-sm font-medium ${theme === 'dark' ? 'text-cyan-400' : 'text-cyan-300'}`}>Verified</span>
-                      <CheckCircle className="w-4 h-4 text-green-500" />
-                    </div>
-                    <div className={`text-2xl font-bold ${theme === 'dark' ? 'text-cyan-300' : 'text-cyan-200'}`}>
-                      {uploadedDocuments.filter(doc => doc.status === 'approved' && doc.type !== 'status').length}
-                    </div>
-                    <p className={`text-xs ${theme === 'dark' ? 'text-cyan-600' : 'text-cyan-500'} mt-1`}>
-                      Verified by faculty
-                    </p>
-                  </div>
-                  
-                  <div className={`p-4 rounded-xl ${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-gradient-to-br from-purple-50 to-pink-50 border-purple-200 animate-gradient'} border`}>
-                    <div className="flex items-center justify-between mb-2">
-                      <span className={`text-sm font-medium ${theme === 'dark' ? 'text-cyan-400' : 'text-cyan-300'}`}>Pending</span>
-                      <Clock className="w-4 h-4 text-cyan-500" />
-                    </div>
-                    <div className={`text-2xl font-bold ${theme === 'dark' ? 'text-cyan-300' : 'text-cyan-200'}`}>
-                      {uploadedDocuments.filter(doc => doc.status === 'pending' && doc.type !== 'status').length}
-                    </div>
-                    <p className={`text-xs ${theme === 'dark' ? 'text-cyan-600' : 'text-cyan-500'} mt-1`}>
-                      Still need to submit
-                    </p>
-                  </div>
-                  
-                  <div className={`p-4 rounded-xl ${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-gradient-to-br from-purple-50 to-pink-50 border-purple-200 animate-gradient'} border`}>
-                    <div className="flex items-center justify-between mb-2">
-                      <span className={`text-sm font-medium ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>Rejected</span>
-                      <XCircle className="w-4 h-4 text-red-500" />
-                    </div>
-                    <div className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-black'}`}>
-                      {uploadedDocuments.filter(doc => doc.status === 'rejected').length}
-                    </div>
-                    <p className={`text-xs ${theme === 'dark' ? 'text-gray-500' : 'text-gray-500'} mt-1`}>
-                      Need to re-upload
-                    </p>
-                  </div>
-                </div>
-
-                {/* Document Details Lists */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* Approved Documents */}
-                  <div className={`p-4 rounded-xl ${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-gradient-to-br from-purple-50 to-pink-50 border-purple-200 animate-gradient'} border`}>
-                    <div className="flex items-center justify-between mb-3">
-                      <h4 className={`text-sm font-semibold ${theme === 'dark' ? 'text-white' : 'text-black'} flex items-center gap-2`}>
-                        <CheckCircle className="w-4 h-4 text-green-500" />
-                        Approved Documents
-                      </h4>
-                      <span className={`text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
-                        {uploadedDocuments.filter(doc => doc.status === 'approved' && doc.type !== 'status').length} documents
-                      </span>
+                ))}
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {[
+                  { title: 'Approved Documents', icon: CheckCircle, iconColor: 'text-emerald-500', docs: uploadedDocuments.filter(d => d.status === 'approved' && d.type !== 'status'), emptyMsg: 'No approved documents yet', statusBg: isDark ? 'bg-emerald-900/10' : 'bg-emerald-50', borderColor: isDark ? 'border-emerald-700/20' : 'border-emerald-100' },
+                  { title: 'Rejected Documents', icon: XCircle, iconColor: 'text-rose-500', docs: uploadedDocuments.filter(d => d.status === 'rejected'), emptyMsg: 'No rejected documents', statusBg: isDark ? 'bg-rose-900/10' : 'bg-rose-50', borderColor: isDark ? 'border-rose-700/20' : 'border-rose-100' },
+                ].map((section, si) => (
+                  <div key={si} className={`rounded-xl border p-4 ${isDark ? 'bg-slate-800 border-slate-700/40' : 'bg-slate-50 border-slate-200'}`}>
+                    <div className="flex items-center gap-2 mb-3">
+                      <section.icon className={`w-4 h-4 ${section.iconColor}`} />
+                      <span className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-slate-700'}`}>{section.title}</span>
+                      <span className={`ml-auto text-xs px-2 py-0.5 rounded-full ${isDark ? 'bg-slate-700 text-slate-300' : 'bg-slate-200 text-slate-600'}`}>{section.docs.length}</span>
                     </div>
                     <div className="space-y-2 max-h-32 overflow-y-auto">
-                      {uploadedDocuments.filter(doc => doc.status === 'approved' && doc.type !== 'status').length > 0 ? (
-                        uploadedDocuments
-                          .filter(doc => doc.status === 'approved' && doc.type !== 'status')
-                          .map((doc, index) => (
-                            <div key={index} className={`flex items-center justify-between p-2 rounded-lg ${theme === 'dark' ? 'bg-gray-700' : 'bg-gray-50'}`}>
-                              <div className="flex items-center gap-2">
-                                <CheckCircle className="w-3 h-3 text-green-500" />
-                                <span className={`text-xs ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
-                                  {doc.name}
-                                </span>
-                              </div>
-                              <span className={`text-xs ${theme === 'dark' ? 'text-gray-500' : 'text-gray-500'}`}>
-                                {doc.uploadDate.toLocaleDateString()}
-                              </span>
-                            </div>
-                          ))
-                      ) : (
-                        <p className={`text-xs ${theme === 'dark' ? 'text-gray-500' : 'text-gray-500'} italic`}>
-                          No approved documents yet
-                        </p>
-                      )}
+                      {section.docs.length > 0 ? section.docs.map((doc, di) => (
+                        <div key={di} className={`flex items-center justify-between px-3 py-2 rounded-lg ${isDark ? 'bg-slate-700/50' : 'bg-white'} border ${section.borderColor}`}>
+                          <span className={`text-xs ${isDark ? 'text-slate-300' : 'text-slate-700'} truncate flex-1`}>{doc.name}</span>
+                          {si === 1 && <button onClick={() => setShowUploadModal(true)} className="text-xs px-2 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg ml-2 transition-colors">Re-upload</button>}
+                        </div>
+                      )) : <p className={`text-xs italic ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>{section.emptyMsg}</p>}
                     </div>
                   </div>
-
-                  {/* Rejected Documents */}
-                  <div className={`p-4 rounded-xl ${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-gradient-to-br from-purple-50 to-pink-50 border-purple-200 animate-gradient'} border`}>
-                    <div className="flex items-center justify-between mb-3">
-                      <h4 className={`text-sm font-semibold ${theme === 'dark' ? 'text-white' : 'text-black'} flex items-center gap-2`}>
-                        <XCircle className="w-4 h-4 text-red-500" />
-                        Rejected Documents
-                      </h4>
-                      <span className={`text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
-                        {uploadedDocuments.filter(doc => doc.status === 'rejected').length} documents
-                      </span>
-                    </div>
-                    <div className="space-y-2 max-h-32 overflow-y-auto">
-                      {uploadedDocuments.filter(doc => doc.status === 'rejected').length > 0 ? (
-                        uploadedDocuments
-                          .filter(doc => doc.status === 'rejected')
-                          .map((doc, index) => (
-                            <div key={index} className={`flex items-center justify-between p-2 rounded-lg ${theme === 'dark' ? 'bg-red-900/20 border-red-800/30' : 'bg-red-50 border-red-200'} border`}>
-                              <div className="flex items-center gap-2">
-                                <XCircle className="w-3 h-3 text-red-500" />
-                                <span className={`text-xs ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
-                                  {doc.name}
-                                </span>
-                              </div>
-                              <button
-                                onClick={() => setShowUploadModal(true)}
-                                className={`text-xs px-2 py-1 rounded ${theme === 'dark' ? 'bg-red-800 hover:bg-red-700 text-red-200' : 'bg-red-600 hover:bg-red-700 text-white'} transition-colors`}
-                              >
-                                Re-upload
-                              </button>
-                            </div>
-                          ))
-                      ) : (
-                        <p className={`text-xs ${theme === 'dark' ? 'text-gray-500' : 'text-gray-500'} italic`}>
-                          No rejected documents
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                </div>
+                ))}
               </div>
             </div>
 
-            {/* Task Categories */}
-            <div className="flex flex-wrap gap-3">
-              {[
-                { id: 'document', label: 'Documents', icon: DocumentIcon, description: 'Start Here' },
-                { id: 'code', label: 'Code', icon: Code, description: 'Unlocks after documents' },
-                { id: 'lab', label: 'Labs', icon: Beaker, description: 'Unlocks after code' },
-                { id: 'exam', label: 'Exams', icon: Brain, description: 'Unlocks after labs' },
-                { id: 'presentation', label: 'Presentations', icon: Presentation, description: 'Unlocks after exams' },
-                { id: 'research', label: 'Research', icon: ResearchIcon, description: 'Unlocks after presentations' },
-                { id: 'project', label: 'Projects', icon: ProjectIcon, description: 'Unlocks after research' }
-              ].map((category) => {
+            {/* Task Category Tabs */}
+            <div className="flex flex-wrap gap-2">
+              {taskCategories.map((category) => {
                 const unlocked = isCategoryUnlocked(category.id);
                 const progress = getCategoryProgress(category.id);
-                
+                const isActive = selectedCategory === category.id;
                 return (
-                  <button 
-                    key={category.id}
-                    onClick={() => unlocked && setSelectedCategory(category.id)}
-                    disabled={!unlocked}
-                    className={`px-4 py-2 rounded-xl transition-all duration-300 transform hover:scale-105 flex items-center gap-2 relative ${
-                      !unlocked 
-                        ? 'bg-gray-200 text-gray-400 cursor-not-allowed border border-gray-300' 
-                        : selectedCategory === category.id
-                          ? 'bg-gradient-to-r from-emerald-600 to-cyan-600 text-white shadow-lg' 
-                        : theme === 'dark' 
-                          ? 'bg-gray-800 text-gray-300 hover:bg-gray-700 border border-gray-700'
-                          : 'bg-gradient-to-r from-emerald-100 to-cyan-100 text-emerald-700 hover:from-emerald-200 hover:to-cyan-200 border border-emerald-300'
-                    }`}
-                    title={!unlocked ? category.description : ''}
-                  >
+                  <button key={category.id} onClick={() => unlocked && setSelectedCategory(category.id)} disabled={!unlocked}
+                    className={`group flex items-center gap-2 px-4 py-2.5 rounded-xl border text-sm font-medium transition-all duration-200 ${
+                      !unlocked ? `cursor-not-allowed ${isDark ? 'bg-slate-800 border-slate-700 text-slate-600' : 'bg-slate-100 border-slate-200 text-slate-400'}`
+                      : isActive ? `bg-gradient-to-r ${category.color} text-white border-transparent shadow-lg scale-105`
+                      : `${isDark ? 'bg-slate-800 border-slate-700 text-slate-300 hover:border-indigo-500/50 hover:text-white' : 'bg-white border-slate-200 text-slate-600 hover:border-indigo-300 hover:text-indigo-600'} hover:scale-105`
+                    }`}>
                     <div className="relative">
                       <category.icon className="w-4 h-4" />
-                      {!unlocked && (
-                        <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full flex items-center justify-center">
-                          <Lock className="w-2 h-2 text-white" />
-                        </div>
-                      )}
+                      {!unlocked && <Lock className="w-2.5 h-2.5 absolute -top-1 -right-1 text-slate-400" />}
                     </div>
-                    <div className="text-left">
-                      <div className="text-sm font-medium">{category.label}</div>
-                      {unlocked && progress.total > 0 && (
-                        <div className="text-xs opacity-75">
-                          {progress.completed}/{progress.total}
-                        </div>
-                      )}
-                    </div>
+                    <span>{category.label}</span>
+                    {unlocked && progress.total > 0 && (
+                      <span className={`text-xs px-1.5 py-0.5 rounded-md ${isActive ? 'bg-white/20' : isDark ? 'bg-slate-700' : 'bg-slate-100'}`}>{progress.completed}/{progress.total}</span>
+                    )}
                   </button>
                 );
               })}
             </div>
 
-            {/* Tasks List */}
-            <div className="space-y-4">
-              {tasks
-                .filter(task => task.type === selectedCategory)
-                .map((task, index) => (
-                <div className={`group relative overflow-hidden rounded-2xl ${
-                  task.status === 'locked' 
-                    ? theme === 'dark' ? 'bg-gray-900 border-gray-800' : 'bg-emerald-50 border-emerald-200'
-                    : theme === 'dark' ? 'bg-gradient-to-br from-gray-800 via-gray-900 to-gray-800' : 'bg-gradient-to-br from-white via-emerald-50 to-cyan-50'
-                } border shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:scale-[1.02]`} style={{ animationDelay: `${index * 100}ms` }}>
-                  {/* Background decoration */}
-                  <div className="absolute inset-0 opacity-5">
-                    <div className={`absolute top-0 right-0 w-24 h-24 bg-gradient-to-br ${
-                      task.priority === 'high' ? 'from-red-500 to-orange-500' :
-                      task.priority === 'medium' ? 'from-yellow-500 to-orange-500' :
-                      'from-green-500 to-teal-500'
-                    } rounded-full blur-xl`}></div>
+            {/* Task List */}
+            <div className="space-y-3">
+              {tasks.filter(task => task.type === selectedCategory).length === 0 ? (
+                <div className={`rounded-2xl border p-12 text-center ${isDark ? 'bg-slate-800/60 border-slate-700/50' : 'bg-white border-slate-200'}`}>
+                  <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 ${isDark ? 'bg-slate-700' : 'bg-slate-100'}`}>
+                    <DocumentIcon className={`w-8 h-8 ${isDark ? 'text-slate-500' : 'text-slate-400'}`} />
                   </div>
-                  
-                  <div className="relative z-10 p-6">
-                    <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-                      {/* Task Info */}
-                      <div className="flex-1 space-y-3">
-                        <div className="flex items-start gap-3">
-                          <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
-                            task.type === 'document' ? 'bg-blue-500/20 text-blue-500' :
-                            task.type === 'code' ? 'bg-purple-500/20 text-purple-500' :
-                            task.type === 'exam' ? 'bg-red-500/20 text-red-500' :
-                            task.type === 'lab' ? 'bg-green-500/20 text-green-500' :
-                            task.type === 'presentation' ? 'bg-orange-500/20 text-orange-500' :
-                            task.type === 'research' ? 'bg-indigo-500/20 text-indigo-500' :
-                            'bg-teal-500/20 text-teal-500'
-                          } ${task.status === 'locked' ? 'opacity-50' : ''}`}>
-                            {
-                              task.type === 'document' ? <DocumentIcon className="w-6 h-6" /> :
-                              task.type === 'code' ? <Code className="w-6 h-6" /> :
-                              task.type === 'exam' ? <Brain className="w-6 h-6" /> :
-                              task.type === 'lab' ? <Beaker className="w-6 h-6" /> :
-                              task.type === 'presentation' ? <Presentation className="w-6 h-6" /> :
-                              task.type === 'research' ? <ResearchIcon className="w-6 h-6" /> :
-                              <ProjectIcon className="w-6 h-6" />
-                            }
+                  <h4 className={`font-semibold mb-1 ${isDark ? 'text-white' : 'text-slate-700'}`}>No tasks found</h4>
+                  <p className={`text-sm ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>No tasks in this category yet</p>
+                </div>
+              ) : tasks.filter(task => task.type === selectedCategory).map((task, index) => (
+                <div key={task.id} className={`group rounded-2xl border transition-all duration-300 hover:shadow-lg hover:scale-[1.01] ${
+                  task.status === 'locked' ? isDark ? 'bg-slate-800/40 border-slate-700/30' : 'bg-slate-50 border-slate-200'
+                  : isDark ? 'bg-slate-800/60 border-slate-700/50 hover:border-indigo-500/30' : 'bg-white border-slate-200 hover:border-indigo-300'
+                }`}>
+                  <div className="p-5">
+                    <div className="flex flex-col lg:flex-row lg:items-center gap-4">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start gap-3 mb-3">
+                          <div className={`flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center ${
+                            task.type === 'document' ? isDark ? 'bg-blue-900/40 text-blue-400' : 'bg-blue-100 text-blue-600' :
+                            task.type === 'code' ? isDark ? 'bg-violet-900/40 text-violet-400' : 'bg-violet-100 text-violet-600' :
+                            task.type === 'exam' ? isDark ? 'bg-rose-900/40 text-rose-400' : 'bg-rose-100 text-rose-600' :
+                            task.type === 'lab' ? isDark ? 'bg-emerald-900/40 text-emerald-400' : 'bg-emerald-100 text-emerald-600' :
+                            isDark ? 'bg-amber-900/40 text-amber-400' : 'bg-amber-100 text-amber-600'
+                          } ${task.status === 'locked' ? 'opacity-40' : ''}`}>
+                            {task.type === 'document' ? <DocumentIcon className="w-5 h-5" /> : task.type === 'code' ? <Code className="w-5 h-5" /> : task.type === 'exam' ? <Brain className="w-5 h-5" /> : task.type === 'lab' ? <Beaker className="w-5 h-5" /> : task.type === 'presentation' ? <Presentation className="w-5 h-5" /> : task.type === 'research' ? <ResearchIcon className="w-5 h-5" /> : <ProjectIcon className="w-5 h-5" />}
                           </div>
-                          <div className="flex-1">
-                            <h4 className={`text-lg font-bold ${theme === 'dark' ? 'text-white' : 'text-black'} mb-1 ${task.status === 'locked' ? 'opacity-50' : ''}`}>
-                              {task.title}
-                            </h4>
-                            <p className={`${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'} text-sm mb-2 ${task.status === 'locked' ? 'opacity-50' : ''}`}>
-                              {task.description}
-                            </p>
-                            <div className="flex flex-wrap items-center gap-3 text-sm">
-                              <span className={`${theme === 'dark' ? 'text-gray-500' : 'text-gray-500'} ${task.status === 'locked' ? 'opacity-50' : ''}`}>
-                                <BookOpen className="w-4 h-4 inline mr-1" />
-                                {task.course}
-                              </span>
-                              <span className={`${
-                                task.priority === 'high' ? 'text-red-500' :
-                                task.priority === 'medium' ? 'text-yellow-500' :
-                                'text-green-500'
-                              } ${task.status === 'locked' ? 'opacity-50' : ''}`}>
-                                <Flag className="w-4 h-4 inline mr-1" />
-                                {task.priority.charAt(0).toUpperCase() + task.priority.slice(1)} Priority
-                              </span>
-                              <span className={`${theme === 'dark' ? 'text-gray-500' : 'text-gray-500'} ${task.status === 'locked' ? 'opacity-50' : ''}`}>
-                                <Clock className="w-4 h-4 inline mr-1" />
-                                {task.dueDate}
-                              </span>
-                            </div>
+                          <div className={task.status === 'locked' ? 'opacity-40' : ''}>
+                            <h4 className={`font-semibold ${isDark ? 'text-white' : 'text-slate-800'} leading-snug`}>{task.title}</h4>
+                            <p className={`text-sm mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{task.description}</p>
                           </div>
                         </div>
-                        
-                        {/* Progress Bar */}
-                        <div className="space-y-2">
-                          <div className="flex justify-between text-sm">
-                            <span className={`${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'} ${task.status === 'locked' ? 'opacity-50' : ''}`}>
-                              {task.status === 'locked' ? 'Locked' : 'Progress'}
-                            </span>
-                            <span className={`font-medium ${
-                              task.progress === 100 ? 'text-green-500' :
-                              task.progress >= 50 ? 'text-blue-500' :
-                              'text-orange-500'
-                            } ${task.status === 'locked' ? 'opacity-50' : ''}`}>
-                              {task.status === 'locked' ? '🔒' : `${task.progress}%`}
-                            </span>
+                        <div className={`flex flex-wrap gap-3 text-xs mb-3 ${task.status === 'locked' ? 'opacity-40' : ''}`}>
+                          <span className={`flex items-center gap-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}><BookOpen className="w-3.5 h-3.5" />{task.course}</span>
+                          <span className={`flex items-center gap-1 ${task.priority === 'high' || task.priority === 'urgent' ? 'text-rose-500' : task.priority === 'medium' ? 'text-amber-500' : 'text-emerald-500'}`}><Flag className="w-3.5 h-3.5" />{task.priority}</span>
+                          <span className={`flex items-center gap-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}><Clock className="w-3.5 h-3.5" />{task.dueDate}</span>
+                        </div>
+                        <div className={task.status === 'locked' ? 'opacity-40' : ''}>
+                          <div className="flex justify-between text-xs mb-1">
+                            <span className={isDark ? 'text-slate-500' : 'text-slate-500'}>{task.status === 'locked' ? 'Locked' : 'Progress'}</span>
+                            <span className={`font-medium ${task.progress === 100 ? 'text-emerald-500' : task.progress >= 50 ? 'text-blue-500' : 'text-amber-500'}`}>{task.status === 'locked' ? '🔒' : `${task.progress}%`}</span>
                           </div>
-                          <div className={`w-full h-2 rounded-full ${theme === 'dark' ? 'bg-gray-700' : 'bg-gray-200'} ${task.status === 'locked' ? 'opacity-50' : ''}`}>
-                            <div 
-                              className={`h-full rounded-full transition-all duration-500 ${
-                                task.progress === 100 ? 'bg-green-500' :
-                                task.progress >= 50 ? 'bg-blue-500' :
-                                'bg-orange-500'
-                              } ${task.status === 'locked' ? 'w-0' : ''}`}
-                              style={{ width: task.status === 'locked' ? '0%' : `${task.progress}%` }}
-                            ></div>
+                          <div className={`w-full h-1.5 rounded-full ${isDark ? 'bg-slate-700' : 'bg-slate-200'}`}>
+                            <div className={`h-full rounded-full transition-all duration-500 ${task.progress === 100 ? 'bg-emerald-500' : task.progress >= 50 ? 'bg-blue-500' : 'bg-amber-500'}`} style={{ width: task.status === 'locked' ? '0%' : `${task.progress}%` }} />
                           </div>
                         </div>
                       </div>
-                      
-                      {/* Actions */}
-                      <div className="flex flex-col sm:flex-row gap-2 lg:ml-4">
+                      <div className="flex flex-row lg:flex-col gap-2 flex-shrink-0">
                         {task.status === 'locked' ? (
-                          <div className="flex items-center gap-2 px-4 py-2 bg-gray-500/20 text-gray-500 rounded-xl border border-gray-500/30">
-                            <Lock className="w-5 h-5" />
-                            <span className="font-medium">Locked</span>
-                          </div>
+                          <div className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm ${isDark ? 'bg-slate-700 text-slate-500' : 'bg-slate-100 text-slate-400'}`}><Lock className="w-4 h-4" /> Locked</div>
                         ) : task.status === 'completed' ? (
-                          <div className="flex items-center gap-2 px-4 py-2 bg-green-500/20 text-green-500 rounded-xl border border-green-500/30">
-                            <CheckCircle className="w-5 h-5" />
-                            <span className="font-medium">Completed</span>
-                          </div>
+                          <div className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm ${isDark ? 'bg-emerald-900/30 text-emerald-400 border border-emerald-700/30' : 'bg-emerald-50 text-emerald-600 border border-emerald-200'}`}><CheckCircle className="w-4 h-4" /> Completed</div>
                         ) : (
                           <>
-                            <button 
-                              onClick={() => handleTaskAction(task.id, 'continue')}
-                              className={`px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all duration-300 transform hover:scale-105 hover:shadow-lg flex items-center justify-center`}
-                            >
-                              <Play className="w-4 h-4" />
-                              Continue
-                            </button>
-                            <button 
-                              onClick={() => handleTaskAction(task.id, 'postpone')}
-                              className={`px-4 py-2 ${theme === 'dark' ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'} rounded-xl transition-all duration-300 transform hover:scale-105`}
-                            >
-                              <Clock className="w-4 h-4" />
-                              Postpone
-                            </button>
-                            <button 
-                              onClick={() => handleTaskAction(task.id, 'priority')}
-                              className={`px-4 py-2 ${theme === 'dark' ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'} rounded-xl transition-all duration-300 transform hover:scale-105`}
-                            >
-                              <Flag className="w-4 h-4" />
-                              Priority
-                            </button>
+                            <button onClick={() => handleTaskAction(task.id, 'continue')} className="px-3 py-2 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl hover:shadow-lg hover:scale-105 transition-all text-sm flex items-center gap-1.5"><Play className="w-3.5 h-3.5" /> Continue</button>
+                            <button onClick={() => handleTaskAction(task.id, 'postpone')} className={`px-3 py-2 rounded-xl text-sm transition-all hover:scale-105 ${isDark ? 'bg-slate-700 text-slate-300 hover:bg-slate-600' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}><Clock className="w-3.5 h-3.5 inline mr-1" />Postpone</button>
                           </>
                         )}
                       </div>
@@ -1718,112 +769,39 @@ export const StudentDashboard: React.FC = () => {
 
             {/* Academic Calendar Modal */}
             {showAcademicCalendar && (
-              <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-                <div className={`${theme === 'dark' ? 'bg-gray-900' : 'bg-white'} rounded-2xl p-6 lg:p-8 max-w-6xl w-full max-h-[90vh] overflow-y-auto shadow-2xl`}>
-                  <div className="flex justify-between items-center mb-6">
-                    <h3 className={`text-xl font-bold ${theme === 'dark' ? 'text-white' : 'text-black'}`}>Academic Calendar</h3>
-                    <button 
-                      onClick={() => setShowAcademicCalendar(false)}
-                      className={`p-2 rounded-lg ${theme === 'dark' ? 'hover:bg-gray-800 text-gray-300' : 'hover:bg-gray-100 text-gray-700'} transition-colors`}
-                    >
-                      <CloseIcon className="w-5 h-5" />
-                    </button>
+              <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                <div className={`${isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-200'} border rounded-2xl shadow-2xl max-w-5xl w-full max-h-[90vh] overflow-y-auto`}>
+                  <div className={`p-5 border-b ${isDark ? 'border-slate-700' : 'border-slate-200'} flex items-center justify-between`}>
+                    <div><h3 className={`text-lg font-bold ${isDark ? 'text-white' : 'text-slate-800'}`}>Academic Calendar</h3><p className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>View scheduled academic events</p></div>
+                    <button onClick={() => setShowAcademicCalendar(false)} className={`p-2 rounded-xl ${isDark ? 'hover:bg-slate-700 text-slate-400' : 'hover:bg-slate-100 text-slate-600'} transition-colors`}><CloseIcon className="w-5 h-5" /></button>
                   </div>
-
-                  {/* Calendar Stats */}
-                  <div className="grid grid-cols-4 gap-4 mb-6">
-                    <div className={`p-4 rounded-xl ${theme === 'dark' ? 'bg-gray-800' : 'bg-gray-100'}`}>
-                      <div className="text-2xl font-bold text-purple-500">{getCalendarStats('academic').total}</div>
-                      <div className="text-sm text-gray-500">Total Events</div>
-                    </div>
-                    <div className={`p-4 rounded-xl ${theme === 'dark' ? 'bg-gray-800' : 'bg-gray-100'}`}>
-                      <div className="text-2xl font-bold text-green-500">{getCalendarStats('academic').completed}</div>
-                      <div className="text-sm text-gray-500">Completed</div>
-                    </div>
-                    <div className={`p-4 rounded-xl ${theme === 'dark' ? 'bg-gray-800' : 'bg-gray-100'}`}>
-                      <div className="text-2xl font-bold text-blue-500">{getCalendarStats('academic').inProgress}</div>
-                      <div className="text-sm text-gray-500">In Progress</div>
-                    </div>
-                    <div className={`p-4 rounded-xl ${theme === 'dark' ? 'bg-gray-800' : 'bg-gray-100'}`}>
-                      <div className="text-2xl font-bold text-yellow-500">{getCalendarStats('academic').pending}</div>
-                      <div className="text-sm text-gray-500">Pending</div>
-                    </div>
-                  </div>
-
-                  {/* Calendar Grid */}
-                  <div className={`${theme === 'dark' ? 'bg-gray-800' : 'bg-gray-50'} rounded-xl p-4`}>
-                    {/* Month Navigation */}
-                    <div className="flex justify-between items-center mb-4">
-                      <button 
-                        onClick={() => navigateMonth('prev')}
-                        className={`p-2 rounded-lg ${theme === 'dark' ? 'hover:bg-gray-700' : 'hover:bg-gray-200'} transition-colors`}
-                      >
-                        <CalendarDays className="w-5 h-5" />
-                      </button>
-                      <h4 className={`text-lg font-semibold ${theme === 'dark' ? 'text-white' : 'text-black'}`}>
-                        {getMonthYearString(currentMonth)}
-                      </h4>
-                      <button 
-                        onClick={() => navigateMonth('next')}
-                        className={`p-2 rounded-lg ${theme === 'dark' ? 'hover:bg-gray-700' : 'hover:bg-gray-200'} transition-colors`}
-                      >
-                        <CalendarDays className="w-5 h-5" />
-                      </button>
-                    </div>
-
-                    {/* Calendar Days */}
-                    <div className="grid grid-cols-7 gap-2">
-                      {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-                        <div key={day} className={`text-center text-sm font-medium ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'} py-2`}>
-                          {day}
-                        </div>
+                  <div className="p-5">
+                    <div className="grid grid-cols-4 gap-3 mb-5">
+                      {[{label:'Total',value:getCalendarStats('academic').total,color:'text-indigo-500'},{label:'Completed',value:getCalendarStats('academic').completed,color:'text-emerald-500'},{label:'In Progress',value:getCalendarStats('academic').inProgress,color:'text-blue-500'},{label:'Pending',value:getCalendarStats('academic').pending,color:'text-amber-500'}].map((s,i) => (
+                        <div key={i} className={`p-3 rounded-xl ${isDark ? 'bg-slate-800' : 'bg-slate-50'} text-center`}><div className={`text-2xl font-bold ${s.color}`}>{s.value}</div><div className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>{s.label}</div></div>
                       ))}
-                      
-                      {/* Empty cells for days before month starts */}
-                      {Array.from({ length: getFirstDayOfMonth(currentMonth) }).map((_, index) => (
-                        <div key={`empty-${index}`} className="p-2"></div>
-                      ))}
-                      
-                      {/* Days of the month */}
-                      {Array.from({ length: getDaysInMonth(currentMonth) }).map((_, index) => {
-                        const day = index + 1;
-                        const currentDate = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day);
-                        const events = getEventsForDate(currentDate, 'academic');
-                        const isToday = new Date().toDateString() === currentDate.toDateString();
-                        
-                        return (
-                          <div 
-                            key={day} 
-                            className={`p-2 border rounded-lg min-h-[80px] ${
-                              isToday 
-                                ? 'border-purple-500 bg-purple-500/10' 
-                                : theme === 'dark' 
-                                  ? 'border-gray-700 bg-gray-800/50' 
-                                  : 'border-gray-200 bg-white'
-                            }`}
-                          >
-                            <div className={`text-sm font-medium ${isToday ? 'text-purple-500' : theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
-                              {day}
+                    </div>
+                    <div className={`${isDark ? 'bg-slate-800' : 'bg-slate-50'} rounded-xl p-4`}>
+                      <div className="flex justify-between items-center mb-4">
+                        <button onClick={() => navigateMonth('prev')} className={`p-2 rounded-lg ${isDark ? 'hover:bg-slate-700' : 'hover:bg-slate-200'} transition-colors`}><CalendarDays className="w-4 h-4" /></button>
+                        <h4 className={`font-semibold ${isDark ? 'text-white' : 'text-slate-800'}`}>{getMonthYearString(currentMonth)}</h4>
+                        <button onClick={() => navigateMonth('next')} className={`p-2 rounded-lg ${isDark ? 'hover:bg-slate-700' : 'hover:bg-slate-200'} transition-colors`}><CalendarDays className="w-4 h-4" /></button>
+                      </div>
+                      <div className="grid grid-cols-7 gap-1">
+                        {['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d => <div key={d} className={`text-center text-xs font-medium ${isDark ? 'text-slate-400' : 'text-slate-500'} py-1`}>{d}</div>)}
+                        {Array.from({ length: getFirstDayOfMonth(currentMonth) }).map((_, i) => <div key={`e-${i}`} />)}
+                        {Array.from({ length: getDaysInMonth(currentMonth) }).map((_, i) => {
+                          const day = i + 1; const d = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day);
+                          const evts = getEventsForDate(d, 'academic'); const isToday = new Date().toDateString() === d.toDateString();
+                          return (
+                            <div key={day} className={`p-1.5 rounded-lg min-h-[60px] border text-xs ${isToday ? isDark ? 'border-indigo-500 bg-indigo-900/20' : 'border-indigo-400 bg-indigo-50' : isDark ? 'border-slate-700 bg-slate-800/50' : 'border-slate-200 bg-white'}`}>
+                              <div className={`font-medium mb-1 ${isToday ? 'text-indigo-500' : isDark ? 'text-slate-300' : 'text-slate-700'}`}>{day}</div>
+                              {evts.slice(0,2).map(ev => <div key={ev.id} className={`truncate px-1 py-0.5 rounded mb-0.5 ${getEventStatusColor(ev.status)}`} title={ev.title}>{ev.title}</div>)}
+                              {evts.length > 2 && <div className={`text-xs ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>+{evts.length-2}</div>}
                             </div>
-                            <div className="space-y-1 mt-1">
-                              {events.slice(0, 2).map(event => (
-                                <div 
-                                  key={event.id}
-                                  className={`text-xs p-1 rounded ${getEventStatusColor(event.status)} truncate`}
-                                  title={event.title}
-                                >
-                                  {event.title}
-                                </div>
-                              ))}
-                              {events.length > 2 && (
-                                <div className={`text-xs ${theme === 'dark' ? 'text-gray-500' : 'text-gray-500'}`}>
-                                  +{events.length - 2} more
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })}
+                          );
+                        })}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1832,863 +810,252 @@ export const StudentDashboard: React.FC = () => {
 
             {/* Personal Calendar Modal */}
             {showPersonalCalendar && (
-              <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-                <div className={`${theme === 'dark' ? 'bg-gray-900' : 'bg-white'} rounded-2xl p-6 lg:p-8 max-w-6xl w-full max-h-[90vh] overflow-y-auto shadow-2xl`}>
-                  <div className="flex justify-between items-center mb-6">
-                    <div>
-                      <h3 className={`text-xl font-bold ${theme === 'dark' ? 'text-white' : 'text-black'}`}>Personal Calendar</h3>
-                      <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'} mt-1`}>
-                        Manage your personal todos and events
-                      </p>
-                    </div>
+              <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                <div className={`${isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-200'} border rounded-2xl shadow-2xl max-w-5xl w-full max-h-[90vh] overflow-y-auto`}>
+                  <div className={`p-5 border-b ${isDark ? 'border-slate-700' : 'border-slate-200'} flex items-center justify-between`}>
+                    <div><h3 className={`text-lg font-bold ${isDark ? 'text-white' : 'text-slate-800'}`}>Personal Calendar</h3><p className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Manage personal todos and events</p></div>
                     <div className="flex items-center gap-2">
-                      <button 
-                        onClick={() => openTodoModal(new Date())}
-                        className={`px-4 py-2 bg-gradient-to-r from-indigo-600 to-indigo-700 text-white rounded-lg hover:from-indigo-700 hover:to-indigo-800 transition-all duration-300 transform hover:scale-105 flex items-center gap-2`}
-                      >
-                        <Plus className="w-4 h-4" />
-                        Add Todo
-                      </button>
-                      <button 
-                        onClick={() => setShowPersonalCalendar(false)}
-                        className={`p-2 rounded-lg ${theme === 'dark' ? 'hover:bg-gray-800 text-gray-300' : 'hover:bg-gray-100 text-gray-700'} transition-colors`}
-                      >
-                        <CloseIcon className="w-5 h-5" />
-                      </button>
+                      <button onClick={() => openTodoModal(new Date())} className="px-3 py-2 bg-gradient-to-r from-indigo-500 to-violet-600 text-white rounded-xl hover:shadow-lg transition-all text-sm flex items-center gap-1.5"><Plus className="w-4 h-4" /> Add Todo</button>
+                      <button onClick={() => setShowPersonalCalendar(false)} className={`p-2 rounded-xl ${isDark ? 'hover:bg-slate-700 text-slate-400' : 'hover:bg-slate-100 text-slate-600'} transition-colors`}><CloseIcon className="w-5 h-5" /></button>
                     </div>
                   </div>
-
-                  {/* Calendar Stats */}
-                  <div className="grid grid-cols-4 gap-4 mb-6">
-                    <div className={`p-4 rounded-xl ${theme === 'dark' ? 'bg-gray-800' : 'bg-gray-100'}`}>
-                      <div className="text-2xl font-bold text-indigo-500">{getCalendarStats('personal').total}</div>
-                      <div className="text-sm text-gray-500">Total Events</div>
-                    </div>
-                    <div className={`p-4 rounded-xl ${theme === 'dark' ? 'bg-gray-800' : 'bg-gray-100'}`}>
-                      <div className="text-2xl font-bold text-green-500">{getCalendarStats('personal').completed}</div>
-                      <div className="text-sm text-gray-500">Completed</div>
-                    </div>
-                    <div className={`p-4 rounded-xl ${theme === 'dark' ? 'bg-gray-800' : 'bg-gray-100'}`}>
-                      <div className="text-2xl font-bold text-blue-500">{getCalendarStats('personal').inProgress}</div>
-                      <div className="text-sm text-gray-500">In Progress</div>
-                    </div>
-                    <div className={`p-4 rounded-xl ${theme === 'dark' ? 'bg-gray-800' : 'bg-gray-100'}`}>
-                      <div className="text-2xl font-bold text-yellow-500">{getCalendarStats('personal').pending}</div>
-                      <div className="text-sm text-gray-500">Pending</div>
-                    </div>
-                  </div>
-
-                  {/* Calendar Grid */}
-                  <div className={`${theme === 'dark' ? 'bg-gray-800' : 'bg-gray-50'} rounded-xl p-4`}>
-                    {/* Month Navigation */}
-                    <div className="flex justify-between items-center mb-4">
-                      <button 
-                        onClick={() => navigateMonth('prev')}
-                        className={`p-2 rounded-lg ${theme === 'dark' ? 'hover:bg-gray-700' : 'hover:bg-gray-200'} transition-colors`}
-                      >
-                        <CalendarPlus className="w-5 h-5" />
-                      </button>
-                      <h4 className={`text-lg font-semibold ${theme === 'dark' ? 'text-white' : 'text-black'}`}>
-                        {getMonthYearString(currentMonth)}
-                      </h4>
-                      <button 
-                        onClick={() => navigateMonth('next')}
-                        className={`p-2 rounded-lg ${theme === 'dark' ? 'hover:bg-gray-700' : 'hover:bg-gray-200'} transition-colors`}
-                      >
-                        <CalendarPlus className="w-5 h-5" />
-                      </button>
-                    </div>
-
-                    {/* Calendar Days */}
-                    <div className="grid grid-cols-7 gap-2">
-                      {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-                        <div key={day} className={`text-center text-sm font-medium ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'} py-2`}>
-                          {day}
-                        </div>
+                  <div className="p-5">
+                    <div className="grid grid-cols-4 gap-3 mb-5">
+                      {[{label:'Total',value:getCalendarStats('personal').total,color:'text-indigo-500'},{label:'Completed',value:getCalendarStats('personal').completed,color:'text-emerald-500'},{label:'In Progress',value:getCalendarStats('personal').inProgress,color:'text-blue-500'},{label:'Pending',value:getCalendarStats('personal').pending,color:'text-amber-500'}].map((s,i) => (
+                        <div key={i} className={`p-3 rounded-xl ${isDark ? 'bg-slate-800' : 'bg-slate-50'} text-center`}><div className={`text-2xl font-bold ${s.color}`}>{s.value}</div><div className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>{s.label}</div></div>
                       ))}
-                      
-                      {/* Empty cells for days before month starts */}
-                      {Array.from({ length: getFirstDayOfMonth(currentMonth) }).map((_, index) => (
-                        <div key={`empty-${index}`} className="p-2"></div>
-                      ))}
-                      
-                      {/* Days of the month */}
-                      {Array.from({ length: getDaysInMonth(currentMonth) }).map((_, index) => {
-                        const day = index + 1;
-                        const currentDate = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day);
-                        const events = getEventsForDate(currentDate, 'personal');
-                        const isToday = new Date().toDateString() === currentDate.toDateString();
-                        
-                        return (
-                          <div 
-                            key={day} 
-                            className={`p-2 border rounded-lg min-h-[80px] cursor-pointer transition-colors ${
-                              isToday 
-                                ? 'border-indigo-500 bg-indigo-500/10' 
-                                : theme === 'dark' 
-                                  ? 'border-gray-700 bg-gray-800/50 hover:bg-gray-800' 
-                                  : 'border-gray-200 bg-white hover:bg-gray-50'
-                            }`}
-                            onClick={() => openTodoModal(currentDate)}
-                          >
-                            <div className={`text-sm font-medium ${isToday ? 'text-indigo-500' : theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
-                              {day}
+                    </div>
+                    <div className={`${isDark ? 'bg-slate-800' : 'bg-slate-50'} rounded-xl p-4`}>
+                      <div className="flex justify-between items-center mb-4">
+                        <button onClick={() => navigateMonth('prev')} className={`p-2 rounded-lg ${isDark ? 'hover:bg-slate-700' : 'hover:bg-slate-200'} transition-colors`}><CalendarPlus className="w-4 h-4" /></button>
+                        <h4 className={`font-semibold ${isDark ? 'text-white' : 'text-slate-800'}`}>{getMonthYearString(currentMonth)}</h4>
+                        <button onClick={() => navigateMonth('next')} className={`p-2 rounded-lg ${isDark ? 'hover:bg-slate-700' : 'hover:bg-slate-200'} transition-colors`}><CalendarPlus className="w-4 h-4" /></button>
+                      </div>
+                      <div className="grid grid-cols-7 gap-1">
+                        {['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d => <div key={d} className={`text-center text-xs font-medium ${isDark ? 'text-slate-400' : 'text-slate-500'} py-1`}>{d}</div>)}
+                        {Array.from({ length: getFirstDayOfMonth(currentMonth) }).map((_, i) => <div key={`e-${i}`} />)}
+                        {Array.from({ length: getDaysInMonth(currentMonth) }).map((_, i) => {
+                          const day = i + 1; const d = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day);
+                          const evts = getEventsForDate(d, 'personal'); const isToday = new Date().toDateString() === d.toDateString();
+                          return (
+                            <div key={day} onClick={() => openTodoModal(d)} className={`p-1.5 rounded-lg min-h-[60px] border text-xs cursor-pointer transition-colors ${isToday ? isDark ? 'border-violet-500 bg-violet-900/20' : 'border-violet-400 bg-violet-50' : isDark ? 'border-slate-700 bg-slate-800/50 hover:bg-slate-700' : 'border-slate-200 bg-white hover:bg-slate-50'}`}>
+                              <div className={`font-medium mb-1 ${isToday ? 'text-violet-500' : isDark ? 'text-slate-300' : 'text-slate-700'}`}>{day}</div>
+                              {evts.slice(0,2).map(ev => <div key={ev.id} onClick={e => { e.stopPropagation(); openTodoModal(d, ev); }} className={`truncate px-1 py-0.5 rounded mb-0.5 cursor-pointer ${getEventStatusColor(ev.status)}`} title={ev.title}>{ev.title}</div>)}
+                              {evts.length > 2 && <div className={`text-xs ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>+{evts.length-2}</div>}
                             </div>
-                            <div className="space-y-1 mt-1">
-                              {events.slice(0, 2).map(event => (
-                                <div 
-                                  key={event.id}
-                                  className={`text-xs p-1 rounded ${getEventStatusColor(event.status)} truncate cursor-pointer hover:opacity-80`}
-                                  title={event.title}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    openTodoModal(currentDate, event);
-                                  }}
-                                >
-                                  {event.title}
-                                </div>
-                              ))}
-                              {events.length > 2 && (
-                                <div className={`text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'} italic`}>
-                                  +{events.length - 2} more
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })}
+                          );
+                        })}
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
             )}
+
             {/* Todo Modal */}
             {showTodoModal && (
-              <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                <div className={`${theme === 'dark' ? 'bg-gray-900 border-gray-700' : 'bg-white border-gray-200'} rounded-2xl border shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto`}>
-                  {/* Modal Header */}
-                  <div className={`p-6 border-b ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'}`}>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h3 className={`text-xl font-bold ${theme === 'dark' ? 'text-white' : 'text-black'}`}>
-                          {editingTodo ? 'Edit Todo' : 'Add New Todo'}
-                        </h3>
-                        <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'} mt-1`}>
-                          {selectedDate ? `Date: ${selectedDate.toLocaleDateString()}` : 'Select a date'}
-                        </p>
-                      </div>
-                      <button
-                        onClick={closeTodoModal}
-                        className={`p-2 rounded-lg ${theme === 'dark' ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-100 text-gray-600'} transition-colors`}
-                      >
-                        <CloseIcon className="w-5 h-5" />
-                      </button>
-                    </div>
+              <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                <div className={`${isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-200'} border rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto`}>
+                  <div className={`p-5 border-b ${isDark ? 'border-slate-700' : 'border-slate-200'} flex items-center justify-between`}>
+                    <div><h3 className={`font-bold ${isDark ? 'text-white' : 'text-slate-800'}`}>{editingTodo ? 'Edit Todo' : 'Add New Todo'}</h3><p className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{selectedDate ? selectedDate.toLocaleDateString() : ''}</p></div>
+                    <button onClick={closeTodoModal} className={`p-2 rounded-xl ${isDark ? 'hover:bg-slate-700 text-slate-400' : 'hover:bg-slate-100 text-slate-600'} transition-colors`}><CloseIcon className="w-5 h-5" /></button>
                   </div>
-
-                  {/* Modal Body */}
-                  <div className="p-6 space-y-6">
-                    {/* Title */}
-                    <div>
-                      <label className={`block text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
-                        Title *
-                      </label>
-                      <input
-                        type="text"
-                        value={todoTitle}
-                        onChange={(e) => setTodoTitle(e.target.value)}
-                        className={`w-full px-4 py-2 rounded-lg border ${theme === 'dark' ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-300 text-black'} focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent`}
-                        placeholder="Enter todo title"
-                      />
+                  <div className="p-5 space-y-4">
+                    <div><label className={`block text-sm font-medium mb-1.5 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Title *</label><input type="text" value={todoTitle} onChange={e => setTodoTitle(e.target.value)} className={`w-full px-3 py-2.5 rounded-xl border text-sm ${isDark ? 'bg-slate-800 border-slate-600 text-white placeholder-slate-500' : 'bg-white border-slate-300 text-slate-800'} focus:outline-none focus:ring-2 focus:ring-indigo-500`} placeholder="Enter todo title" /></div>
+                    <div><label className={`block text-sm font-medium mb-1.5 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Description</label><textarea value={todoDescription} onChange={e => setTodoDescription(e.target.value)} rows={3} className={`w-full px-3 py-2.5 rounded-xl border text-sm ${isDark ? 'bg-slate-800 border-slate-600 text-white placeholder-slate-500' : 'bg-white border-slate-300 text-slate-800'} focus:outline-none focus:ring-2 focus:ring-indigo-500`} placeholder="Description (optional)" /></div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div><label className={`block text-sm font-medium mb-1.5 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Priority</label><select value={todoPriority} onChange={e => setTodoPriority(e.target.value as any)} className={`w-full px-3 py-2.5 rounded-xl border text-sm ${isDark ? 'bg-slate-800 border-slate-600 text-white' : 'bg-white border-slate-300 text-slate-800'} focus:outline-none focus:ring-2 focus:ring-indigo-500`}><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="urgent">Urgent</option></select></div>
+                      <div><label className={`block text-sm font-medium mb-1.5 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Risk Level</label><select value={todoRiskLevel} onChange={e => setTodoRiskLevel(e.target.value as any)} className={`w-full px-3 py-2.5 rounded-xl border text-sm ${isDark ? 'bg-slate-800 border-slate-600 text-white' : 'bg-white border-slate-300 text-slate-800'} focus:outline-none focus:ring-2 focus:ring-indigo-500`}><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="critical">Critical</option></select></div>
                     </div>
-
-                    {/* Description */}
-                    <div>
-                      <label className={`block text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
-                        Description
-                      </label>
-                      <textarea
-                        value={todoDescription}
-                        onChange={(e) => setTodoDescription(e.target.value)}
-                        rows={3}
-                        className={`w-full px-4 py-2 rounded-lg border ${theme === 'dark' ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-300 text-black'} focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent`}
-                        placeholder="Add description (optional)"
-                      />
+                    <div className="grid grid-cols-2 gap-3">
+                      <div><label className={`block text-sm font-medium mb-1.5 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Category</label><input type="text" value={todoCategory} onChange={e => setTodoCategory(e.target.value)} className={`w-full px-3 py-2.5 rounded-xl border text-sm ${isDark ? 'bg-slate-800 border-slate-600 text-white' : 'bg-white border-slate-300 text-slate-800'} focus:outline-none focus:ring-2 focus:ring-indigo-500`} placeholder="Personal, Work…" /></div>
+                      <div><label className={`block text-sm font-medium mb-1.5 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Location</label><input type="text" value={todoLocation} onChange={e => setTodoLocation(e.target.value)} className={`w-full px-3 py-2.5 rounded-xl border text-sm ${isDark ? 'bg-slate-800 border-slate-600 text-white' : 'bg-white border-slate-300 text-slate-800'} focus:outline-none focus:ring-2 focus:ring-indigo-500`} placeholder="Where? (optional)" /></div>
                     </div>
-
-                    {/* Priority and Risk Level */}
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className={`block text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
-                          Priority
-                        </label>
-                        <select
-                          value={todoPriority}
-                          onChange={(e) => setTodoPriority(e.target.value as any)}
-                          className={`w-full px-4 py-2 rounded-lg border ${theme === 'dark' ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-300 text-black'} focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent`}
-                        >
-                          <option value="low">Low</option>
-                          <option value="medium">Medium</option>
-                          <option value="high">High</option>
-                          <option value="urgent">Urgent</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className={`block text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
-                          Risk Level
-                        </label>
-                        <select
-                          value={todoRiskLevel}
-                          onChange={(e) => setTodoRiskLevel(e.target.value as any)}
-                          className={`w-full px-4 py-2 rounded-lg border ${theme === 'dark' ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-300 text-black'} focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent`}
-                        >
-                          <option value="low">Low</option>
-                          <option value="medium">Medium</option>
-                          <option value="high">High</option>
-                          <option value="critical">Critical</option>
-                        </select>
-                      </div>
+                    <div className={`p-4 rounded-xl ${isDark ? 'bg-slate-800' : 'bg-slate-50'}`}>
+                      <div className="flex items-center mb-3"><input type="checkbox" id="alertEnabled" checked={todoAlertEnabled} onChange={e => setTodoAlertEnabled(e.target.checked)} className="mr-2 accent-indigo-500" /><label htmlFor="alertEnabled" className={`text-sm font-medium ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Enable Alert</label></div>
+                      {todoAlertEnabled && (<div className="space-y-3"><div><label className={`block text-sm font-medium mb-1.5 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Alert Date</label><input type="date" value={todoAlertDate} onChange={e => setTodoAlertDate(e.target.value)} className={`w-full px-3 py-2.5 rounded-xl border text-sm ${isDark ? 'bg-slate-800 border-slate-600 text-white' : 'bg-white border-slate-300 text-slate-800'} focus:outline-none focus:ring-2 focus:ring-indigo-500`} /></div><div><label className={`block text-sm font-medium mb-1.5 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Alert Message</label><input type="text" value={todoAlertMessage} onChange={e => setTodoAlertMessage(e.target.value)} className={`w-full px-3 py-2.5 rounded-xl border text-sm ${isDark ? 'bg-slate-800 border-slate-600 text-white' : 'bg-white border-slate-300 text-slate-800'} focus:outline-none focus:ring-2 focus:ring-indigo-500`} placeholder="Alert message (optional)" /></div></div>)}
                     </div>
-
-                    {/* Category and Location */}
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className={`block text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
-                          Category
-                        </label>
-                        <input
-                          type="text"
-                          value={todoCategory}
-                          onChange={(e) => setTodoCategory(e.target.value)}
-                          className={`w-full px-4 py-2 rounded-lg border ${theme === 'dark' ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-300 text-black'} focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent`}
-                          placeholder="Personal, Work, Health, etc."
-                        />
-                      </div>
-                      <div>
-                        <label className={`block text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
-                          Location
-                        </label>
-                        <input
-                          type="text"
-                          value={todoLocation}
-                          onChange={(e) => setTodoLocation(e.target.value)}
-                          className={`w-full px-4 py-2 rounded-lg border ${theme === 'dark' ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-300 text-black'} focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent`}
-                          placeholder="Where? (optional)"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Alert Settings */}
-                    <div className={`p-4 rounded-lg ${theme === 'dark' ? 'bg-gray-800' : 'bg-gray-100'}`}>
-                      <div className="flex items-center mb-3">
-                        <input
-                          type="checkbox"
-                          id="alertEnabled"
-                          checked={todoAlertEnabled}
-                          onChange={(e) => setTodoAlertEnabled(e.target.checked)}
-                          className="mr-2"
-                        />
-                        <label htmlFor="alertEnabled" className={`text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
-                          Enable Alert
-                        </label>
-                      </div>
-                      {todoAlertEnabled && (
-                        <div className="space-y-3">
-                          <div>
-                            <label className={`block text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
-                              Alert Date
-                            </label>
-                            <input
-                              type="date"
-                              value={todoAlertDate}
-                              onChange={(e) => setTodoAlertDate(e.target.value)}
-                              className={`w-full px-4 py-2 rounded-lg border ${theme === 'dark' ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-300 text-black'} focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent`}
-                            />
-                          </div>
-                          <div>
-                            <label className={`block text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
-                              Alert Message
-                            </label>
-                            <input
-                              type="text"
-                              value={todoAlertMessage}
-                              onChange={(e) => setTodoAlertMessage(e.target.value)}
-                              className={`w-full px-4 py-2 rounded-lg border ${theme === 'dark' ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-300 text-black'} focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent`}
-                              placeholder="Alert message (optional)"
-                            />
-                          </div>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Todo Actions (if editing) */}
                     {editingTodo && (
-                      <div className={`p-4 rounded-lg ${theme === 'dark' ? 'bg-gray-800' : 'bg-gray-100'}`}>
-                        <p className={`text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'} mb-3`}>
-                          Todo Actions
-                        </p>
+                      <div className={`p-4 rounded-xl ${isDark ? 'bg-slate-800' : 'bg-slate-50'}`}>
+                        <p className={`text-sm font-medium mb-3 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Actions</p>
                         <div className="flex flex-wrap gap-2">
-                          <button
-                            onClick={() => toggleTodoStatus(editingTodo.id)}
-                            className={`px-3 py-1 rounded text-sm ${
-                              editingTodo.status === 'pending'
-                                ? 'bg-blue-600 text-white hover:bg-blue-700'
-                                : 'bg-yellow-600 text-white hover:bg-yellow-700'
-                            } transition-colors`}
-                          >
-                            {editingTodo.status === 'pending' ? 'Start' : 'Pause'}
-                          </button>
-                          <button
-                            onClick={() => markTodoComplete(editingTodo.id)}
-                            className="px-3 py-1 rounded text-sm bg-green-600 text-white hover:bg-green-700 transition-colors"
-                          >
-                            Complete
-                          </button>
-                          <button
-                            onClick={() => deleteTodo(editingTodo.id)}
-                            className="px-3 py-1 rounded text-sm bg-red-600 text-white hover:bg-red-700 transition-colors"
-                          >
-                            Delete
-                          </button>
+                          <button onClick={() => toggleTodoStatus(editingTodo.id)} className={`px-3 py-1.5 rounded-lg text-sm ${editingTodo.status === 'pending' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-amber-600 hover:bg-amber-700'} text-white transition-colors`}>{editingTodo.status === 'pending' ? 'Start' : 'Pause'}</button>
+                          <button onClick={() => markTodoComplete(editingTodo.id)} className="px-3 py-1.5 rounded-lg text-sm bg-emerald-600 hover:bg-emerald-700 text-white transition-colors">Complete</button>
+                          <button onClick={() => deleteTodo(editingTodo.id)} className="px-3 py-1.5 rounded-lg text-sm bg-rose-600 hover:bg-rose-700 text-white transition-colors">Delete</button>
                         </div>
                       </div>
                     )}
                   </div>
-
-                  {/* Modal Footer */}
-                  <div className={`p-6 border-t ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'}`}>
-                    <div className="flex justify-end gap-3">
-                      <button
-                        onClick={closeTodoModal}
-                        className={`px-6 py-2 rounded-lg ${theme === 'dark' ? 'bg-gray-800 hover:bg-gray-700 text-gray-300' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'} transition-colors`}
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        onClick={saveTodo}
-                        className={`px-6 py-2 rounded-lg bg-gradient-to-r from-indigo-600 to-indigo-700 text-white hover:from-indigo-700 hover:to-indigo-800 transition-all duration-300 transform hover:scale-105`}
-                      >
-                        {editingTodo ? 'Update Todo' : 'Create Todo'}
-                      </button>
-                    </div>
+                  <div className={`p-5 border-t ${isDark ? 'border-slate-700' : 'border-slate-200'} flex justify-end gap-3`}>
+                    <button onClick={closeTodoModal} className={`px-5 py-2 rounded-xl text-sm ${isDark ? 'bg-slate-800 hover:bg-slate-700 text-slate-300' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'} transition-colors`}>Cancel</button>
+                    <button onClick={saveTodo} className="px-5 py-2 rounded-xl text-sm bg-gradient-to-r from-indigo-500 to-violet-600 text-white hover:shadow-lg hover:scale-105 transition-all">{editingTodo ? 'Update' : 'Create'}</button>
                   </div>
                 </div>
               </div>
             )}
+
             {/* Alert Modal */}
             {showAlertModal && (
-              <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                <div className={`${theme === 'dark' ? 'bg-gray-900 border-gray-700' : 'bg-white border-gray-200'} rounded-2xl border shadow-2xl max-w-3xl w-full max-h-[80vh] overflow-y-auto`}>
-                  {/* Modal Header */}
-                  <div className={`p-6 border-b ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'}`}>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="p-3 bg-gradient-to-r from-orange-500 to-red-500 rounded-full">
-                          <Bell className="w-6 h-6 text-white" />
-                        </div>
-                        <div>
-                          <h3 className={`text-xl font-bold ${theme === 'dark' ? 'text-white' : 'text-black'}`}>
-                            Pending Work Alerts
-                          </h3>
-                          <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'} mt-1`}>
-                            Important tasks that need your attention
-                          </p>
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => setShowAlertModal(false)}
-                        className={`p-2 rounded-lg ${theme === 'dark' ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-100 text-gray-600'} transition-colors`}
-                      >
-                        <CloseIcon className="w-5 h-5" />
-                      </button>
-                    </div>
+              <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                <div className={`${isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-200'} border rounded-2xl shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-y-auto`}>
+                  <div className={`p-5 border-b ${isDark ? 'border-slate-700' : 'border-slate-200'} flex items-center justify-between`}>
+                    <div className="flex items-center gap-3"><div className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-500 to-rose-500 flex items-center justify-center"><Bell className="w-5 h-5 text-white" /></div><div><h3 className={`font-bold ${isDark ? 'text-white' : 'text-slate-800'}`}>Pending Work Alerts</h3><p className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Important tasks needing attention</p></div></div>
+                    <button onClick={() => setShowAlertModal(false)} className={`p-2 rounded-xl ${isDark ? 'hover:bg-slate-700 text-slate-400' : 'hover:bg-slate-100 text-slate-600'} transition-colors`}><CloseIcon className="w-5 h-5" /></button>
                   </div>
-
-                  {/* Modal Body */}
-                  <div className="p-6 space-y-6">
-                    {/* Academic Alerts */}
-                    {alertMessages.academic.length > 0 && (
-                      <div className={`p-4 rounded-xl ${theme === 'dark' ? 'bg-purple-900/50 border-purple-700' : 'bg-purple-50 border-purple-200'} border`}>
-                        <div className="flex items-center gap-2 mb-3">
-                          <BookOpen className="w-5 h-5 text-purple-600" />
-                          <h4 className={`font-semibold ${theme === 'dark' ? 'text-purple-300' : 'text-purple-900'}`}>
-                            Academic Calendar
-                          </h4>
-                        </div>
-                        <div className="space-y-2">
-                          {alertMessages.academic.map((alert, index) => (
-                            <div
-                              key={`academic-${index}`}
-                              className={`flex items-center gap-2 p-2 rounded-lg ${theme === 'dark' ? 'bg-purple-800/30' : 'bg-purple-100/50'}`}
-                            >
-                              <span className="text-sm">{alert}</span>
-                            </div>
-                          ))}
-                        </div>
-                        <button
-                          onClick={() => {
-                            setShowAlertModal(false);
-                            setShowAcademicCalendar(true);
-                          }}
-                          className={`mt-3 px-4 py-2 rounded-lg bg-purple-600 text-white hover:bg-purple-700 transition-colors text-sm font-medium`}
-                        >
-                          View Academic Calendar
-                        </button>
-                      </div>
-                    )}
-
-                    {/* Personal Alerts */}
-                    {alertMessages.personal.length > 0 && (
-                      <div className={`p-4 rounded-xl ${theme === 'dark' ? 'bg-indigo-900/50 border-indigo-700' : 'bg-indigo-50 border-indigo-200'} border`}>
-                        <div className="flex items-center gap-2 mb-3">
-                          <User className="w-5 h-5 text-indigo-600" />
-                          <h4 className={`font-semibold ${theme === 'dark' ? 'text-indigo-300' : 'text-indigo-900'}`}>
-                            Personal Calendar
-                          </h4>
-                        </div>
-                        <div className="space-y-2">
-                          {alertMessages.personal.map((alert, index) => (
-                            <div
-                              key={`personal-${index}`}
-                              className={`flex items-center gap-2 p-2 rounded-lg ${theme === 'dark' ? 'bg-indigo-800/30' : 'bg-indigo-100/50'}`}
-                            >
-                              <span className="text-sm">{alert}</span>
-                            </div>
-                          ))}
-                        </div>
-                        <button
-                          onClick={() => {
-                            setShowAlertModal(false);
-                            setShowPersonalCalendar(true);
-                          }}
-                          className={`mt-3 px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-colors text-sm font-medium`}
-                        >
-                          View Personal Calendar
-                        </button>
-                      </div>
-                    )}
-
-                    {/* Summary */}
-                    <div className={`p-4 rounded-xl ${theme === 'dark' ? 'bg-gray-800' : 'bg-gray-100'}`}>
-                      <div className="flex items-center gap-2 mb-2">
-                        <TrendingUp className="w-5 h-5 text-blue-600" />
-                        <h4 className={`font-semibold ${theme === 'dark' ? 'text-gray-300' : 'text-gray-900'}`}>
-                          Summary
-                        </h4>
-                      </div>
-                      <div className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
-                        <p>You have <span className="font-medium text-orange-600">{alertMessages.academic.length + alertMessages.personal.length}</span> pending items requiring attention.</p>
-                        <p className="mt-1">Stay organized and complete your tasks on time for better academic performance!</p>
-                      </div>
-                    </div>
+                  <div className="p-5 space-y-4">
+                    {alertMessages.academic.length > 0 && (<div className={`p-4 rounded-xl ${isDark ? 'bg-violet-900/20 border-violet-700/30' : 'bg-violet-50 border-violet-200'} border`}><div className="flex items-center gap-2 mb-3"><BookOpen className="w-4 h-4 text-violet-500" /><h4 className={`font-semibold text-sm ${isDark ? 'text-violet-300' : 'text-violet-800'}`}>Academic Calendar</h4></div><div className="space-y-1.5">{alertMessages.academic.map((a, i) => <div key={i} className={`p-2 rounded-lg text-sm ${isDark ? 'bg-violet-900/30 text-slate-300' : 'bg-violet-100/50 text-slate-700'}`}>{a}</div>)}</div><button onClick={() => { setShowAlertModal(false); setShowAcademicCalendar(true); }} className="mt-3 px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white rounded-lg text-sm transition-colors">View Academic Calendar</button></div>)}
+                    {alertMessages.personal.length > 0 && (<div className={`p-4 rounded-xl ${isDark ? 'bg-indigo-900/20 border-indigo-700/30' : 'bg-indigo-50 border-indigo-200'} border`}><div className="flex items-center gap-2 mb-3"><User className="w-4 h-4 text-indigo-500" /><h4 className={`font-semibold text-sm ${isDark ? 'text-indigo-300' : 'text-indigo-800'}`}>Personal Calendar</h4></div><div className="space-y-1.5">{alertMessages.personal.map((a, i) => <div key={i} className={`p-2 rounded-lg text-sm ${isDark ? 'bg-indigo-900/30 text-slate-300' : 'bg-indigo-100/50 text-slate-700'}`}>{a}</div>)}</div><button onClick={() => { setShowAlertModal(false); setShowPersonalCalendar(true); }} className="mt-3 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm transition-colors">View Personal Calendar</button></div>)}
                   </div>
-
-                  {/* Modal Footer */}
-                  <div className={`p-6 border-t ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'}`}>
-                    <div className="flex justify-between items-center">
-                      <div className="flex gap-3">
-                        {alertMessages.academic.length > 0 && (
-                          <button
-                            onClick={() => {
-                              setShowAlertModal(false);
-                              setShowAcademicCalendar(true);
-                            }}
-                            className={`px-4 py-2 rounded-lg ${theme === 'dark' ? 'bg-purple-800 hover:bg-purple-700' : 'bg-purple-100 hover:bg-purple-200'} ${theme === 'dark' ? 'text-purple-300' : 'text-purple-900'} transition-colors`}
-                          >
-                            <BookOpen className="w-4 h-4 inline mr-2" />
-                            Academic
-                          </button>
-                        )}
-                        {alertMessages.personal.length > 0 && (
-                          <button
-                            onClick={() => {
-                              setShowAlertModal(false);
-                              setShowPersonalCalendar(true);
-                            }}
-                            className={`px-4 py-2 rounded-lg ${theme === 'dark' ? 'bg-indigo-800 hover:bg-indigo-700' : 'bg-indigo-100 hover:bg-indigo-200'} ${theme === 'dark' ? 'text-indigo-300' : 'text-indigo-900'} transition-colors`}
-                          >
-                            <User className="w-4 h-4 inline mr-2" />
-                            Personal
-                          </button>
-                        )}
-                      </div>
-                      <button
-                        onClick={() => setShowAlertModal(false)}
-                        className={`px-6 py-2 rounded-lg ${theme === 'dark' ? 'bg-gray-800 hover:bg-gray-700 text-gray-300' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'} transition-colors`}
-                      >
-                        Dismiss
-                      </button>
-                    </div>
-                  </div>
+                  <div className={`p-5 border-t ${isDark ? 'border-slate-700' : 'border-slate-200'} flex justify-end`}><button onClick={() => setShowAlertModal(false)} className={`px-5 py-2 rounded-xl text-sm ${isDark ? 'bg-slate-800 hover:bg-slate-700 text-slate-300' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'} transition-colors`}>Dismiss</button></div>
                 </div>
               </div>
             )}
           </div>
         );
+
       case 'documents':
         return (
-          <div className="space-y-8">
-            {/* Documents Header */}
-            <div className={`${theme === 'dark' ? 'bg-gradient-to-br from-gray-800 via-gray-900 to-gray-800' : 'bg-gradient-to-br from-gray-50 via-white to-gray-100'} rounded-2xl p-6 lg:p-8 border ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'} shadow-xl relative overflow-hidden`}>
-              {/* Background decoration */}
-              <div className="absolute inset-0 opacity-5">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-green-500 to-teal-500 rounded-full blur-2xl"></div>
-                <div className="absolute bottom-0 left-0 w-32 h-32 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full blur-2xl"></div>
-              </div>
-              
-              <div className="relative z-10 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
-                <div className="transform transition-all duration-300 hover:translate-x-2">
-                  <h2 className={`text-3xl lg:text-4xl font-bold ${theme === 'dark' ? 'text-white' : 'text-black'} mb-3 bg-gradient-to-r ${theme === 'dark' ? 'from-white to-gray-300' : 'from-black to-gray-700'} bg-clip-text text-transparent`}>
-                    Document Management
-                  </h2>
-                  <p className={`${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'} text-lg`}>Upload and manage your academic documents</p>
+          <div className="space-y-6 animate-fade-in">
+            {/* Header */}
+            <div className={`relative overflow-hidden rounded-2xl p-6 lg:p-8 ${isDark ? 'bg-gradient-to-br from-slate-800 via-emerald-900/30 to-slate-800 border border-emerald-700/30' : 'bg-gradient-to-br from-emerald-500 via-teal-500 to-cyan-600'}`}>
+              <div className="absolute inset-0 opacity-10"><div className="absolute -top-8 -right-8 w-48 h-48 bg-white rounded-full blur-3xl" /><div className="absolute -bottom-8 -left-8 w-48 h-48 bg-white rounded-full blur-3xl" /></div>
+              <div className="relative z-10 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                <div>
+                  <div className="flex items-center gap-2 mb-2"><span className={`text-xs font-semibold uppercase tracking-widest px-3 py-1 rounded-full ${isDark ? 'bg-emerald-500/20 text-emerald-300' : 'bg-white/20 text-white'}`}>Document Hub</span></div>
+                  <h2 className="text-3xl lg:text-4xl font-bold text-white mb-1">My Documents</h2>
+                  <p className={`${isDark ? 'text-emerald-300' : 'text-emerald-100'}`}>Upload and track your academic document submissions</p>
                 </div>
-                <div className="flex flex-col sm:flex-row gap-3">
-                  <button 
-                    onClick={() => setShowUploadModal(true)}
-                    className={`px-6 py-3 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-xl hover:from-green-700 hover:to-green-800 transition-all duration-300 transform hover:scale-105 hover:shadow-lg flex items-center justify-center`}
-                  >
-                    <Upload className="w-5 h-5 mr-2" />
-                    Upload Document
-                  </button>
-                </div>
+                <button onClick={() => setShowUploadModal(true)} className="self-start lg:self-auto px-5 py-2.5 bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white rounded-xl border border-white/20 transition-all duration-200 flex items-center gap-2 text-sm font-medium">
+                  <Upload className="w-4 h-4" /> Upload Document
+                </button>
               </div>
             </div>
 
-            {/* Document Status Overview */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className={`${theme === 'dark' ? 'bg-gradient-to-br from-gray-800 via-gray-900 to-gray-800' : 'bg-gradient-to-br from-gray-50 via-white to-gray-100'} rounded-2xl p-6 lg:p-8 border ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'} shadow-xl relative overflow-hidden`}>
-                <div className="flex items-center justify-between mb-4">
-                  <span className={`text-sm font-medium ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>Total Documents</span>
-                  <FileText className={`w-5 h-5 ${theme === 'dark' ? 'text-gray-500' : 'text-gray-400'}`} />
-                </div>
-                <div className={`text-3xl font-bold ${theme === 'dark' ? 'text-white' : 'text-black'}`}>
-                  9
-                </div>
-                <p className={`text-xs ${theme === 'dark' ? 'text-gray-500' : 'text-gray-500'} mt-2`}>
-                  Total required documents to submit
-                </p>
-              </div>
-              
-              <div className={`${theme === 'dark' ? 'bg-gradient-to-br from-gray-800 via-gray-900 to-gray-800' : 'bg-gradient-to-br from-gray-50 via-white to-gray-100'} rounded-2xl p-6 lg:p-8 border ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'} shadow-xl relative overflow-hidden`}>
-                <div className="flex items-center justify-between mb-4">
-                  <span className={`text-sm font-medium ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>Verified</span>
-                  <CheckCircle className="w-5 h-5 text-green-500" />
-                </div>
-                <div className={`text-3xl font-bold ${theme === 'dark' ? 'text-white' : 'text-black'}`}>
-                  {documentTypesStatus.filter(doc => doc.verification_status === 'verified').length}
-                </div>
-                <p className={`text-xs ${theme === 'dark' ? 'text-gray-500' : 'text-gray-500'} mt-2`}>
-                  Verified by faculty
-                </p>
-              </div>
-              
-              <div className={`${theme === 'dark' ? 'bg-gradient-to-br from-gray-800 via-gray-900 to-gray-800' : 'bg-gradient-to-br from-gray-50 via-white to-gray-100'} rounded-2xl p-6 lg:p-8 border ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'} shadow-xl relative overflow-hidden`}>
-                <div className="flex items-center justify-between mb-4">
-                  <span className={`text-sm font-medium ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>Pending</span>
-                  <Clock className="w-5 h-5 text-orange-500" />
-                </div>
-                <div className={`text-3xl font-bold ${theme === 'dark' ? 'text-white' : 'text-black'}`}>
-                  {documentTypesStatus.filter(doc => doc.upload_status === 'not_uploaded' || doc.verification_status === 'pending' || doc.verification_status === 'rejected').length}
-                </div>
-                <p className={`text-xs ${theme === 'dark' ? 'text-gray-500' : 'text-gray-500'} mt-2`}>
-                  Pending or rejected
-                </p>
-              </div>
-            </div>
-
-            {/* Required Documents Checklist */}
-            <div className={`${theme === 'dark' ? 'bg-gradient-to-br from-gray-800 via-gray-900 to-gray-800' : 'bg-gradient-to-br from-gray-50 via-white to-gray-100'} rounded-2xl p-6 lg:p-8 border ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'} shadow-xl relative overflow-hidden`}>
-              <div className="relative z-10">
-                <h3 className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-black'} mb-6`}>
-                  Required Documents Checklist
-                </h3>
-                
-                <div className="space-y-4">
-                  {documentTypesStatus.map((doc, index) => {
-                    const status = doc.upload_status === 'not_uploaded' ? 'missing' : 
-                                  doc.verification_status === 'verified' ? 'approved' :
-                                  doc.verification_status === 'rejected' ? 'rejected' : 'pending';
-                    
-                    return (
-                      <div key={doc.document_type_id} className={`p-4 rounded-xl ${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border transition-all duration-300 hover:shadow-lg`} style={{ animationDelay: `${index * 50}ms` }}>
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-4">
-                            <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                              status === 'approved' ? 'bg-green-100 text-green-600' :
-                              status === 'rejected' ? 'bg-red-100 text-red-600' :
-                              status === 'pending' ? 'bg-orange-100 text-orange-600' :
-                              'bg-gray-100 text-gray-400'
-                            }`}>
-                              {status === 'approved' ? <CheckCircle className="w-5 h-5" /> :
-                               status === 'rejected' ? <XCircle className="w-5 h-5" /> :
-                               status === 'pending' ? <Clock className="w-5 h-5" /> :
-                               <File className="w-5 h-5" />}
-                            </div>
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2">
-                                <h4 className={`font-semibold ${theme === 'dark' ? 'text-white' : 'text-black'}`}>
-                                  {doc.name}
-                                </h4>
-                                {doc.is_required && (
-                                  <span className="px-2 py-1 bg-red-100 text-red-600 text-xs rounded-full font-medium">
-                                    Required
-                                  </span>
-                                )}
-                                {!doc.is_required && (
-                                  <span className="px-2 py-1 bg-blue-100 text-blue-600 text-xs rounded-full font-medium">
-                                    Optional
-                                  </span>
-                                )}
-                              </div>
-                              <div className="flex items-center gap-4 mt-1">
-                                <span className={`text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
-                                  {doc.description || 'Document'}
-                                </span>
-                                {doc.uploaded_at && (
-                                  <span className={`text-xs ${theme === 'dark' ? 'text-gray-500' : 'text-gray-500'}`}>
-                                    Uploaded on {new Date(doc.uploaded_at).toLocaleDateString()}
-                                  </span>
-                                )}
-                              </div>
-                              {doc.rejection_reason && (
-                                <p className={`text-sm text-red-500 mt-2`}>
-                                  Rejection reason: {doc.rejection_reason}
-                                </p>
-                              )}
-                            </div>
-                          </div>
-                          
-                          <div className="flex items-center gap-3">
-                            <div className="text-right">
-                              <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
-                                status === 'approved' ? 'bg-green-100 text-green-800' :
-                                status === 'rejected' ? 'bg-red-100 text-red-800' :
-                                status === 'pending' ? 'bg-orange-100 text-orange-800' :
-                                'bg-gray-100 text-gray-600'
-                              }`}>
-                                {status === 'approved' ? 'Approved' :
-                                 status === 'rejected' ? 'Rejected' : 
-                                 status === 'pending' ? 'Pending Verification' : 'Missing'}
-                              </span>
-                              {status === 'pending' && (
-                                <p className={`text-xs ${theme === 'dark' ? 'text-gray-500' : 'text-gray-500'} mt-1`}>
-                                  Under review
-                                </p>
-                              )}
-                            </div>
-                            
-                            {doc.file_path && (
-                              <div className="flex gap-2">
-                                <button
-                                  onClick={() => previewDocument({
-                                    url: doc.file_path,
-                                    name: doc.file_name || doc.name
-                                  })}
-                                  className={`p-2 rounded-lg ${theme === 'dark' ? 'hover:bg-gray-700 text-gray-400' : 'hover:bg-gray-100 text-gray-600'} transition-colors`}
-                                  title="Preview"
-                                >
-                                  <Eye className="w-4 h-4" />
-                                </button>
-                                <button
-                                  onClick={() => downloadDocument({
-                                    url: doc.file_path,
-                                    name: doc.file_name || doc.name
-                                  })}
-                                  className={`p-2 rounded-lg ${theme === 'dark' ? 'hover:bg-gray-700 text-gray-400' : 'hover:bg-gray-100 text-gray-600'} transition-colors`}
-                                  title="Download"
-                                >
-                                  <Download className="w-4 h-4" />
-                                </button>
-                              </div>
-                            )}
-                            
-                            {doc.upload_status === 'not_uploaded' && (
-                              <button
-                                onClick={() => {
-                                  // Pre-select the document type in the upload modal
-                                  setTimeout(() => {
-                                    const selectElement = document.getElementById('documentType') as HTMLSelectElement;
-                                    if (selectElement) {
-                                      selectElement.value = doc.document_type_id.toString();
-                                      // Trigger change event to show/hide appropriate sections
-                                      const event = new Event('change', { bubbles: true });
-                                      selectElement.dispatchEvent(event);
-                                    }
-                                  }, 100);
-                                  setShowUploadModal(true);
-                                }}
-                                className={`px-3 py-1 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm`}
-                              >
-                                Upload
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-          </div>
-        );
-      case 'placements':
-        return (
-          <div className="space-y-8">
-            {/* Placements Header */}
-            <div className={`${theme === 'dark' ? 'bg-gradient-to-br from-gray-800 via-gray-900 to-gray-800' : 'bg-gradient-to-br from-gray-50 via-white to-gray-100'} rounded-2xl p-6 lg:p-8 border ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'} shadow-xl relative overflow-hidden`}>
-              {/* Background decoration */}
-              <div className="absolute inset-0 opacity-5">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full blur-2xl"></div>
-                <div className="absolute bottom-0 left-0 w-32 h-32 bg-gradient-to-br from-green-500 to-teal-500 rounded-full blur-2xl"></div>
-              </div>
-              
-              <div className="relative z-10 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
-                <div className="transform transition-all duration-300 hover:translate-x-2">
-                  <h2 className={`text-3xl lg:text-4xl font-bold ${theme === 'dark' ? 'text-white' : 'text-black'} mb-3 bg-gradient-to-r ${theme === 'dark' ? 'from-white to-gray-300' : 'from-black to-gray-700'} bg-clip-text text-transparent`}>
-                    {t('placements.title')}
-                  </h2>
-                  <p className={`${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'} text-lg`}>Discover career opportunities and apply to your dream companies</p>
-                </div>
-                <div className="flex flex-col sm:flex-row gap-3">
-                  <button className={`px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all duration-300 transform hover:scale-105 hover:shadow-lg flex items-center justify-center`}>
-                    <Search className="w-5 h-5 mr-2" />
-                    Search Jobs
-                  </button>
-                  <button className={`px-6 py-3 bg-gradient-to-r from-purple-600 to-purple-700 text-white rounded-xl hover:from-purple-700 hover:to-purple-800 transition-all duration-300 transform hover:scale-105 hover:shadow-lg flex items-center justify-center`}>
-                    <FileText className="w-5 h-5 mr-2" />
-                    My Applications
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* Placement Statistics */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {/* Stats */}
+            <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
               {[
-                { icon: Briefcase, value: '127', label: 'Active Jobs', change: '+12 this week', color: 'from-blue-500 to-blue-600' },
-                { icon: Trophy, value: '₹12.5L', label: 'Highest Package', change: 'Google', color: 'from-green-500 to-green-600' },
-                { icon: Users, value: '847', label: 'Students Placed', change: 'This year', color: 'from-purple-500 to-purple-600' },
-                { icon: BarChart3, value: '92%', label: 'Placement Rate', change: 'Above average', color: 'from-orange-500 to-orange-600' }
-              ].map((stat, index) => (
-                <div key={index} className={`group relative overflow-hidden rounded-2xl bg-gradient-to-br ${stat.color} p-6 shadow-lg transform transition-all duration-300 hover:scale-105 hover:shadow-xl hover:-translate-y-1`} style={{ animationDelay: `${index * 100}ms` }}>
-                  {/* Background decoration */}
-                  <div className="absolute inset-0 bg-white/10 transform rotate-45 scale-150 group-hover:rotate-12 transition-transform duration-500"></div>
-                  
-                  <div className="relative z-10">
-                    <stat.icon className="w-10 h-10 text-white mb-4 transform transition-transform duration-300 group-hover:scale-110" />
-                    <div className="text-3xl font-bold text-white mb-2">{stat.value}</div>
-                    <div className="text-white/90 font-medium">{stat.label}</div>
-                    <div className="text-white/75 text-sm mt-1">{stat.change}</div>
-                  </div>
+                { label: 'Total Required', value: 9, icon: FileText, color: 'from-indigo-400 to-blue-500', bg: isDark ? 'bg-indigo-900/20 border-indigo-700/30' : 'bg-indigo-50 border-indigo-200' },
+                { label: 'Verified', value: documentTypesStatus.filter(d => d.verification_status === 'verified').length, icon: CheckCircle, color: 'from-emerald-400 to-teal-500', bg: isDark ? 'bg-emerald-900/20 border-emerald-700/30' : 'bg-emerald-50 border-emerald-200' },
+                { label: 'Pending / Rejected', value: documentTypesStatus.filter(d => d.upload_status === 'not_uploaded' || d.verification_status === 'pending' || d.verification_status === 'rejected').length, icon: Clock, color: 'from-amber-400 to-orange-500', bg: isDark ? 'bg-amber-900/20 border-amber-700/30' : 'bg-amber-50 border-amber-200' },
+              ].map((stat, i) => (
+                <div key={i} className={`group rounded-2xl border p-5 ${stat.bg} transition-all duration-300 hover:scale-105 hover:shadow-lg`}>
+                  <div className={`inline-flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br ${stat.color} mb-3 shadow-lg group-hover:scale-110 transition-transform`}><stat.icon className="w-5 h-5 text-white" /></div>
+                  <div className={`text-3xl font-bold mb-0.5 ${isDark ? 'text-white' : 'text-slate-800'}`}>{stat.value}</div>
+                  <div className={`text-sm font-medium ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>{stat.label}</div>
                 </div>
               ))}
             </div>
 
-            {/* Featured Jobs */}
-            <div>
-              <div className="flex items-center justify-between mb-6">
-                <h3 className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-black'} bg-gradient-to-r ${theme === 'dark' ? 'from-white to-gray-300' : 'from-black to-gray-700'} bg-clip-text text-transparent`}>Featured Opportunities</h3>
-                <button className={`px-4 py-2 ${theme === 'dark' ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'} rounded-lg transition-all duration-300 transform hover:scale-105`}>
-                  View All
-                </button>
+            {/* Documents Checklist */}
+            <div className={`rounded-2xl border ${isDark ? 'bg-slate-800/60 border-slate-700/50' : 'bg-white border-slate-200'} shadow-sm overflow-hidden`}>
+              <div className={`px-6 py-4 border-b ${isDark ? 'border-slate-700/50' : 'border-slate-200'}`}>
+                <h3 className={`font-bold ${isDark ? 'text-white' : 'text-slate-800'}`}>Required Documents Checklist</h3>
+                <p className={`text-sm mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Submit all required documents for enrollment verification</p>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {[
-                  {
-                    company: 'Google',
-                    location: 'Bangalore, India',
-                    title: 'Senior Software Engineer',
-                    salary: '₹25-35 LPA',
-                    type: 'Full-time',
-                    posted: '2 days ago',
-                    deadline: '5 days',
-                    tags: ['React', 'TypeScript', 'Node.js'],
-                    badges: ['Urgent', 'New'],
-                    color: 'from-blue-500 to-blue-600'
-                  },
-                  {
-                    company: 'Microsoft',
-                    location: 'Hyderabad, India',
-                    title: 'Product Manager',
-                    salary: '₹18-25 LPA',
-                    type: 'Full-time',
-                    posted: '1 week ago',
-                    deadline: '12 days',
-                    tags: ['Product Strategy', 'Analytics', 'Leadership'],
-                    badges: ['Popular'],
-                    color: 'from-green-500 to-green-600'
-                  },
-                  {
-                    company: 'Amazon',
-                    location: 'Pune, India',
-                    title: 'Data Scientist',
-                    salary: '₹15-20 LPA',
-                    type: 'Full-time',
-                    posted: '3 days ago',
-                    deadline: '8 days',
-                    tags: ['Python', 'ML', 'AWS'],
-                    badges: ['Hot'],
-                    color: 'from-purple-500 to-purple-600'
-                  }
-                ].map((job, index) => (
-                  <div key={index} className={`group relative overflow-hidden rounded-2xl ${theme === 'dark' ? 'bg-gradient-to-br from-gray-800 via-gray-900 to-gray-800' : 'bg-gradient-to-br from-gray-50 via-white to-gray-100'} border ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'} shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:scale-105 hover:-translate-y-1`} style={{ animationDelay: `${index * 100}ms` }}>
-                    {/* Background decoration */}
-                    <div className="absolute inset-0 opacity-5">
-                      <div className={`absolute top-0 right-0 w-24 h-24 bg-gradient-to-br ${job.color} rounded-full blur-xl`}></div>
+              <div className="divide-y divide-slate-700/20">
+                {documentTypesStatus.length === 0 ? (
+                  <div className="py-12 text-center"><FileText className={`w-12 h-12 mx-auto mb-3 ${isDark ? 'text-slate-600' : 'text-slate-300'}`} /><p className={isDark ? 'text-slate-500' : 'text-slate-500'}>No document types found</p></div>
+                ) : documentTypesStatus.map((doc, index) => {
+                  const status = doc.upload_status === 'not_uploaded' ? 'missing' : doc.verification_status === 'verified' ? 'approved' : doc.verification_status === 'rejected' ? 'rejected' : 'pending';
+                  const statusConfig = {
+                    approved: { label: 'Approved', icon: CheckCircle, textColor: 'text-emerald-500', bg: isDark ? 'bg-emerald-900/20' : 'bg-emerald-50', border: isDark ? 'border-emerald-700/30' : 'border-emerald-200', pill: isDark ? 'bg-emerald-900/40 text-emerald-400' : 'bg-emerald-100 text-emerald-700' },
+                    rejected: { label: 'Rejected', icon: XCircle, textColor: 'text-rose-500', bg: isDark ? 'bg-rose-900/20' : 'bg-rose-50', border: isDark ? 'border-rose-700/30' : 'border-rose-200', pill: isDark ? 'bg-rose-900/40 text-rose-400' : 'bg-rose-100 text-rose-700' },
+                    pending: { label: 'Under Review', icon: Clock, textColor: 'text-amber-500', bg: isDark ? 'bg-amber-900/20' : 'bg-amber-50', border: isDark ? 'border-amber-700/30' : 'border-amber-200', pill: isDark ? 'bg-amber-900/40 text-amber-400' : 'bg-amber-100 text-amber-700' },
+                    missing: { label: 'Missing', icon: File, textColor: isDark ? 'text-slate-500' : 'text-slate-400', bg: isDark ? 'bg-slate-800' : 'bg-slate-50', border: isDark ? 'border-slate-700/30' : 'border-slate-200', pill: isDark ? 'bg-slate-700 text-slate-400' : 'bg-slate-100 text-slate-600' },
+                  }[status];
+                  const StatusIcon = statusConfig.icon;
+                  return (
+                    <div key={doc.document_type_id} className={`flex items-center justify-between px-6 py-4 transition-colors ${isDark ? 'hover:bg-slate-700/20' : 'hover:bg-slate-50'}`}>
+                      <div className="flex items-center gap-4 flex-1 min-w-0">
+                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${statusConfig.bg} border ${statusConfig.border}`}><StatusIcon className={`w-4 h-4 ${statusConfig.textColor}`} /></div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className={`font-medium text-sm ${isDark ? 'text-white' : 'text-slate-800'}`}>{doc.name}</span>
+                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${doc.is_required ? isDark ? 'bg-rose-900/30 text-rose-400' : 'bg-rose-100 text-rose-600' : isDark ? 'bg-blue-900/30 text-blue-400' : 'bg-blue-100 text-blue-600'}`}>{doc.is_required ? 'Required' : 'Optional'}</span>
+                          </div>
+                          <div className={`text-xs mt-0.5 ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>{doc.description || 'Academic document'}{doc.uploaded_at && ` · Uploaded ${new Date(doc.uploaded_at).toLocaleDateString()}`}</div>
+                          {doc.rejection_reason && <p className="text-xs text-rose-500 mt-1">Reason: {doc.rejection_reason}</p>}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 ml-4 flex-shrink-0">
+                        <span className={`hidden sm:inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full ${statusConfig.pill}`}><StatusIcon className="w-3 h-3" />{statusConfig.label}</span>
+                        {doc.file_path && (<>
+                          <button onClick={() => previewDocument({ url: doc.file_path, name: doc.file_name || doc.name })} className={`p-1.5 rounded-lg ${isDark ? 'hover:bg-slate-600 text-slate-400' : 'hover:bg-slate-100 text-slate-500'} transition-colors`} title="Preview"><Eye className="w-4 h-4" /></button>
+                          <button onClick={() => downloadDocument({ url: doc.file_path, name: doc.file_name || doc.name })} className={`p-1.5 rounded-lg ${isDark ? 'hover:bg-slate-600 text-slate-400' : 'hover:bg-slate-100 text-slate-500'} transition-colors`} title="Download"><Download className="w-4 h-4" /></button>
+                        </>)}
+                        {doc.upload_status === 'not_uploaded' && (
+                          <button onClick={() => { setTimeout(() => { const s = document.getElementById('documentType') as HTMLSelectElement; if (s) { s.value = doc.document_type_id.toString(); s.dispatchEvent(new Event('change', { bubbles: true })); } }, 100); setShowUploadModal(true); }} className="px-3 py-1.5 bg-gradient-to-r from-indigo-500 to-violet-600 text-white rounded-lg text-xs font-medium hover:shadow-md hover:scale-105 transition-all">Upload</button>
+                        )}
+                      </div>
                     </div>
-                    
-                    <div className="relative z-10 p-6">
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        );
+
+      case 'placements':
+        return (
+          <div className="space-y-6 animate-fade-in">
+            <div className={`relative overflow-hidden rounded-2xl p-6 lg:p-8 ${isDark ? 'bg-gradient-to-br from-slate-800 via-blue-900/30 to-slate-800 border border-blue-700/30' : 'bg-gradient-to-br from-blue-600 via-indigo-600 to-violet-600'}`}>
+              <div className="absolute inset-0 opacity-10"><div className="absolute -top-8 -right-8 w-48 h-48 bg-white rounded-full blur-3xl" /><div className="absolute -bottom-8 -left-8 w-48 h-48 bg-white rounded-full blur-3xl" /></div>
+              <div className="relative z-10 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                <div>
+                  <span className={`text-xs font-semibold uppercase tracking-widest px-3 py-1 rounded-full mb-2 inline-block ${isDark ? 'bg-blue-500/20 text-blue-300' : 'bg-white/20 text-white'}`}>Career Hub</span>
+                  <h2 className="text-3xl lg:text-4xl font-bold text-white mb-1">Placements</h2>
+                  <p className={`${isDark ? 'text-blue-300' : 'text-blue-100'}`}>Discover opportunities and launch your career</p>
+                </div>
+                <div className="flex gap-2">
+                  <button className="px-4 py-2.5 bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white rounded-xl border border-white/20 transition-all text-sm font-medium flex items-center gap-2"><Search className="w-4 h-4" />Search Jobs</button>
+                  <button className="px-4 py-2.5 bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white rounded-xl border border-white/20 transition-all text-sm font-medium flex items-center gap-2"><FileText className="w-4 h-4" />Applications</button>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              {[
+                { icon: Briefcase, value: '127', label: 'Active Jobs', sub: '+12 this week', color: 'from-blue-400 to-indigo-500', bg: isDark ? 'bg-blue-900/20 border-blue-700/30' : 'bg-blue-50 border-blue-200' },
+                { icon: Trophy, value: '₹12.5L', label: 'Highest Package', sub: 'Google', color: 'from-amber-400 to-yellow-500', bg: isDark ? 'bg-amber-900/20 border-amber-700/30' : 'bg-amber-50 border-amber-200' },
+                { icon: Users, value: '847', label: 'Placed Students', sub: 'This year', color: 'from-violet-400 to-purple-500', bg: isDark ? 'bg-violet-900/20 border-violet-700/30' : 'bg-violet-50 border-violet-200' },
+                { icon: BarChart3, value: '92%', label: 'Placement Rate', sub: 'Above avg', color: 'from-emerald-400 to-teal-500', bg: isDark ? 'bg-emerald-900/20 border-emerald-700/30' : 'bg-emerald-50 border-emerald-200' },
+              ].map((s, i) => (
+                <div key={i} className={`group rounded-2xl border p-5 ${s.bg} transition-all duration-300 hover:scale-105 hover:shadow-lg`}>
+                  <div className={`inline-flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br ${s.color} mb-3 shadow-lg group-hover:scale-110 transition-transform`}><s.icon className="w-5 h-5 text-white" /></div>
+                  <div className={`text-2xl font-bold mb-0.5 ${isDark ? 'text-white' : 'text-slate-800'}`}>{s.value}</div>
+                  <div className={`text-sm font-medium ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>{s.label}</div>
+                  <div className={`text-xs mt-0.5 ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>{s.sub}</div>
+                </div>
+              ))}
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className={`text-lg font-bold ${isDark ? 'text-white' : 'text-slate-800'}`}>Featured Opportunities</h3>
+                <button className={`text-sm px-3 py-1.5 rounded-xl ${isDark ? 'bg-slate-700 text-slate-300 hover:bg-slate-600' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'} transition-colors`}>View All</button>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                {[
+                  { company: 'Google', title: 'Senior Software Engineer', location: 'Bangalore', salary: '₹25-35 LPA', type: 'Full-time', deadline: '5 days', tags: ['React','TypeScript','Node.js'], badge: 'Urgent', badgeColor: isDark ? 'bg-rose-900/30 text-rose-400 border-rose-700/30' : 'bg-rose-50 text-rose-600 border-rose-200', accent: 'from-blue-500 to-indigo-600' },
+                  { company: 'Microsoft', title: 'Product Manager', location: 'Hyderabad', salary: '₹18-25 LPA', type: 'Full-time', deadline: '12 days', tags: ['Product','Analytics','Leadership'], badge: 'Popular', badgeColor: isDark ? 'bg-violet-900/30 text-violet-400 border-violet-700/30' : 'bg-violet-50 text-violet-600 border-violet-200', accent: 'from-emerald-500 to-teal-600' },
+                  { company: 'Amazon', title: 'Data Scientist', location: 'Pune', salary: '₹15-20 LPA', type: 'Full-time', deadline: '8 days', tags: ['Python','ML','AWS'], badge: 'Hot', badgeColor: isDark ? 'bg-orange-900/30 text-orange-400 border-orange-700/30' : 'bg-orange-50 text-orange-600 border-orange-200', accent: 'from-violet-500 to-purple-600' },
+                ].map((job, i) => (
+                  <div key={i} className={`group rounded-2xl border transition-all duration-300 hover:shadow-xl hover:-translate-y-1 ${isDark ? 'bg-slate-800/60 border-slate-700/50 hover:border-slate-600' : 'bg-white border-slate-200 hover:border-slate-300'}`}>
+                    <div className="p-5">
                       <div className="flex items-start justify-between mb-4">
-                        <div className={`w-14 h-14 rounded-xl bg-gradient-to-br ${job.color} flex items-center justify-center shadow-lg transform transition-all duration-300 group-hover:scale-110 group-hover:rotate-3`}>
-                          <Briefcase className="w-7 h-7 text-white" />
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                          {job.badges.map((badge, badgeIndex) => (
-                            <span key={badgeIndex} className={`px-2 py-1 text-xs font-medium rounded-full ${
-                              badge === 'Urgent' ? 'bg-red-500/20 text-red-500 border border-red-500/30' :
-                              badge === 'New' ? 'bg-blue-500/20 text-blue-500 border border-blue-500/30' :
-                              badge === 'Popular' ? 'bg-purple-500/20 text-purple-500 border border-purple-500/30' :
-                              'bg-orange-500/20 text-orange-500 border border-orange-500/30'
-                            }`}>
-                              {badge}
-                            </span>
-                          ))}
-                        </div>
+                        <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${job.accent} flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform`}><Briefcase className="w-6 h-6 text-white" /></div>
+                        <span className={`text-xs font-medium px-2.5 py-1 rounded-full border ${job.badgeColor}`}>{job.badge}</span>
                       </div>
-                      
-                      <div className="space-y-3">
-                        <h4 className={`text-lg font-bold ${theme === 'dark' ? 'text-white' : 'text-black'} group-hover:text-blue-500 transition-colors`}>
-                          {job.title}
-                        </h4>
-                        <p className={`${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'} text-sm`}>
-                          {job.company} • {job.location}
-                        </p>
-                        
-                        <div className="flex flex-wrap gap-2">
-                          {job.tags.map((tag, tagIndex) => (
-                            <span key={tagIndex} className={`px-2 py-1 text-xs rounded-lg ${theme === 'dark' ? 'bg-gray-700/50 text-gray-300 border border-gray-600/30' : 'bg-gray-100 text-gray-600 border border-gray-200'}`}>
-                              {tag}
-                            </span>
-                          ))}
-                        </div>
-                        
-                        <div className="flex items-center justify-between pt-3 border-t ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'}">
-                          <div>
-                            <div className={`text-lg font-bold ${theme === 'dark' ? 'text-green-400' : 'text-green-600'}`}>{job.salary}</div>
-                            <div className={`text-xs ${theme === 'dark' ? 'text-gray-500' : 'text-gray-500'}`}>{job.type}</div>
-                          </div>
-                          <div className="text-right">
-                            <div className={`text-xs ${theme === 'dark' ? 'text-gray-500' : 'text-gray-500'}`}>Posted {job.posted}</div>
-                            <div className={`text-xs ${theme === 'dark' ? 'text-orange-400' : 'text-orange-600'} font-medium`}>Deadline in {job.deadline}</div>
-                          </div>
-                        </div>
-                        
-                        <button className={`w-full px-4 py-3 bg-gradient-to-r ${job.color} text-white rounded-xl hover:shadow-lg transform transition-all duration-300 hover:scale-105 font-medium`}>
-                          Apply Now
-                        </button>
+                      <h4 className={`font-bold mb-1 group-hover:text-blue-500 transition-colors ${isDark ? 'text-white' : 'text-slate-800'}`}>{job.title}</h4>
+                      <p className={`text-sm mb-3 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{job.company} · {job.location}</p>
+                      <div className="flex flex-wrap gap-1.5 mb-4">
+                        {job.tags.map((t, ti) => <span key={ti} className={`text-xs px-2 py-0.5 rounded-lg ${isDark ? 'bg-slate-700 text-slate-300' : 'bg-slate-100 text-slate-600'}`}>{t}</span>)}
                       </div>
+                      <div className={`flex items-center justify-between pt-3 border-t ${isDark ? 'border-slate-700/50' : 'border-slate-100'} mb-4`}>
+                        <div><div className={`font-bold ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>{job.salary}</div><div className={`text-xs ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>{job.type}</div></div>
+                        <div className="text-right"><div className={`text-xs font-medium ${isDark ? 'text-rose-400' : 'text-rose-500'}`}>Deadline in {job.deadline}</div></div>
+                      </div>
+                      <button className={`w-full py-2.5 rounded-xl bg-gradient-to-r ${job.accent} text-white text-sm font-medium hover:shadow-lg hover:scale-[1.02] transition-all`}>Apply Now</button>
                     </div>
                   </div>
                 ))}
@@ -2696,1460 +1063,790 @@ export const StudentDashboard: React.FC = () => {
             </div>
           </div>
         );
+
       case 'library':
         return (
-          <div className="space-y-6">
-            {/* Library Header */}
-            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-              <div>
-                <h2 className="text-2xl lg:text-3xl font-bold text-gray-100 dark:text-white mb-2">{t('library.title')}</h2>
-                <p className="text-gray-300 dark:text-gray-300">Access thousands of books, journals, and research papers</p>
-              </div>
-              <div className="flex flex-col sm:flex-row gap-3">
-                <button className="px-4 py-2 bg-blue-500 text-gray-100 rounded-lg hover:bg-blue-600 transition-colors">
-                  <Search className="w-4 h-4 inline mr-2" />
-                  Search Catalog
-                </button>
-                <button className="px-4 py-2 bg-purple-500 text-gray-100 rounded-lg hover:bg-purple-600 transition-colors">
-                  <BookOpen className="w-4 h-4 inline mr-2" />
-                  My Books
-                </button>
-              </div>
-            </div>
-
-            {/* Library Statistics */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl p-4 text-gray-100">
-                <BookOpen className="w-8 h-8 mb-2" />
-                <div className="text-2xl font-bold">45,832</div>
-                <div className="text-sm opacity-90">Total Books</div>
-                <div className="text-xs opacity-75 mt-1">+1,200 this month</div>
-              </div>
-              <div className="bg-gradient-to-r from-green-500 to-green-600 rounded-xl p-4 text-gray-100">
-                <FileText className="w-8 h-8 mb-2" />
-                <div className="text-2xl font-bold">12,456</div>
-                <div className="text-sm opacity-90">Research Papers</div>
-                <div className="text-xs opacity-75 mt-1">Open access</div>
-              </div>
-              <div className="bg-gradient-to-r from-purple-500 to-purple-600 rounded-xl p-4 text-gray-100">
-                <Calendar className="w-8 h-8 mb-2" />
-                <div className="text-2xl font-bold">24/7</div>
-                <div className="text-sm opacity-90">Digital Access</div>
-                <div className="text-xs opacity-75 mt-1">Online platform</div>
-              </div>
-              <div className="bg-gradient-to-r from-orange-500 to-orange-600 rounded-xl p-4 text-gray-100">
-                <Users className="w-8 h-8 mb-2" />
-                <div className="text-2xl font-bold">8,234</div>
-                <div className="text-sm opacity-90">Active Users</div>
-                <div className="text-xs opacity-75 mt-1">This month</div>
-              </div>
-            </div>
-
-            {/* Quick Actions */}
-            <div className={`${theme === 'dark' ? 'bg-slate-800/90 backdrop-blur-sm' : 'bg-emerald-800/80 backdrop-blur-md'} rounded-xl shadow-lg p-6 border ${theme === 'dark' ? 'border-slate-700' : 'border-emerald-600'} relative`}>
-              <h3 className="text-xl font-semibold text-gray-100 dark:text-white mb-4">Quick Actions</h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <button className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-xl hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-all duration-300 hover:scale-105 group">
-                  <Search className="w-6 h-6 text-blue-600 dark:text-blue-400 mb-2 group-hover:scale-110 transition-transform" />
-                  <div className="text-sm font-medium text-gray-100 dark:text-white">Search Catalog</div>
-                  <div className="text-xs text-gray-400 dark:text-gray-400 mt-1">Find resources</div>
-                </button>
-                <button className="p-4 bg-green-50 dark:bg-green-900/20 rounded-xl hover:bg-green-100 dark:hover:bg-green-900/30 transition-all duration-300 hover:scale-105 group">
-                  <BookOpen className="w-6 h-6 text-green-600 dark:text-green-400 mb-2 group-hover:scale-110 transition-transform" />
-                  <div className="text-sm font-medium text-gray-100 dark:text-white">My Borrowed</div>
-                  <div className="text-xs text-gray-400 dark:text-gray-400 mt-1">3 books active</div>
-                </button>
-                <button className="p-4 bg-purple-50 dark:bg-purple-900/20 rounded-xl hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-all duration-300 hover:scale-105 group">
-                  <Calendar className="w-6 h-6 text-purple-600 dark:text-purple-400 mb-2 group-hover:scale-110 transition-transform" />
-                  <div className="text-sm font-medium text-gray-100 dark:text-white">Reserve Room</div>
-                  <div className="text-xs text-gray-400 dark:text-gray-400 mt-1">Study spaces</div>
-                </button>
-                <button className="p-4 bg-orange-50 dark:bg-orange-900/20 rounded-xl hover:bg-orange-100 dark:hover:bg-orange-900/30 transition-all duration-300 hover:scale-105 group">
-                  <FileText className="w-6 h-6 text-orange-600 dark:text-orange-400 mb-2 group-hover:scale-110 transition-transform" />
-                  <div className="text-sm font-medium text-gray-100 dark:text-white">E-Resources</div>
-                  <div className="text-xs text-gray-400 dark:text-gray-400 mt-1">Digital library</div>
-                </button>
-              </div>
-            </div>
-
-            {/* Recently Added Books */}
-            <div>
-              <h3 className="text-xl font-semibold text-gray-100 dark:text-white mb-4">Recently Added Books</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className={`${theme === 'dark' ? 'bg-slate-800/90 backdrop-blur-sm' : 'bg-emerald-800/80 backdrop-blur-md'} rounded-xl shadow-lg p-4 border ${theme === 'dark' ? 'border-slate-700' : 'border-emerald-600'} hover:shadow-xl transition-all duration-300 hover:scale-105`}>
-                  <div className="w-full h-32 bg-gradient-to-br from-blue-400 to-blue-600 rounded-lg mb-3 flex items-center justify-center">
-                    <BookOpen className="w-12 h-12 text-gray-100" />
-                  </div>
-                  <h4 className="font-semibold text-gray-100 dark:text-white text-sm mb-1">Introduction to Algorithms</h4>
-                  <p className="text-xs text-gray-400 dark:text-gray-400 mb-2">Thomas H. Cormen</p>
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 px-2 py-1 rounded">Available</span>
-                    <button className="text-xs text-blue-600 dark:text-blue-400 hover:underline">Borrow</button>
-                  </div>
+          <div className="space-y-6 animate-fade-in">
+            <div className={`relative overflow-hidden rounded-2xl p-6 lg:p-8 ${isDark ? 'bg-gradient-to-br from-slate-800 via-violet-900/30 to-slate-800 border border-violet-700/30' : 'bg-gradient-to-br from-violet-600 via-purple-600 to-fuchsia-600'}`}>
+              <div className="absolute inset-0 opacity-10"><div className="absolute -top-8 -right-8 w-48 h-48 bg-white rounded-full blur-3xl" /><div className="absolute -bottom-8 -left-8 w-48 h-48 bg-white rounded-full blur-3xl" /></div>
+              <div className="relative z-10 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                <div>
+                  <span className={`text-xs font-semibold uppercase tracking-widest px-3 py-1 rounded-full mb-2 inline-block ${isDark ? 'bg-violet-500/20 text-violet-300' : 'bg-white/20 text-white'}`}>Knowledge Hub</span>
+                  <h2 className="text-3xl lg:text-4xl font-bold text-white mb-1">Library</h2>
+                  <p className={`${isDark ? 'text-violet-300' : 'text-violet-100'}`}>Access books, journals and research papers</p>
                 </div>
-                <div className={`${theme === 'dark' ? 'bg-slate-800/90 backdrop-blur-sm' : 'bg-emerald-800/80 backdrop-blur-md'} rounded-xl shadow-lg p-4 border ${theme === 'dark' ? 'border-slate-700' : 'border-emerald-600'} hover:shadow-xl transition-all duration-300 hover:scale-105`}>
-                  <div className="w-full h-32 bg-gradient-to-br from-green-400 to-green-600 rounded-lg mb-3 flex items-center justify-center">
-                    <BookOpen className="w-12 h-12 text-gray-100" />
-                  </div>
-                  <h4 className="font-semibold text-gray-100 dark:text-white text-sm mb-1">Machine Learning</h4>
-                  <p className="text-xs text-gray-400 dark:text-gray-400 mb-2">Andrew Ng</p>
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 px-2 py-1 rounded">2 copies</span>
-                    <button className="text-xs text-blue-600 dark:text-blue-400 hover:underline">Reserve</button>
-                  </div>
-                </div>
-                <div className={`${theme === 'dark' ? 'bg-slate-800/90 backdrop-blur-sm' : 'bg-emerald-800/80 backdrop-blur-md'} rounded-xl shadow-lg p-4 border ${theme === 'dark' ? 'border-slate-700' : 'border-emerald-600'} hover:shadow-xl transition-all duration-300 hover:scale-105`}>
-                  <div className="w-full h-32 bg-gradient-to-br from-purple-400 to-purple-600 rounded-lg mb-3 flex items-center justify-center">
-                    <BookOpen className="w-12 h-12 text-gray-100" />
-                  </div>
-                  <h4 className="font-semibold text-gray-100 dark:text-white text-sm mb-1">Clean Code</h4>
-                  <p className="text-xs text-gray-400 dark:text-gray-400 mb-2">Robert C. Martin</p>
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 px-2 py-1 rounded">Available</span>
-                    <button className="text-xs text-blue-600 dark:text-blue-400 hover:underline">Borrow</button>
-                  </div>
-                </div>
-                <div className={`${theme === 'dark' ? 'bg-slate-800/90 backdrop-blur-sm' : 'bg-emerald-800/80 backdrop-blur-md'} rounded-xl shadow-lg p-4 border ${theme === 'dark' ? 'border-slate-700' : 'border-emerald-600'} hover:shadow-xl transition-all duration-300 hover:scale-105`}>
-                  <div className="w-full h-32 bg-gradient-to-br from-orange-400 to-orange-600 rounded-lg mb-3 flex items-center justify-center">
-                    <BookOpen className="w-12 h-12 text-gray-100" />
-                  </div>
-                  <h4 className="font-semibold text-gray-100 dark:text-white text-sm mb-1">Design Patterns</h4>
-                  <p className="text-xs text-gray-400 dark:text-gray-400 mb-2">Gang of Four</p>
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 px-2 py-1 rounded">Borrowed</span>
-                    <button className="text-xs text-purple-600 dark:text-purple-400 hover:underline">Waitlist</button>
-                  </div>
+                <div className="flex gap-2">
+                  <button className="px-4 py-2.5 bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white rounded-xl border border-white/20 transition-all text-sm font-medium flex items-center gap-2"><Search className="w-4 h-4" />Search Catalog</button>
+                  <button className="px-4 py-2.5 bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white rounded-xl border border-white/20 transition-all text-sm font-medium flex items-center gap-2"><BookOpen className="w-4 h-4" />My Books</button>
                 </div>
               </div>
             </div>
-          </div>
-        );
-      case 'fees':
-        return (
-          <div className="space-y-6">
-            {/* Fees Header */}
-            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-              <div>
-                <h2 className="text-2xl lg:text-3xl font-bold text-gray-800 dark:text-white mb-2">{t('fees.title')}</h2>
-                <p className="text-gray-600 dark:text-gray-300">Manage your fee payments and view transaction history</p>
-              </div>
-              <div className="flex flex-col sm:flex-row gap-3">
-                <button className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors">
-                  <CreditCard className="w-4 h-4 inline mr-2" />
-                  Pay Now
-                </button>
-                <button className="px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors">
-                  <FileText className="w-4 h-4 inline mr-2" />
-                  Download Receipt
-                </button>
-              </div>
-            </div>
 
-            {/* Fee Statistics */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl p-4 text-gray-100">
-                <DollarSign className="w-8 h-8 mb-2" />
-                <div className="text-2xl font-bold">₹51,000</div>
-                <div className="text-sm opacity-90">Current Semester</div>
-                <div className="text-xs opacity-75 mt-1">Due in 5 days</div>
-              </div>
-              <div className="bg-gradient-to-r from-green-500 to-green-600 rounded-xl p-4 text-gray-100">
-                <CheckCircle className="w-8 h-8 mb-2" />
-                <div className="text-2xl font-bold">₹97,000</div>
-                <div className="text-sm opacity-90">Total Paid</div>
-                <div className="text-xs opacity-75 mt-1">This year</div>
-              </div>
-              <div className="bg-gradient-to-r from-orange-500 to-orange-600 rounded-xl p-4 text-gray-100">
-                <AlertTriangle className="w-8 h-8 mb-2" />
-                <div className="text-2xl font-bold">₹51,000</div>
-                <div className="text-sm opacity-90">Pending</div>
-                <div className="text-xs opacity-75 mt-1">1 payment</div>
-              </div>
-              <div className="bg-gradient-to-r from-purple-500 to-purple-600 rounded-xl p-4 text-gray-100">
-                <Calendar className="w-8 h-8 mb-2" />
-                <div className="text-2xl font-bold">Dec 15</div>
-                <div className="text-sm opacity-90">Next Deadline</div>
-                <div className="text-xs opacity-75 mt-1">5 days left</div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Current Semester Fees */}
-              <div className={`${theme === 'dark' ? 'bg-slate-800/90 backdrop-blur-sm' : 'bg-emerald-800/80 backdrop-blur-md'} rounded-xl shadow-lg p-6 border ${theme === 'dark' ? 'border-slate-700' : 'border-emerald-600'} relative`}>
-                <div className="flex items-center justify-between mb-6">
-                  <h3 className="text-lg font-semibold text-gray-100 dark:text-white mb-6">Current Semester Fees</h3>
-                  <span className="px-3 py-1 bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 rounded-full text-sm font-medium">Due Soon</span>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              {[
+                { icon: BookOpen, value: '45,832', label: 'Total Books', sub: '+1,200 this month', color: 'from-violet-400 to-purple-500', bg: isDark ? 'bg-violet-900/20 border-violet-700/30' : 'bg-violet-50 border-violet-200' },
+                { icon: FileText, value: '12,456', label: 'Research Papers', sub: 'Open access', color: 'from-blue-400 to-indigo-500', bg: isDark ? 'bg-blue-900/20 border-blue-700/30' : 'bg-blue-50 border-blue-200' },
+                { icon: Clock, value: '24/7', label: 'Digital Access', sub: 'Online platform', color: 'from-emerald-400 to-teal-500', bg: isDark ? 'bg-emerald-900/20 border-emerald-700/30' : 'bg-emerald-50 border-emerald-200' },
+                { icon: Users, value: '8,234', label: 'Active Users', sub: 'This month', color: 'from-orange-400 to-amber-500', bg: isDark ? 'bg-orange-900/20 border-orange-700/30' : 'bg-orange-50 border-orange-200' },
+              ].map((s, i) => (
+                <div key={i} className={`group rounded-2xl border p-5 ${s.bg} transition-all duration-300 hover:scale-105 hover:shadow-lg`}>
+                  <div className={`inline-flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br ${s.color} mb-3 shadow-lg group-hover:scale-110 transition-transform`}><s.icon className="w-5 h-5 text-white" /></div>
+                  <div className={`text-2xl font-bold mb-0.5 ${isDark ? 'text-white' : 'text-slate-800'}`}>{s.value}</div>
+                  <div className={`text-sm font-medium ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>{s.label}</div>
+                  <div className={`text-xs mt-0.5 ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>{s.sub}</div>
                 </div>
-                <div className="space-y-4">
-                  <div className="flex justify-between items-center pb-3 border-b border-gray-200 dark:border-gray-600">
-                    <div>
-                      <div className="font-medium text-gray-900 dark:text-gray-100">Tuition Fee</div>
-                      <div className="font-medium text-gray-900 dark:text-white">Tuition Fee</div>
-                      <div className="text-sm text-gray-600 dark:text-gray-400">Main course fees</div>
-                    </div>
-                    <span className="font-semibold text-gray-800 dark:text-white">₹45,000</span>
-                  </div>
-                  <div className="flex justify-between items-center pb-3 border-b border-gray-200 dark:border-gray-600">
-                    <div>
-                      <div className="font-medium text-gray-900 dark:text-white">Library Fee</div>
-                      <div className="text-sm text-gray-600 dark:text-gray-400">Digital & physical resources</div>
-                    </div>
-                    <span className="font-semibold text-gray-800 dark:text-white">₹2,000</span>
-                  </div>
-                  <div className="flex justify-between items-center pb-3 border-b border-gray-200 dark:border-gray-600">
-                    <div>
-                      <div className="font-medium text-gray-900 dark:text-white">Laboratory Fee</div>
-                      <div className="text-sm text-gray-600 dark:text-gray-400">CS Lab equipment</div>
-                    </div>
-                    <span className="font-semibold text-gray-800 dark:text-white">₹3,000</span>
-                  </div>
-                  <div className="flex justify-between items-center pb-3 border-b border-gray-200 dark:border-gray-600">
-                    <div>
-                      <div className="font-medium text-gray-900 dark:text-white">Examination Fee</div>
-                      <div className="text-sm text-gray-600 dark:text-gray-400">Semester exams</div>
-                    </div>
-                    <span className="font-semibold text-gray-800 dark:text-white">₹1,000</span>
-                  </div>
-                  <div className="pt-3">
-                    <div className="flex justify-between items-center mb-4">
-                      <span className="text-lg font-semibold text-gray-100 dark:text-white">Total Amount</span>
-                      <span className="text-lg font-bold text-blue-600 dark:text-blue-400">₹51,000</span>
-                    </div>
-                    <div className="flex items-center justify-between mb-4 text-sm">
-                      <span className="text-gray-600 dark:text-gray-400">Due Date</span>
-                      <span className="text-orange-600 dark:text-orange-400 font-medium">December 15, 2024</span>
-                    </div>
-                    <button className="w-full px-4 py-2 bg-gradient-to-r from-emerald-500 to-teal-600 text-gray-100 rounded-lg hover:from-emerald-600 hover:to-teal-700 transition-all duration-300 font-medium">
-                      Pay Now
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Payment History */}
-              <div className={`${theme === 'dark' ? 'bg-slate-800/90 backdrop-blur-sm' : 'bg-emerald-800/80 backdrop-blur-md'} rounded-xl shadow-lg p-6 border ${theme === 'dark' ? 'border-slate-700' : 'border-emerald-600'} relative`}>
-                <h3 className="text-xl font-semibold text-gray-100 dark:text-white mb-6">Payment History</h3>
-                <div className="space-y-3">
-                  <div className="p-4 bg-green-50 dark:bg-green-900/20 rounded-xl border border-green-200 dark:border-green-800">
-                    <div className="flex justify-between items-start mb-2">
-                      <div>
-                        <div className="font-medium text-gray-100 dark:text-white">Semester 5 Fees</div>
-                        <div className="text-sm text-gray-400 dark:text-gray-400">Paid on July 15, 2024</div>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-green-600 dark:text-green-400 font-semibold">₹49,000</div>
-                        <div className="text-xs text-green-600 dark:text-green-400">Success</div>
-                      </div>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <CheckCircle className="w-4 h-4 text-green-600 dark:text-green-400" />
-                      <span className="text-xs text-gray-600 dark:text-gray-400">Transaction ID: TXN20240715001</span>
-                    </div>
-                  </div>
-                  <div className="p-4 bg-green-50 dark:bg-green-900/20 rounded-xl border border-green-200 dark:border-green-800">
-                    <div className="flex justify-between items-start mb-2">
-                      <div>
-                        <div className="font-medium text-gray-800 dark:text-white">Semester 4 Fees</div>
-                        <div className="text-sm text-gray-600 dark:text-gray-400">Paid on January 20, 2024</div>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-green-600 dark:text-green-400 font-semibold">₹48,000</div>
-                        <div className="text-xs text-green-600 dark:text-green-400">Success</div>
-                      </div>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <CheckCircle className="w-4 h-4 text-green-600 dark:text-green-400" />
-                      <span className="text-xs text-gray-600 dark:text-gray-400">Transaction ID: TXN20240120001</span>
-                    </div>
-                  </div>
-                  <div className="p-4 bg-green-50 dark:bg-green-900/20 rounded-xl border border-green-200 dark:border-green-800">
-                    <div className="flex justify-between items-start mb-2">
-                      <div>
-                        <div className="font-medium text-gray-800 dark:text-white">Semester 3 Fees</div>
-                        <div className="text-sm text-gray-600 dark:text-gray-400">Paid on July 18, 2023</div>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-green-600 dark:text-green-400 font-semibold">₹47,000</div>
-                        <div className="text-xs text-green-600 dark:text-green-400">Success</div>
-                      </div>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <CheckCircle className="w-4 h-4 text-green-600 dark:text-green-400" />
-                      <span className="text-xs text-gray-600 dark:text-gray-400">Transaction ID: TXN20230718001</span>
-                    </div>
-                  </div>
-                </div>
-                <button className="w-full mt-4 px-4 py-2 border border-emerald-600 dark:border-gray-600 text-gray-300 dark:text-gray-300 rounded-lg hover:bg-emerald-700 dark:hover:bg-gray-700 transition-colors">
-                  View All Transactions
-                </button>
-              </div>
-            </div>
-          </div>
-        );
-      case 'attendance':
-        return (
-          <div className="space-y-6">
-            {/* Attendance Header */}
-            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-              <div>
-                <h2 className="text-2xl lg:text-3xl font-bold text-gray-800 dark:text-white mb-2">{t('attendance.title')}</h2>
-                <p className="text-gray-600 dark:text-gray-300">Monitor your attendance and view detailed reports</p>
-              </div>
-              <div className="flex flex-col sm:flex-row gap-3">
-                <button className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors">
-                  <Calendar className="w-4 h-4 inline mr-2" />
-                  View Calendar
-                </button>
-                <button className="px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors">
-                  <FileText className="w-4 h-4 inline mr-2" />
-                  Download Report
-                </button>
-              </div>
+              ))}
             </div>
 
-            {/* Attendance Statistics */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="bg-gradient-to-r from-green-500 to-green-600 rounded-xl p-4 text-gray-100">
-                <UserCheck className="w-8 h-8 mb-2" />
-                <div className="text-2xl font-bold">85.7%</div>
-                <div className="text-sm opacity-90">Overall Attendance</div>
-                <div className="text-xs opacity-75 mt-1">Above threshold</div>
-              </div>
-              <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl p-4 text-gray-100">
-                <Calendar className="w-8 h-8 mb-2" />
-                <div className="text-2xl font-bold">102</div>
-                <div className="text-sm opacity-90">Classes Attended</div>
-                <div className="text-xs opacity-75 mt-1">This semester</div>
-              </div>
-              <div className="bg-gradient-to-r from-orange-500 to-orange-600 rounded-xl p-4 text-gray-100">
-                <AlertCircle className="w-8 h-8 mb-2" />
-                <div className="text-2xl font-bold">17</div>
-                <div className="text-sm opacity-90">Classes Missed</div>
-                <div className="text-xs opacity-75 mt-1">3 with leave</div>
-              </div>
-              <div className="bg-gradient-to-r from-purple-500 to-purple-600 rounded-xl p-4 text-gray-100">
-                <BarChart3 className="w-8 h-8 mb-2" />
-                <div className="text-2xl font-bold">Good</div>
-                <div className="text-sm opacity-90">Status</div>
-                <div className="text-xs opacity-75 mt-1">Keep it up!</div>
-              </div>
-            </div>
-
-            {/* Monthly Attendance Chart */}
-            <div className={`${theme === 'dark' ? 'bg-slate-800/90 backdrop-blur-sm' : 'bg-emerald-800/80 backdrop-blur-md'} rounded-xl shadow-lg p-6 border ${theme === 'dark' ? 'border-slate-700' : 'border-emerald-600'} relative`}>
-              <h3 className="text-xl font-semibold text-gray-100 dark:text-white mb-6">Monthly Attendance</h3>
-              <div className="space-y-4">
+            <div className={`rounded-2xl border ${isDark ? 'bg-slate-800/60 border-slate-700/50' : 'bg-white border-slate-200'} shadow-sm p-5`}>
+              <h3 className={`font-bold mb-4 ${isDark ? 'text-white' : 'text-slate-800'}`}>Quick Actions</h3>
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                 {[
-                  { month: 'January', attended: 22, total: 24, percentage: 91.7 },
-                  { month: 'February', attended: 20, total: 22, percentage: 90.9 },
-                  { month: 'March', attended: 18, total: 20, percentage: 90.0 },
-                  { month: 'April', attended: 19, total: 21, percentage: 90.5 },
-                  { month: 'May', attended: 21, total: 23, percentage: 91.3 },
-                  { month: 'June', attended: 2, total: 2, percentage: 100.0 },
-                ].map((month, index) => (
-                  <div key={index} className="flex items-center space-x-4">
-                    <div className="w-20 text-sm font-medium text-gray-800 dark:text-white">{month.month}</div>
-                    <div className="flex-1">
-                      <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-6">
-                        <div 
-                          className={`h-6 rounded-full flex items-center justify-center text-xs font-medium transition-all duration-500 ${
-                            month.percentage >= 90 ? 'bg-green-500 text-white' : 
-                            month.percentage >= 75 ? 'bg-blue-500 text-white' : 
-                            'bg-orange-500 text-white'
-                          }`}
-                          style={{ width: `${month.percentage}%` }}
-                        >
-                          {month.percentage >= 20 && `${month.percentage}%`}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="w-20 text-right">
-                      <div className="text-sm text-gray-600 dark:text-gray-400">
-                        {month.attended}/{month.total}
+                  { icon: Search, label: 'Search Catalog', sub: 'Find resources', color: 'text-blue-500', bg: isDark ? 'bg-blue-900/20 hover:bg-blue-900/30' : 'bg-blue-50 hover:bg-blue-100' },
+                  { icon: BookOpen, label: 'My Borrowed', sub: '3 books active', color: 'text-emerald-500', bg: isDark ? 'bg-emerald-900/20 hover:bg-emerald-900/30' : 'bg-emerald-50 hover:bg-emerald-100' },
+                  { icon: Calendar, label: 'Reserve Room', sub: 'Study spaces', color: 'text-violet-500', bg: isDark ? 'bg-violet-900/20 hover:bg-violet-900/30' : 'bg-violet-50 hover:bg-violet-100' },
+                  { icon: FileText, label: 'E-Resources', sub: 'Digital library', color: 'text-orange-500', bg: isDark ? 'bg-orange-900/20 hover:bg-orange-900/30' : 'bg-orange-50 hover:bg-orange-100' },
+                ].map((a, i) => (
+                  <button key={i} className={`group flex flex-col items-center p-4 rounded-xl ${a.bg} transition-all duration-200 hover:scale-105`}>
+                    <a.icon className={`w-6 h-6 ${a.color} mb-2 group-hover:scale-110 transition-transform`} />
+                    <div className={`text-sm font-medium ${isDark ? 'text-white' : 'text-slate-700'}`}>{a.label}</div>
+                    <div className={`text-xs mt-0.5 ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>{a.sub}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <h3 className={`font-bold mb-4 ${isDark ? 'text-white' : 'text-slate-800'}`}>Recently Added</h3>
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                {[
+                  { title: 'Introduction to Algorithms', author: 'T. H. Cormen', avail: 'Available', availColor: isDark ? 'bg-emerald-900/30 text-emerald-400' : 'bg-emerald-100 text-emerald-700', cover: 'from-blue-400 to-blue-600', action: 'Borrow' },
+                  { title: 'Machine Learning', author: 'Andrew Ng', avail: '2 copies', availColor: isDark ? 'bg-amber-900/30 text-amber-400' : 'bg-amber-100 text-amber-700', cover: 'from-emerald-400 to-emerald-600', action: 'Reserve' },
+                  { title: 'Clean Code', author: 'Robert C. Martin', avail: 'Available', availColor: isDark ? 'bg-emerald-900/30 text-emerald-400' : 'bg-emerald-100 text-emerald-700', cover: 'from-violet-400 to-violet-600', action: 'Borrow' },
+                  { title: 'Design Patterns', author: 'Gang of Four', avail: 'Borrowed', availColor: isDark ? 'bg-rose-900/30 text-rose-400' : 'bg-rose-100 text-rose-700', cover: 'from-orange-400 to-orange-600', action: 'Waitlist' },
+                ].map((b, i) => (
+                  <div key={i} className={`group rounded-2xl border overflow-hidden transition-all duration-300 hover:shadow-xl hover:-translate-y-1 ${isDark ? 'bg-slate-800/60 border-slate-700/50' : 'bg-white border-slate-200'}`}>
+                    <div className={`w-full h-28 bg-gradient-to-br ${b.cover} flex items-center justify-center`}><BookOpen className="w-10 h-10 text-white/80" /></div>
+                    <div className="p-3">
+                      <h4 className={`font-semibold text-sm mb-0.5 leading-snug ${isDark ? 'text-white' : 'text-slate-800'}`}>{b.title}</h4>
+                      <p className={`text-xs mb-2 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{b.author}</p>
+                      <div className="flex items-center justify-between">
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${b.availColor}`}>{b.avail}</span>
+                        <button className={`text-xs font-medium ${isDark ? 'text-blue-400 hover:text-blue-300' : 'text-blue-600 hover:text-blue-700'} transition-colors`}>{b.action}</button>
                       </div>
                     </div>
                   </div>
                 ))}
               </div>
             </div>
+          </div>
+        );
 
-            {/* Recent Attendance */}
-            <div className={`${theme === 'dark' ? 'bg-slate-800/90 backdrop-blur-sm' : 'bg-emerald-800/80 backdrop-blur-md'} rounded-xl shadow-lg p-6 border ${theme === 'dark' ? 'border-slate-700' : 'border-emerald-600'} relative`}>
-              <h3 className="text-xl font-semibold text-gray-100 dark:text-white mb-6">Recent Attendance</h3>
+      case 'fees':
+        return (
+          <div className="space-y-6 animate-fade-in">
+            <div className={`relative overflow-hidden rounded-2xl p-6 lg:p-8 ${isDark ? 'bg-gradient-to-br from-slate-800 via-emerald-900/30 to-slate-800 border border-emerald-700/30' : 'bg-gradient-to-br from-emerald-500 via-green-500 to-teal-600'}`}>
+              <div className="absolute inset-0 opacity-10"><div className="absolute -top-8 -right-8 w-48 h-48 bg-white rounded-full blur-3xl" /><div className="absolute -bottom-8 -left-8 w-48 h-48 bg-white rounded-full blur-3xl" /></div>
+              <div className="relative z-10 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                <div>
+                  <span className={`text-xs font-semibold uppercase tracking-widest px-3 py-1 rounded-full mb-2 inline-block ${isDark ? 'bg-emerald-500/20 text-emerald-300' : 'bg-white/20 text-white'}`}>Finance</span>
+                  <h2 className="text-3xl lg:text-4xl font-bold text-white mb-1">Fees & Payments</h2>
+                  <p className={`${isDark ? 'text-emerald-300' : 'text-emerald-100'}`}>Manage payments and view transaction history</p>
+                </div>
+                <div className="flex gap-2">
+                  <button className="px-4 py-2.5 bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white rounded-xl border border-white/20 transition-all text-sm font-medium flex items-center gap-2"><CreditCard className="w-4 h-4" />Pay Now</button>
+                  <button className="px-4 py-2.5 bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white rounded-xl border border-white/20 transition-all text-sm font-medium flex items-center gap-2"><Download className="w-4 h-4" />Receipt</button>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              {[
+                { icon: DollarSign, value: '₹51,000', label: 'Current Semester', sub: 'Due in 5 days', color: 'from-rose-400 to-pink-500', bg: isDark ? 'bg-rose-900/20 border-rose-700/30' : 'bg-rose-50 border-rose-200' },
+                { icon: CheckCircle, value: '₹97,000', label: 'Total Paid', sub: 'This year', color: 'from-emerald-400 to-teal-500', bg: isDark ? 'bg-emerald-900/20 border-emerald-700/30' : 'bg-emerald-50 border-emerald-200' },
+                { icon: AlertTriangle, value: '₹51,000', label: 'Pending', sub: '1 payment', color: 'from-amber-400 to-orange-500', bg: isDark ? 'bg-amber-900/20 border-amber-700/30' : 'bg-amber-50 border-amber-200' },
+                { icon: Calendar, value: 'Dec 15', label: 'Next Deadline', sub: '5 days left', color: 'from-blue-400 to-indigo-500', bg: isDark ? 'bg-blue-900/20 border-blue-700/30' : 'bg-blue-50 border-blue-200' },
+              ].map((s, i) => (
+                <div key={i} className={`group rounded-2xl border p-5 ${s.bg} transition-all duration-300 hover:scale-105 hover:shadow-lg`}>
+                  <div className={`inline-flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br ${s.color} mb-3 shadow-lg group-hover:scale-110 transition-transform`}><s.icon className="w-5 h-5 text-white" /></div>
+                  <div className={`text-2xl font-bold mb-0.5 ${isDark ? 'text-white' : 'text-slate-800'}`}>{s.value}</div>
+                  <div className={`text-sm font-medium ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>{s.label}</div>
+                  <div className={`text-xs mt-0.5 ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>{s.sub}</div>
+                </div>
+              ))}
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+              <div className={`rounded-2xl border ${isDark ? 'bg-slate-800/60 border-slate-700/50' : 'bg-white border-slate-200'} shadow-sm overflow-hidden`}>
+                <div className={`px-5 py-4 border-b ${isDark ? 'border-slate-700/50' : 'border-slate-100'} flex items-center justify-between`}>
+                  <h3 className={`font-bold ${isDark ? 'text-white' : 'text-slate-800'}`}>Current Semester Fees</h3>
+                  <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${isDark ? 'bg-rose-900/30 text-rose-400' : 'bg-rose-100 text-rose-600'}`}>Due Soon</span>
+                </div>
+                <div className="p-5 space-y-3">
+                  {[
+                    { label: 'Tuition Fee', sub: 'Main course fees', amount: '₹45,000' },
+                    { label: 'Library Fee', sub: 'Digital & physical resources', amount: '₹2,000' },
+                    { label: 'Laboratory Fee', sub: 'CS Lab equipment', amount: '₹3,000' },
+                    { label: 'Examination Fee', sub: 'Semester exams', amount: '₹1,000' },
+                  ].map((item, i) => (
+                    <div key={i} className={`flex items-center justify-between py-3 border-b ${isDark ? 'border-slate-700/30' : 'border-slate-100'} last:border-0`}>
+                      <div><div className={`text-sm font-medium ${isDark ? 'text-white' : 'text-slate-800'}`}>{item.label}</div><div className={`text-xs mt-0.5 ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>{item.sub}</div></div>
+                      <div className={`font-semibold ${isDark ? 'text-white' : 'text-slate-800'}`}>{item.amount}</div>
+                    </div>
+                  ))}
+                  <div className="pt-3">
+                    <div className="flex items-center justify-between mb-1"><span className={`font-bold ${isDark ? 'text-white' : 'text-slate-800'}`}>Total</span><span className="font-bold text-blue-500 text-lg">₹51,000</span></div>
+                    <div className={`flex items-center justify-between mb-4 text-sm`}><span className={isDark ? 'text-slate-400' : 'text-slate-500'}>Due Date</span><span className={`font-medium ${isDark ? 'text-rose-400' : 'text-rose-500'}`}>December 15, 2024</span></div>
+                    <button className="w-full py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 text-white font-medium hover:shadow-lg hover:scale-[1.02] transition-all">Pay Now</button>
+                  </div>
+                </div>
+              </div>
+
+              <div className={`rounded-2xl border ${isDark ? 'bg-slate-800/60 border-slate-700/50' : 'bg-white border-slate-200'} shadow-sm overflow-hidden`}>
+                <div className={`px-5 py-4 border-b ${isDark ? 'border-slate-700/50' : 'border-slate-100'}`}>
+                  <h3 className={`font-bold ${isDark ? 'text-white' : 'text-slate-800'}`}>Payment History</h3>
+                </div>
+                <div className="p-5 space-y-3">
+                  {[
+                    { sem: 'Semester 5 Fees', date: 'July 15, 2024', amount: '₹49,000', txn: 'TXN20240715001' },
+                    { sem: 'Semester 4 Fees', date: 'January 20, 2024', amount: '₹48,000', txn: 'TXN20240120001' },
+                    { sem: 'Semester 3 Fees', date: 'July 18, 2023', amount: '₹47,000', txn: 'TXN20230718001' },
+                  ].map((p, i) => (
+                    <div key={i} className={`p-4 rounded-xl ${isDark ? 'bg-emerald-900/10 border border-emerald-700/20' : 'bg-emerald-50 border border-emerald-100'}`}>
+                      <div className="flex justify-between items-start mb-2">
+                        <div><div className={`text-sm font-medium ${isDark ? 'text-white' : 'text-slate-800'}`}>{p.sem}</div><div className={`text-xs mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Paid on {p.date}</div></div>
+                        <div className="text-right"><div className={`font-semibold ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>{p.amount}</div><div className={`text-xs mt-0.5 ${isDark ? 'text-emerald-500' : 'text-emerald-500'}`}>Success</div></div>
+                      </div>
+                      <div className="flex items-center gap-1.5"><CheckCircle className={`w-3.5 h-3.5 ${isDark ? 'text-emerald-500' : 'text-emerald-500'}`} /><span className={`text-xs ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>TXN: {p.txn}</span></div>
+                    </div>
+                  ))}
+                  <button className={`w-full py-2 rounded-xl border text-sm font-medium ${isDark ? 'border-slate-600 text-slate-300 hover:bg-slate-700' : 'border-slate-200 text-slate-600 hover:bg-slate-50'} transition-colors`}>View All Transactions</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+
+      case 'attendance':
+        return (
+          <div className="space-y-6 animate-fade-in">
+            <div className={`relative overflow-hidden rounded-2xl p-6 lg:p-8 ${isDark ? 'bg-gradient-to-br from-slate-800 via-cyan-900/30 to-slate-800 border border-cyan-700/30' : 'bg-gradient-to-br from-cyan-500 via-sky-500 to-blue-600'}`}>
+              <div className="absolute inset-0 opacity-10"><div className="absolute -top-8 -right-8 w-48 h-48 bg-white rounded-full blur-3xl" /><div className="absolute -bottom-8 -left-8 w-48 h-48 bg-white rounded-full blur-3xl" /></div>
+              <div className="relative z-10 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                <div>
+                  <span className={`text-xs font-semibold uppercase tracking-widest px-3 py-1 rounded-full mb-2 inline-block ${isDark ? 'bg-cyan-500/20 text-cyan-300' : 'bg-white/20 text-white'}`}>Attendance</span>
+                  <h2 className="text-3xl lg:text-4xl font-bold text-white mb-1">Attendance Report</h2>
+                  <p className={`${isDark ? 'text-cyan-300' : 'text-cyan-100'}`}>Monitor attendance and view detailed reports</p>
+                </div>
+                <div className="flex gap-2">
+                  <button className="px-4 py-2.5 bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white rounded-xl border border-white/20 transition-all text-sm font-medium flex items-center gap-2"><Calendar className="w-4 h-4" />Calendar</button>
+                  <button className="px-4 py-2.5 bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white rounded-xl border border-white/20 transition-all text-sm font-medium flex items-center gap-2"><Download className="w-4 h-4" />Report</button>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              {[
+                { icon: UserCheck, value: '85.7%', label: 'Overall Attendance', sub: 'Above threshold', color: 'from-emerald-400 to-teal-500', bg: isDark ? 'bg-emerald-900/20 border-emerald-700/30' : 'bg-emerald-50 border-emerald-200' },
+                { icon: Calendar, value: '102', label: 'Classes Attended', sub: 'This semester', color: 'from-blue-400 to-indigo-500', bg: isDark ? 'bg-blue-900/20 border-blue-700/30' : 'bg-blue-50 border-blue-200' },
+                { icon: AlertCircle, value: '17', label: 'Classes Missed', sub: '3 with leave', color: 'from-rose-400 to-pink-500', bg: isDark ? 'bg-rose-900/20 border-rose-700/30' : 'bg-rose-50 border-rose-200' },
+                { icon: BarChart3, value: 'Good', label: 'Status', sub: 'Keep it up!', color: 'from-amber-400 to-orange-500', bg: isDark ? 'bg-amber-900/20 border-amber-700/30' : 'bg-amber-50 border-amber-200' },
+              ].map((s, i) => (
+                <div key={i} className={`group rounded-2xl border p-5 ${s.bg} transition-all duration-300 hover:scale-105 hover:shadow-lg`}>
+                  <div className={`inline-flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br ${s.color} mb-3 shadow-lg group-hover:scale-110 transition-transform`}><s.icon className="w-5 h-5 text-white" /></div>
+                  <div className={`text-2xl font-bold mb-0.5 ${isDark ? 'text-white' : 'text-slate-800'}`}>{s.value}</div>
+                  <div className={`text-sm font-medium ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>{s.label}</div>
+                  <div className={`text-xs mt-0.5 ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>{s.sub}</div>
+                </div>
+              ))}
+            </div>
+
+            <div className={`rounded-2xl border ${isDark ? 'bg-slate-800/60 border-slate-700/50' : 'bg-white border-slate-200'} shadow-sm p-5`}>
+              <h3 className={`font-bold mb-5 ${isDark ? 'text-white' : 'text-slate-800'}`}>Monthly Attendance</h3>
               <div className="space-y-3">
+                {[
+                  { month: 'January', attended: 22, total: 24, pct: 91.7 },
+                  { month: 'February', attended: 20, total: 22, pct: 90.9 },
+                  { month: 'March', attended: 18, total: 20, pct: 90.0 },
+                  { month: 'April', attended: 19, total: 21, pct: 90.5 },
+                  { month: 'May', attended: 21, total: 23, pct: 91.3 },
+                  { month: 'June', attended: 2, total: 2, pct: 100.0 },
+                ].map((m, i) => (
+                  <div key={i} className="flex items-center gap-3">
+                    <div className={`w-20 text-sm font-medium flex-shrink-0 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>{m.month}</div>
+                    <div className="flex-1">
+                      <div className={`w-full h-5 rounded-full ${isDark ? 'bg-slate-700' : 'bg-slate-100'} overflow-hidden`}>
+                        <div className={`h-full rounded-full flex items-center justify-center text-xs font-medium text-white transition-all duration-700 ${m.pct >= 90 ? 'bg-gradient-to-r from-emerald-500 to-teal-500' : m.pct >= 75 ? 'bg-gradient-to-r from-blue-500 to-indigo-500' : 'bg-gradient-to-r from-rose-500 to-pink-500'}`} style={{ width: `${m.pct}%` }}>
+                          {m.pct}%
+                        </div>
+                      </div>
+                    </div>
+                    <div className={`w-16 text-right text-sm flex-shrink-0 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{m.attended}/{m.total}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className={`rounded-2xl border ${isDark ? 'bg-slate-800/60 border-slate-700/50' : 'bg-white border-slate-200'} shadow-sm overflow-hidden`}>
+              <div className={`px-5 py-4 border-b ${isDark ? 'border-slate-700/50' : 'border-slate-100'}`}><h3 className={`font-bold ${isDark ? 'text-white' : 'text-slate-800'}`}>Recent Attendance</h3></div>
+              <div className="divide-y divide-slate-700/20">
                 {[
                   { date: 'Dec 10, 2024', course: 'Data Structures', status: 'present', time: '9:00 AM' },
                   { date: 'Dec 9, 2024', course: 'Algorithm Design', status: 'present', time: '10:30 AM' },
                   { date: 'Dec 8, 2024', course: 'Database Systems', status: 'absent', time: '2:00 PM' },
                   { date: 'Dec 7, 2024', course: 'Web Development', status: 'present', time: '11:00 AM' },
                   { date: 'Dec 6, 2024', course: 'Machine Learning', status: 'late', time: '9:15 AM' },
-                ].map((record, index) => (
-                  <div key={index} className="flex items-center justify-between p-3 rounded-lg border border-emerald-600 dark:border-gray-600 hover:bg-emerald-700 dark:hover:bg-gray-700 transition-colors">
-                    <div className="flex items-center space-x-3">
-                      <div className={`w-3 h-3 rounded-full ${
-                        record.status === 'present' ? 'bg-green-500' :
-                        record.status === 'late' ? 'bg-orange-500' : 'bg-red-500'
-                      }`}></div>
-                      <div>
-                        <div className="font-medium text-gray-100 dark:text-white">{record.course}</div>
-                        <div className="text-sm text-gray-600 dark:text-gray-400">{record.date} • {record.time}</div>
-                      </div>
+                ].map((r, i) => (
+                  <div key={i} className={`flex items-center justify-between px-5 py-3.5 transition-colors ${isDark ? 'hover:bg-slate-700/20' : 'hover:bg-slate-50'}`}>
+                    <div className="flex items-center gap-3">
+                      <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${r.status === 'present' ? 'bg-emerald-500' : r.status === 'late' ? 'bg-amber-500' : 'bg-rose-500'}`} />
+                      <div><div className={`text-sm font-medium ${isDark ? 'text-white' : 'text-slate-800'}`}>{r.course}</div><div className={`text-xs mt-0.5 ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>{r.date} · {r.time}</div></div>
                     </div>
-                    <div className={`px-3 py-1 rounded-full text-xs font-medium ${
-                      record.status === 'present' ? 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400' :
-                      record.status === 'late' ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400' :
-                      'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400'
-                    }`}>
-                      {record.status.charAt(0).toUpperCase() + record.status.slice(1)}
-                    </div>
+                    <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${r.status === 'present' ? isDark ? 'bg-emerald-900/30 text-emerald-400' : 'bg-emerald-100 text-emerald-700' : r.status === 'late' ? isDark ? 'bg-amber-900/30 text-amber-400' : 'bg-amber-100 text-amber-700' : isDark ? 'bg-rose-900/30 text-rose-400' : 'bg-rose-100 text-rose-700'}`}>{r.status.charAt(0).toUpperCase() + r.status.slice(1)}</span>
                   </div>
                 ))}
               </div>
             </div>
           </div>
         );
+
       case 'messages':
         return (
-          <div className="p-6">
-            <h2 className="text-2xl font-bold mb-6 text-gray-100 dark:text-white">{t('messages.title')}</h2>
-            <div className="bg-emerald-800/80 dark:bg-gray-800 rounded-lg shadow-md p-8 text-center">
-              <MessageSquare className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-semibold text-gray-100 dark:text-white mb-2">Coming Soon</h3>
-              <p className="text-gray-300 dark:text-gray-300">Messaging system will be available soon</p>
+          <div className="animate-fade-in">
+            <div className={`relative overflow-hidden rounded-2xl p-6 lg:p-8 mb-6 ${isDark ? 'bg-gradient-to-br from-slate-800 via-sky-900/30 to-slate-800 border border-sky-700/30' : 'bg-gradient-to-br from-sky-500 via-blue-500 to-indigo-600'}`}>
+              <div className="relative z-10"><span className={`text-xs font-semibold uppercase tracking-widest px-3 py-1 rounded-full mb-2 inline-block ${isDark ? 'bg-sky-500/20 text-sky-300' : 'bg-white/20 text-white'}`}>Inbox</span><h2 className="text-3xl font-bold text-white mb-1">Messages</h2><p className={isDark ? 'text-sky-300' : 'text-sky-100'}>Communicate with faculty and staff</p></div>
+            </div>
+            <div className={`rounded-2xl border ${isDark ? 'bg-slate-800/60 border-slate-700/50' : 'bg-white border-slate-200'} shadow-sm p-12 text-center`}>
+              <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 ${isDark ? 'bg-slate-700' : 'bg-slate-100'}`}><MessageSquare className={`w-8 h-8 ${isDark ? 'text-slate-500' : 'text-slate-400'}`} /></div>
+              <h3 className={`font-bold text-lg mb-1 ${isDark ? 'text-white' : 'text-slate-800'}`}>Coming Soon</h3>
+              <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Messaging system will be available soon</p>
             </div>
           </div>
         );
+
       case 'services':
         return (
-          <div className="p-6">
-            <h2 className="text-2xl font-bold mb-6 text-gray-100 dark:text-white">{t('services.title')}</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              <div className="bg-emerald-800/80 dark:bg-gray-800 rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow">
-                <Building className="w-8 h-8 text-blue-500 mb-4" />
-                <h3 className="text-lg font-semibold mb-2 text-gray-100 dark:text-white">Cafeteria</h3>
-                <p className="text-gray-300 dark:text-gray-300 text-sm">Daily meals and snacks available</p>
-              </div>
-              <div className="bg-emerald-800/80 dark:bg-gray-800 rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow">
-                <Users className="w-8 h-8 text-green-500 mb-4" />
-                <h3 className="text-lg font-semibold mb-2 text-gray-100 dark:text-white">Sports Complex</h3>
-                <p className="text-gray-300 dark:text-gray-300 text-sm">Indoor and outdoor sports facilities</p>
-              </div>
-              <div className="bg-emerald-800/80 dark:bg-gray-800 rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow">
-                <HelpCircle className="w-8 h-8 text-purple-500 mb-4" />
-                <h3 className="text-lg font-semibold mb-2 text-gray-100 dark:text-white">Health Center</h3>
-                <p className="text-gray-300 dark:text-gray-300 text-sm">Medical facilities and emergency care</p>
-              </div>
+          <div className="animate-fade-in">
+            <div className={`relative overflow-hidden rounded-2xl p-6 lg:p-8 mb-6 ${isDark ? 'bg-gradient-to-br from-slate-800 via-teal-900/30 to-slate-800 border border-teal-700/30' : 'bg-gradient-to-br from-teal-500 via-emerald-500 to-green-600'}`}>
+              <div className="relative z-10"><span className={`text-xs font-semibold uppercase tracking-widest px-3 py-1 rounded-full mb-2 inline-block ${isDark ? 'bg-teal-500/20 text-teal-300' : 'bg-white/20 text-white'}`}>Campus</span><h2 className="text-3xl font-bold text-white mb-1">Campus Services</h2><p className={isDark ? 'text-teal-300' : 'text-teal-100'}>All campus facilities in one place</p></div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+              {[
+                { icon: Building, label: 'Cafeteria', desc: 'Daily meals and snacks available', color: 'from-orange-400 to-amber-500', bg: isDark ? 'bg-orange-900/10 border-orange-700/20' : 'bg-orange-50 border-orange-100' },
+                { icon: Users, label: 'Sports Complex', desc: 'Indoor and outdoor sports facilities', color: 'from-emerald-400 to-teal-500', bg: isDark ? 'bg-emerald-900/10 border-emerald-700/20' : 'bg-emerald-50 border-emerald-100' },
+                { icon: HelpCircle, label: 'Health Center', desc: 'Medical facilities and emergency care', color: 'from-rose-400 to-pink-500', bg: isDark ? 'bg-rose-900/10 border-rose-700/20' : 'bg-rose-50 border-rose-100' },
+              ].map((s, i) => (
+                <div key={i} className={`group rounded-2xl border p-6 ${s.bg} transition-all duration-300 hover:scale-105 hover:shadow-lg`}>
+                  <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${s.color} flex items-center justify-center mb-4 shadow-lg group-hover:scale-110 transition-transform`}><s.icon className="w-6 h-6 text-white" /></div>
+                  <h3 className={`font-bold mb-1 ${isDark ? 'text-white' : 'text-slate-800'}`}>{s.label}</h3>
+                  <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{s.desc}</p>
+                </div>
+              ))}
             </div>
           </div>
         );
+
       case 'help':
         return (
-          <div className="p-6">
-            <h2 className="text-2xl font-bold mb-6 text-gray-100 dark:text-white">{t('help.title')}</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="bg-emerald-800/80 dark:bg-gray-800 rounded-lg shadow-md p-6">
-                <h3 className="text-lg font-semibold mb-4 text-gray-100 dark:text-white">Contact Support</h3>
+          <div className="animate-fade-in">
+            <div className={`relative overflow-hidden rounded-2xl p-6 lg:p-8 mb-6 ${isDark ? 'bg-gradient-to-br from-slate-800 via-indigo-900/30 to-slate-800 border border-indigo-700/30' : 'bg-gradient-to-br from-indigo-500 via-violet-500 to-purple-600'}`}>
+              <div className="relative z-10"><span className={`text-xs font-semibold uppercase tracking-widest px-3 py-1 rounded-full mb-2 inline-block ${isDark ? 'bg-indigo-500/20 text-indigo-300' : 'bg-white/20 text-white'}`}>Support</span><h2 className="text-3xl font-bold text-white mb-1">Help Center</h2><p className={isDark ? 'text-indigo-300' : 'text-indigo-100'}>Get help and find answers quickly</p></div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div className={`rounded-2xl border ${isDark ? 'bg-slate-800/60 border-slate-700/50' : 'bg-white border-slate-200'} shadow-sm p-5`}>
+                <h3 className={`font-bold mb-4 ${isDark ? 'text-white' : 'text-slate-800'}`}>Contact Support</h3>
                 <div className="space-y-3">
-                  <div className="flex items-center space-x-3">
-                    <MessageSquare className="w-5 h-5 text-blue-500" />
-                    <span className="text-gray-300 dark:text-gray-300">support@university.edu.in</span>
-                  </div>
-                  <div className="flex items-center space-x-3">
-                    <HelpCircle className="w-5 h-5 text-green-500" />
-                    <span className="text-gray-300 dark:text-gray-300">1800-123-4567</span>
-                  </div>
+                  <div className={`flex items-center gap-3 p-3 rounded-xl ${isDark ? 'bg-slate-700/50' : 'bg-slate-50'}`}><MessageSquare className="w-5 h-5 text-blue-500 flex-shrink-0" /><span className={`text-sm ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>support@university.edu.in</span></div>
+                  <div className={`flex items-center gap-3 p-3 rounded-xl ${isDark ? 'bg-slate-700/50' : 'bg-slate-50'}`}><HelpCircle className="w-5 h-5 text-emerald-500 flex-shrink-0" /><span className={`text-sm ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>1800-123-4567</span></div>
                 </div>
               </div>
-              <div className="bg-emerald-800/80 dark:bg-gray-800 rounded-lg shadow-md p-6">
-                <h3 className="text-lg font-semibold mb-4 text-gray-100 dark:text-white">Quick Links</h3>
+              <div className={`rounded-2xl border ${isDark ? 'bg-slate-800/60 border-slate-700/50' : 'bg-white border-slate-200'} shadow-sm p-5`}>
+                <h3 className={`font-bold mb-4 ${isDark ? 'text-white' : 'text-slate-800'}`}>Quick Links</h3>
                 <div className="space-y-2">
-                  <button className="w-full text-left p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-gray-300 dark:text-gray-300">
-                    User Guide
-                  </button>
-                  <button className="w-full text-left p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-gray-300 dark:text-gray-300">
-                    FAQs
-                  </button>
-                  <button className="w-full text-left p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-gray-300 dark:text-gray-300">
-                    Report Issue
-                  </button>
+                  {['User Guide', 'FAQs', 'Report Issue'].map((link, i) => (
+                    <button key={i} className={`w-full text-left px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${isDark ? 'text-slate-300 hover:bg-slate-700' : 'text-slate-700 hover:bg-slate-50'}`}>{link}</button>
+                  ))}
                 </div>
               </div>
             </div>
           </div>
         );
+
+      case 'ai-assistant':
+        return <AIAssistantEmbed isDark={isDark} studentProfile={studentProfile} />;
+
       default:
         return (
-          <div className="flex items-center justify-center h-64">
-            <div className="text-center">
-              <div className={`w-16 h-16 ${theme === 'dark' ? 'bg-gray-700' : 'bg-gray-200'} rounded-full flex items-center justify-center mx-auto mb-4`}>
-                <Home className={`w-8 h-8 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`} />
-              </div>
-              <h3 className={`text-lg font-semibold ${theme === 'dark' ? 'text-white' : 'text-black'} mb-2`}>Coming Soon</h3>
-              <p className={`${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>This section is under development</p>
-            </div>
+          <div className={`rounded-2xl border ${isDark ? 'bg-slate-800/60 border-slate-700/50' : 'bg-white border-slate-200'} shadow-sm p-12 text-center animate-fade-in`}>
+            <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 ${isDark ? 'bg-slate-700' : 'bg-slate-100'}`}><Home className={`w-8 h-8 ${isDark ? 'text-slate-500' : 'text-slate-400'}`} /></div>
+            <h3 className={`font-bold text-lg mb-1 ${isDark ? 'text-white' : 'text-slate-800'}`}>Coming Soon</h3>
+            <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>This section is under development</p>
           </div>
         );
     }
   };
 
+  // ─── MAIN RENDER ─────────────────────────────────────────────────────────────
   return (
-    <div className={`min-h-screen w-full relative overflow-hidden ${theme === 'dark' ? 'bg-slate-900' : 'bg-white'} flex`}>
-      {/* Top Navigation Bar */}
-      <header className={`fixed top-0 left-0 right-0 z-40 ${theme === 'dark' ? 'bg-slate-800' : 'bg-gradient-to-r from-blue-400 via-indigo-400 to-blue-500'} border-r border-gray-800 border-b transition-all duration-300 shadow-2xl`}>
-        <div className="flex items-center justify-between px-4 lg:px-6 h-16">
-          {/* Mobile Menu Toggle & Logo */}
-          <div className="flex items-center space-x-4">
-            <button
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="lg:hidden p-2 rounded-lg hover:bg-gray-800 text-gray-300 transition-colors"
-            >
-              {mobileMenuOpen ? <CloseIcon className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+    <div className={`min-h-screen flex ${isDark ? 'bg-slate-950' : 'bg-slate-50'}`}>
+
+      {/* ── TOP HEADER ─────────────────────────────────────────────────────── */}
+      <header className={`fixed top-0 left-0 right-0 z-40 h-16 flex items-center justify-between px-4 lg:px-6 border-b backdrop-blur-xl transition-all duration-300 ${isDark ? 'bg-slate-900/90 border-slate-700/60 shadow-lg shadow-slate-900/40' : 'bg-white/90 border-slate-200/80 shadow-sm'}`}>
+
+        {/* Left: hamburger + logo */}
+        <div className="flex items-center gap-3">
+          <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className={`lg:hidden p-2 rounded-xl transition-colors ${isDark ? 'hover:bg-slate-700 text-slate-300' : 'hover:bg-slate-100 text-slate-600'}`}>
+            {mobileMenuOpen ? <CloseIcon className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+          </button>
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shadow-lg">
+              <GraduationCap className="w-4 h-4 text-white" />
+            </div>
+            <span className={`font-bold text-lg hidden sm:block ${isDark ? 'text-white' : 'text-slate-800'}`}>
+              Campus<span className="text-indigo-500">Genie</span>
+            </span>
+          </div>
+        </div>
+
+        {/* Right: theme toggle, bell, user */}
+        <div className="flex items-center gap-2">
+
+          {/* Theme toggle */}
+          <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border ${isDark ? 'bg-slate-800 border-slate-700 text-slate-300' : 'bg-slate-100 border-slate-200 text-slate-600'}`}>
+            {isDark ? <Moon className="w-3.5 h-3.5 text-indigo-400" /> : <Sun className="w-3.5 h-3.5 text-amber-500" />}
+            <ThemeToggle />
+          </div>
+
+          {/* Notifications */}
+          <div className="relative">
+            <button onClick={() => { setShowNotifications(!showNotifications); setShowUserMenu(false); }} className={`relative p-2.5 rounded-xl transition-colors ${isDark ? 'hover:bg-slate-700 text-slate-300' : 'hover:bg-slate-100 text-slate-600'}`}>
+              <Bell className="w-5 h-5" />
+              {notifications.length > 0 && (
+                <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-rose-500 rounded-full">
+                  <span className="absolute inset-0 bg-rose-500 rounded-full animate-ping opacity-75" />
+                </span>
+              )}
             </button>
-            <div className="flex items-center space-x-2">
-              <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-purple-600 rounded-lg flex items-center justify-center">
-                <BookOpen className="w-4 h-4 text-white" />
-              </div>
-              <span className="font-bold text-lg text-cyan-400">AcadDNA</span>
-            </div>
-          </div>
-
-          {/* Right Side - Theme, Notifications, User */}
-          <div className="flex items-center space-x-3">
-            <div className="flex items-center space-x-2 p-2 rounded-lg bg-gray-800 transition-colors">
-              <div className="w-6 h-6 rounded bg-white/10 flex items-center justify-center">
-                {theme === 'dark' ? (
-                  <Moon className="w-3 h-3 text-blue-300" />
-                ) : (
-                  <Sun className="w-3 h-3 text-yellow-500" />
-                )}
-              </div>
-              <span className="text-xs font-medium text-cyan-300">
-                {theme === 'dark' ? 'Dark' : 'Light'}
-              </span>
-              <ThemeToggle />
-            </div>
-
-            {/* Notifications */}
-            <div className="relative">
-              <button
-                onClick={() => {
-                  setShowNotifications(!showNotifications);
-                  setShowUserMenu(false);
-                }}
-                className="relative p-2 rounded-lg hover:bg-gray-800 text-cyan-300 transition-colors"
-              >
-                <Bell className="w-5 h-5" />
-                {notifications.length > 0 && (
-                  <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full animate-pulse">
-                    <span className="absolute inset-0 w-3 h-3 bg-red-500 rounded-full animate-ping"></span>
-                  </span>
-                )}
-              </button>
-              
-              {/* Notifications Dropdown */}
-              {showNotifications && (
-                <div className="absolute top-full right-0 mt-2 w-80 bg-gray-900 border-gray-700 border rounded-xl shadow-2xl">
-                  <div className="p-4">
-                    <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-sm font-semibold text-cyan-400 flex items-center">
-                        <Bell className="w-4 h-4 mr-2" />
-                        Notifications
-                      </h3>
-                      <button
-                        onClick={() => setShowNotifications(false)}
-                        className="text-gray-400 hover:text-white transition-colors"
-                      >
-                        <CloseIcon className="w-4 h-4" />
-                      </button>
-                    </div>
-                    <div className="space-y-2 max-h-64 overflow-y-auto">
-                      {notifications.length > 0 ? (
-                        notifications.map((notification, index) => (
-                          <div 
-                            key={notification.id} 
-                            className="p-3 rounded-lg border bg-gray-800 border-gray-700 hover:bg-gray-700 transition-all duration-200 cursor-pointer" 
-                          >
-                            <div className="flex items-start">
-                              <div className={`w-8 h-8 rounded-lg flex items-center justify-center mr-3 flex-shrink-0 ${
-                                notification.type === 'success' ? 'bg-green-900/30' :
-                                notification.type === 'warning' ? 'bg-yellow-900/30' :
-                                notification.type === 'error' ? 'bg-red-900/30' :
-                                'bg-blue-900/30'
-                              }`}>
-                                {notification.type === 'success' && <CheckCircle className="w-4 h-4 text-green-400" />}
-                                {notification.type === 'warning' && <AlertTriangle className="w-4 h-4 text-yellow-400" />}
-                                {notification.type === 'error' && <XCircle className="w-4 h-4 text-red-400" />}
-                                {notification.type === 'info' && <AlertCircle className="w-4 h-4 text-blue-400" />}
-                              </div>
-                              <div className="flex-1">
-                                <div className="text-sm font-medium text-cyan-300">{notification.title}</div>
-                                <div className="text-xs text-gray-400 mt-1">{notification.message}</div>
-                                <div className="text-xs text-gray-500 mt-2">{notification.time}</div>
-                              </div>
-                            </div>
-                          </div>
-                        ))
-                      ) : (
-                        <div className="text-center py-8">
-                          <Bell className="w-8 h-8 mx-auto mb-2 text-gray-600" />
-                          <p className="text-sm text-gray-500">No notifications</p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
+            {showNotifications && (
+              <div className={`absolute top-full right-0 mt-2 w-80 rounded-2xl border shadow-2xl z-50 overflow-hidden ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-200'}`}>
+                <div className={`px-4 py-3 border-b flex items-center justify-between ${isDark ? 'border-slate-700' : 'border-slate-100'}`}>
+                  <span className={`text-sm font-bold ${isDark ? 'text-white' : 'text-slate-800'}`}>Notifications</span>
+                  <button onClick={() => setShowNotifications(false)} className={`p-1 rounded-lg ${isDark ? 'hover:bg-slate-700 text-slate-400' : 'hover:bg-slate-100 text-slate-500'}`}><CloseIcon className="w-4 h-4" /></button>
                 </div>
-              )}
-            </div>
-
-            {/* User Profile */}
-            <div className="relative">
-              <button
-                onClick={() => {
-                  setShowUserMenu(!showUserMenu);
-                  setShowNotifications(false);
-                }}
-                className="flex items-center space-x-2 p-2 rounded-lg hover:bg-gray-800 transition-colors"
-              >
-                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-600 to-purple-600 flex items-center justify-center">
-                  <User className="w-4 h-4 text-white" />
-                </div>
-                <div className="hidden sm:block text-left">
-                  <div className="text-sm font-medium text-cyan-400">
-                    {studentProfile?.first_name && studentProfile?.last_name 
-                      ? `${studentProfile.first_name} ${studentProfile.last_name}`
-                      : studentProfile?.name || currentStudent?.name || 'Padmini Asati'
-                    }
-                  </div>
-                  <div className="text-xs text-green-500 flex items-center">
-                    <div className="w-1.5 h-1.5 bg-green-500 rounded-full mr-1"></div>
-                    Online
-                  </div>
-                </div>
-              </button>
-
-              {/* User Menu Dropdown */}
-              {showUserMenu && (
-                <div className="absolute top-full right-0 mt-2 w-56 bg-gray-900 border-gray-700 border rounded-xl shadow-2xl">
-                  <div className="p-2">
-                    {userMenuItems.map((item, index) => (
-                      <button
-                        key={item.id}
-                        onClick={item.action}
-                        className="w-full flex items-center space-x-3 p-3 rounded-lg hover:bg-gray-800 transition-colors"
-                      >
-                        <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-gray-700">
-                          <item.icon className="w-4 h-4 text-gray-300" />
-                        </div>
-                        <span className="text-sm text-cyan-300">{item.label}</span>
-                      </button>
-                    ))}
-                    
-                    {/* Logout */}
-                    <button
-                      onClick={() => {
-                        setShowLogoutConfirm(true);
-                        setShowUserMenu(false);
-                      }}
-                      className="w-full flex items-center space-x-3 p-3 rounded-lg bg-red-900/20 hover:bg-red-900/30 transition-colors border border-red-800/30 hover:border-red-700/50 mt-2"
-                    >
-                      <div className="w-8 h-8 rounded-lg bg-red-900/30 flex items-center justify-center">
-                        <LogOut className="w-4 h-4 text-red-400" />
+                <div className="max-h-72 overflow-y-auto">
+                  {notifications.map(n => (
+                    <div key={n.id} className={`flex gap-3 px-4 py-3 border-b last:border-0 transition-colors cursor-pointer ${isDark ? 'border-slate-800 hover:bg-slate-800/60' : 'border-slate-50 hover:bg-slate-50'}`}>
+                      <div className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 ${n.type === 'success' ? isDark ? 'bg-emerald-900/40' : 'bg-emerald-100' : n.type === 'warning' ? isDark ? 'bg-amber-900/40' : 'bg-amber-100' : isDark ? 'bg-blue-900/40' : 'bg-blue-100'}`}>
+                        {n.type === 'success' && <CheckCircle className={`w-4 h-4 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`} />}
+                        {n.type === 'warning' && <AlertTriangle className={`w-4 h-4 ${isDark ? 'text-amber-400' : 'text-amber-600'}`} />}
+                        {n.type === 'info' && <Info className={`w-4 h-4 ${isDark ? 'text-blue-400' : 'text-blue-600'}`} />}
                       </div>
-                      <span className="text-sm text-red-400">Logout</span>
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </header>
-      {/* Side Navigation Bar */}
-      <nav className={`hidden lg:flex flex-col w-72 ${theme === 'dark' ? 'bg-slate-800' : 'bg-white'} border-r ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'} fixed left-0 top-16 h-full z-50 transform transition-all duration-500 ease-in-out shadow-lg ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
-        {/* Navigation Items */}
-        <div className="flex-1 p-4 space-y-2 overflow-y-auto pt-6">
-          <div className="mb-4">
-            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3 px-4">Main Menu</h3>
-            {navigationCategories.map((category, index) => (
-              <div key={category.id} className="mb-2">
-                {/* Category Header */}
-                <button
-                  onClick={() => toggleDropdown(category.id)}
-                  className={`w-full flex items-center space-x-4 px-4 py-3 rounded-xl transition-all duration-300 transform hover:scale-105 hover:translate-x-2 relative overflow-hidden group ${
-                    isCategoryActive(category)
-                      ? theme === 'dark' 
-                        ? 'bg-gradient-to-r from-gray-800 to-gray-700 text-white shadow-lg border-l-4 border-white'
-                        : 'bg-gradient-to-r from-emerald-600 to-cyan-600 text-white shadow-lg border-l-4 border-white'
-                      : theme === 'dark'
-                        ? 'text-gray-400 hover:bg-gradient-to-r hover:from-gray-800 hover:to-gray-700 hover:text-white hover:shadow-md'
-                        : 'text-cyan-700 hover:bg-gradient-to-r hover:from-emerald-500 hover:to-cyan-500 hover:text-white hover:shadow-md'
-                  }`}
-                  style={{ animationDelay: `${index * 100}ms` }}
-                >
-                  {/* Background animation */}
-                  <div className={`absolute inset-0 bg-gradient-to-r ${isCategoryActive(category) ? 'from-gray-700 to-gray-600' : 'from-gray-800 to-gray-700'} opacity-0 group-hover:opacity-100 transition-opacity duration-300`}></div>
-                  
-                  {/* Icon container */}
-                  <div className={`relative z-10 w-10 h-10 rounded-lg flex items-center justify-center transform transition-all duration-300 ${
-                    isCategoryActive(category)
-                      ? theme === 'dark' 
-                        ? 'bg-white/20 shadow-lg' 
-                        : 'bg-white/30 shadow-lg'
-                      : theme === 'dark'
-                        ? 'bg-gray-800 group-hover:bg-white/10 group-hover:shadow-lg'
-                        : 'bg-emerald-100 group-hover:bg-white/20 group-hover:shadow-lg'
-                  }`}>
-                    <category.icon className={`w-5 h-5 transform transition-all duration-300 ${
-                      isCategoryActive(category) ? 'scale-110' : 'group-hover:scale-110'
-                    }`} />
-                  </div>
-                  
-                  {/* Text content */}
-                  <div className="flex-1 text-left relative z-10">
-                    <span className="font-medium">{category.label}</span>
-                    {isCategoryActive(category) && (
-                      <div className="text-xs text-gray-300 mt-1">Active category</div>
-                    )}
-                  </div>
-                  
-                  {/* Dropdown arrow */}
-                  <div className={`relative z-10 transform transition-all duration-300 ${
-                    openDropdown === category.id ? 'rotate-180' : ''
-                  }`}>
-                    <ChevronDown className="w-4 h-4" />
-                  </div>
-                </button>
-                
-                {/* Dropdown Items */}
-                <div className={`overflow-hidden transition-all duration-300 ${
-                  openDropdown === category.id ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
-                }`}>
-                  <div className="mt-1 ml-4 space-y-1">
-                    {category.items.map((item, itemIndex) => (
-                      <button
-                        key={item.id}
-                        onClick={() => handleItemClick(item.id)}
-                        className={`w-full flex items-center space-x-3 px-4 py-2 rounded-lg transition-all duration-200 transform hover:scale-105 relative overflow-hidden group ${
-                          activeView === item.id
-                            ? 'bg-gradient-to-r from-gray-700 to-gray-600 text-white shadow-md border-l-2 border-white'
-                            : 'text-gray-500 hover:bg-gradient-to-r hover:from-gray-700 hover:to-gray-600 hover:text-white'
-                        }`}
-                        style={{ animationDelay: `${itemIndex * 50}ms` }}
-                      >
-                        {/* Icon */}
-                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center transform transition-all duration-200 ${
-                          activeView === item.id
-                            ? 'bg-white/20 shadow-md' 
-                            : 'bg-gray-700/50 group-hover:bg-white/10'
-                        }`}>
-                          <item.icon className={`w-4 h-4 transform transition-all duration-200 ${
-                            activeView === item.id ? 'scale-110' : 'group-hover:scale-110'
-                          }`} />
-                        </div>
-                        
-                        {/* Text */}
-                        <div className="flex-1 text-left">
-                          <span className="text-sm font-medium">{item.label}</span>
-                        </div>
-                        
-                        {/* Active indicator */}
-                        {activeView === item.id && (
-                          <div className="w-1.5 h-1.5 bg-white rounded-full animate-pulse"></div>
-                        )}
-                      </button>
-                    ))}
-                  </div>
+                      <div className="flex-1 min-w-0">
+                        <div className={`text-sm font-medium ${isDark ? 'text-white' : 'text-slate-800'}`}>{n.title}</div>
+                        <div className={`text-xs mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{n.message}</div>
+                        <div className={`text-xs mt-1 ${isDark ? 'text-slate-600' : 'text-slate-400'}`}>{n.time}</div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
-            ))}
+            )}
           </div>
-        </div>
 
-        {/* Bottom Section - Minimal */}
-        <div className="p-4 border-t border-gray-800 bg-gradient-to-t from-gray-900 to-black">
-          {/* Quick Stats or Additional Info Can Go Here */}
-          <div className="text-center">
-            <div className={`text-xs ${theme === 'dark' ? 'text-gray-500' : 'text-gray-400'}`}>
-              © 2024 AcadDNA Student Portal
-            </div>
-          </div>
-        </div>
-
-        {/* Logout Confirmation Modal */}
-        {showLogoutConfirm && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 animate-in">
-            <div className="bg-gradient-to-br from-gray-900 to-gray-800 border border-gray-700 rounded-xl p-6 max-w-sm mx-4 transform transition-all duration-300 scale-95 animate-in">
-              <div className="text-center">
-                <div className="w-12 h-12 bg-red-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <LogOut className="w-6 h-6 text-red-400" />
+          {/* User menu */}
+          <div className="relative">
+            <button onClick={() => { setShowUserMenu(!showUserMenu); setShowNotifications(false); }} className={`flex items-center gap-2 px-2 py-1.5 rounded-xl transition-colors ${isDark ? 'hover:bg-slate-700' : 'hover:bg-slate-100'}`}>
+              <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shadow">
+                <User className="w-4 h-4 text-white" />
+              </div>
+              <div className="hidden sm:block text-left">
+                <div className={`text-sm font-semibold leading-tight ${isDark ? 'text-white' : 'text-slate-800'}`}>
+                  {studentProfile?.first_name && studentProfile?.last_name ? `${studentProfile.first_name} ${studentProfile.last_name}` : studentProfile?.name || 'Student'}
                 </div>
-                <h3 className="text-lg font-semibold text-white mb-2">Confirm Logout</h3>
-                <p className="text-gray-400 text-sm mb-6">Are you sure you want to sign out of your account?</p>
-                <div className="flex space-x-3">
-                  <button
-                    onClick={() => setShowLogoutConfirm(false)}
-                    className="flex-1 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={() => logout()}
-                    className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors"
-                  >
+                <div className="flex items-center gap-1 mt-0.5">
+                  <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full" />
+                  <span className="text-xs text-emerald-500">Online</span>
+                </div>
+              </div>
+            </button>
+            {showUserMenu && (
+              <div className={`absolute top-full right-0 mt-2 w-52 rounded-2xl border shadow-2xl z-50 overflow-hidden ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-200'}`}>
+                <div className="p-2">
+                  {userMenuItems.map(item => (
+                    <button key={item.id} onClick={item.action} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-colors ${isDark ? 'text-slate-300 hover:bg-slate-800' : 'text-slate-700 hover:bg-slate-50'}`}>
+                      <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${isDark ? 'bg-slate-700' : 'bg-slate-100'}`}><item.icon className="w-3.5 h-3.5" /></div>
+                      {item.label}
+                    </button>
+                  ))}
+                  <div className={`my-1 border-t ${isDark ? 'border-slate-700' : 'border-slate-100'}`} />
+                  <button onClick={() => { setShowLogoutConfirm(true); setShowUserMenu(false); }} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-colors ${isDark ? 'text-rose-400 hover:bg-rose-900/20' : 'text-rose-600 hover:bg-rose-50'}`}>
+                    <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${isDark ? 'bg-rose-900/30' : 'bg-rose-50'}`}><LogOut className="w-3.5 h-3.5" /></div>
                     Logout
                   </button>
                 </div>
               </div>
-            </div>
-          </div>
-        )}
-      </nav>
-
-      {/* Mobile Menu Toggle */}
-      <div className="lg:hidden fixed top-20 left-4 z-50">
-        <button
-          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          className="p-3 bg-gradient-to-br from-gray-900 to-black rounded-xl text-white hover:from-gray-800 hover:to-gray-900 transition-all duration-300 transform hover:scale-110 shadow-lg border border-gray-700"
-        >
-          {mobileMenuOpen ? <CloseIcon className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-        </button>
-      </div>
-
-      {/* Mobile Side Navigation */}
-      <nav className={`lg:hidden fixed left-0 top-0 h-full w-72 ${theme === 'dark' ? 'bg-slate-800' : 'bg-gradient-to-r from-purple-600 via-pink-600 to-indigo-600 animate-gradient'} border-r border-gray-800 z-40 transform transition-all duration-500 ease-in-out shadow-2xl ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-        <div className="p-6 border-b border-gray-800 bg-gradient-to-r from-gray-800 to-gray-900">
-          <div className="flex items-center space-x-3">
-            <div className="w-12 h-12 bg-gradient-to-br from-gray-700 to-gray-900 rounded-xl flex items-center justify-center shadow-lg">
-              <BookOpen className="w-7 h-7 text-white" />
-            </div>
-            <div>
-              <span className="text-2xl font-bold text-white">AcadDNA</span>
-              <div className="text-xs text-gray-400 mt-1">Student Portal</div>
-            </div>
+            )}
           </div>
         </div>
+      </header>
 
-        <div className="flex-1 p-4 space-y-2 overflow-y-auto">
-          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3 px-4">Main Menu</h3>
-          {mobileNavigationItems.map((item, index) => (
-            <button
-              key={item.id}
-              onClick={() => {
-                setActiveView(item.id as any);
-                setMobileMenuOpen(false);
-              }}
-              className={`w-full flex items-center space-x-4 px-4 py-3 rounded-xl transition-all duration-300 transform hover:scale-105 relative overflow-hidden group ${
-                activeView === item.id
-                  ? 'bg-gradient-to-r from-gray-800 to-gray-700 text-white shadow-lg border-l-4 border-white'
-                  : 'text-gray-400 hover:bg-gradient-to-r hover:from-gray-800 hover:to-gray-700 hover:text-white hover:shadow-md'
-              }`}
-              style={{ animationDelay: `${index * 50}ms` }}
-            >
-              <div className="w-10 h-10 rounded-lg bg-gray-800 group-hover:bg-white/10 transition-colors flex items-center justify-center">
-                <item.icon className="w-5 h-5" />
+      {/* ── DESKTOP SIDEBAR ─────────────────────────────────────────────────── */}
+      <nav className={`hidden lg:flex flex-col fixed left-0 top-16 w-64 h-[calc(100vh-4rem)] z-30 border-r transition-all duration-300 ${isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'}`}>
+
+        {/* Nav items */}
+        <div className="flex-1 overflow-y-auto py-4 px-3 space-y-1">
+          <p className={`text-xs font-bold uppercase tracking-widest px-3 mb-3 ${isDark ? 'text-slate-600' : 'text-slate-400'}`}>Navigation</p>
+          {navigationCategories.map(category => (
+            <div key={category.id}>
+              <button onClick={() => toggleDropdown(category.id)} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 group ${isCategoryActive(category) ? isDark ? 'bg-indigo-500/15 text-indigo-400' : 'bg-indigo-50 text-indigo-700' : isDark ? 'text-slate-400 hover:bg-slate-800 hover:text-white' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-800'}`}>
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 transition-all ${isCategoryActive(category) ? 'bg-gradient-to-br from-indigo-500 to-violet-600 shadow-lg' : isDark ? 'bg-slate-800 group-hover:bg-slate-700' : 'bg-slate-100 group-hover:bg-slate-200'}`}>
+                  <category.icon className={`w-4 h-4 ${isCategoryActive(category) ? 'text-white' : ''}`} />
+                </div>
+                <span className="flex-1 text-left">{category.label}</span>
+                <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${openDropdown === category.id ? 'rotate-180' : ''} ${isDark ? 'text-slate-600' : 'text-slate-400'}`} />
+              </button>
+              <div className={`overflow-hidden transition-all duration-300 ease-in-out ${openDropdown === category.id ? 'max-h-60 opacity-100 mt-1' : 'max-h-0 opacity-0'}`}>
+                <div className="ml-3 pl-3 border-l space-y-0.5 ${isDark ? 'border-slate-800' : 'border-slate-200'}">
+                  {category.items.map(item => (
+                    <button key={item.id} onClick={() => handleItemClick(item.id)} className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm transition-all duration-150 group ${activeView === item.id ? 'bg-gradient-to-r from-indigo-500 to-violet-600 text-white shadow-md' : isDark ? 'text-slate-400 hover:bg-slate-800 hover:text-white' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'}`}>
+                      <item.icon className="w-4 h-4 flex-shrink-0" />
+                      <span className="flex-1 text-left">{item.label}</span>
+                      {activeView === item.id && <div className="w-1.5 h-1.5 rounded-full bg-white/80" />}
+                    </button>
+                  ))}
+                </div>
               </div>
-              <div className="flex-1 text-left">
-                <span className="font-medium">{item.label}</span>
-              </div>
-              {activeView === item.id && (
-                <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
-              )}
-            </button>
+            </div>
           ))}
         </div>
 
-        <div className="p-4 border-t border-gray-800">
-          <button
-            onClick={() => logout()}
-            className="w-full flex items-center space-x-3 p-4 rounded-xl bg-gradient-to-r from-red-900/30 to-red-800/20 hover:from-red-900/40 hover:to-red-800/30 transition-all duration-300 border border-red-800/30"
-          >
-            <LogOut className="w-5 h-5 text-red-400" />
-            <span className="text-sm font-medium text-red-400">Logout</span>
+        {/* Sidebar footer */}
+        <div className={`p-4 border-t ${isDark ? 'border-slate-800' : 'border-slate-100'}`}>
+          <button onClick={() => setShowLogoutConfirm(true)} className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${isDark ? 'text-rose-400 hover:bg-rose-900/20' : 'text-rose-500 hover:bg-rose-50'}`}>
+            <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${isDark ? 'bg-rose-900/30' : 'bg-rose-50'}`}><LogOut className="w-3.5 h-3.5" /></div>
+            Sign Out
           </button>
+          <p className={`text-center text-xs mt-3 ${isDark ? 'text-slate-700' : 'text-slate-400'}`}>© 2024 CampusGenie</p>
         </div>
       </nav>
 
-      {/* Overlay for mobile */}
-      {mobileMenuOpen && (
-        <div 
-          className="lg:hidden fixed inset-0 bg-black/50 z-30 transition-opacity duration-300"
-          onClick={() => setMobileMenuOpen(false)}
-        />
-      )}
+      {/* ── MOBILE SIDEBAR ──────────────────────────────────────────────────── */}
+      <>
+        {mobileMenuOpen && <div className="lg:hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-40" onClick={() => setMobileMenuOpen(false)} />}
+        <nav className={`lg:hidden fixed left-0 top-0 h-full w-72 z-50 flex flex-col transform transition-transform duration-300 ease-in-out ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} ${isDark ? 'bg-slate-900 border-r border-slate-800' : 'bg-white border-r border-slate-200'}`}>
+          <div className={`flex items-center gap-3 px-5 py-4 border-b ${isDark ? 'border-slate-800 bg-slate-900' : 'border-slate-100 bg-white'}`}>
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shadow-lg"><GraduationCap className="w-5 h-5 text-white" /></div>
+            <span className={`font-bold text-lg ${isDark ? 'text-white' : 'text-slate-800'}`}>Campus<span className="text-indigo-500">Genie</span></span>
+            <button onClick={() => setMobileMenuOpen(false)} className={`ml-auto p-1.5 rounded-lg ${isDark ? 'hover:bg-slate-700 text-slate-400' : 'hover:bg-slate-100 text-slate-500'}`}><CloseIcon className="w-4 h-4" /></button>
+          </div>
+          <div className="flex-1 overflow-y-auto py-4 px-3 space-y-0.5">
+            {navigationCategories.flatMap(cat => cat.items).map(item => (
+              <button key={item.id} onClick={() => { setActiveView(item.id as any); setMobileMenuOpen(false); }} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${activeView === item.id ? 'bg-gradient-to-r from-indigo-500 to-violet-600 text-white shadow-md' : isDark ? 'text-slate-400 hover:bg-slate-800 hover:text-white' : 'text-slate-600 hover:bg-slate-50'}`}>
+                <item.icon className="w-4 h-4 flex-shrink-0" />
+                {item.label}
+                {activeView === item.id && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-white/80" />}
+              </button>
+            ))}
+          </div>
+          <div className={`p-4 border-t ${isDark ? 'border-slate-800' : 'border-slate-100'}`}>
+            <button onClick={() => logout()} className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-medium ${isDark ? 'text-rose-400 hover:bg-rose-900/20' : 'text-rose-500 hover:bg-rose-50'} transition-colors`}>
+              <LogOut className="w-4 h-4" /> Sign Out
+            </button>
+          </div>
+        </nav>
+      </>
 
-      {/* Main Content */}
-      <main className={`flex-1 lg:ml-72 transition-all duration-500 ${mobileMenuOpen ? 'lg:ml-72' : 'lg:ml-72'} p-4 lg:p-8 pt-40 lg:pt-20 ${theme === 'dark' ? 'bg-slate-900' : 'bg-white'}`}>
-        {/* Student Profile Card */}
-        <div className="mb-8">
-          <div className={`${theme === 'dark' ? 'bg-gradient-to-br from-gray-800 via-gray-900 to-gray-800' : 'bg-gradient-to-r from-purple-500 to-purple-600'} rounded-2xl shadow-xl p-6 lg:p-8 border ${theme === 'dark' ? 'border-gray-700' : 'border-purple-200'} relative overflow-hidden group`}>
-            {/* Background decoration */}
-            <div className="absolute inset-0 opacity-5">
-              <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-indigo-400 to-blue-500 rounded-full blur-3xl"></div>
-              <div className="absolute bottom-0 left-0 w-64 h-64 bg-gradient-to-br from-blue-400 to-indigo-500 rounded-full blur-3xl"></div>
+      {/* ── MAIN CONTENT ────────────────────────────────────────────────────── */}
+      <main className="flex-1 lg:ml-64 pt-16 min-h-screen">
+        <div className="p-4 lg:p-6 max-w-7xl mx-auto">
+
+          {/* ── PROFILE CARD ───────────────────────────────────────────────── */}
+          <div className={`relative overflow-hidden rounded-2xl mb-6 ${isDark ? 'bg-gradient-to-br from-slate-800 via-indigo-900/40 to-slate-800 border border-indigo-700/30' : 'bg-gradient-to-br from-indigo-600 via-blue-600 to-violet-600'} shadow-xl`}>
+            {/* Decorative blobs */}
+            <div className="absolute inset-0 overflow-hidden pointer-events-none">
+              <div className="absolute -top-16 -right-16 w-64 h-64 bg-white/5 rounded-full blur-3xl" />
+              <div className="absolute -bottom-16 -left-16 w-64 h-64 bg-white/5 rounded-full blur-3xl" />
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-32 bg-white/3 rounded-full blur-3xl" />
             </div>
-            
-            <div className="relative z-10">
-              <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 lg:gap-8">
-                {/* Avatar Section */}
-                <div className="xl:col-span-3 flex flex-col items-center xl:items-start">
-                  <div className="relative group">
-                    <div className={`w-28 h-28 lg:w-36 lg:h-36 ${theme === 'dark' ? 'bg-gradient-to-br from-gray-700 to-gray-800' : 'bg-white'} rounded-2xl flex items-center justify-center shadow-xl transform transition-all duration-500 group-hover:scale-105 group-hover:rotate-3`}>
-                      <User className={`w-14 h-14 lg:w-18 lg:h-18 ${theme === 'dark' ? 'text-white' : 'text-purple-600'} transform transition-transform duration-300 group-hover:scale-110`} />
+
+            <div className="relative z-10 p-5 lg:p-7">
+              <div className="flex flex-col xl:flex-row gap-6">
+
+                {/* Avatar + status */}
+                <div className="flex items-start gap-4 xl:flex-col xl:items-center xl:w-40 xl:flex-shrink-0">
+                  <div className="relative">
+                    <div className={`w-20 h-20 lg:w-24 lg:h-24 rounded-2xl flex items-center justify-center shadow-xl ${isDark ? 'bg-slate-700/80' : 'bg-white/20 backdrop-blur-sm border border-white/30'}`}>
+                      <User className={`w-10 h-10 lg:w-12 lg:h-12 ${isDark ? 'text-indigo-400' : 'text-white'}`} />
                     </div>
-                    <div className="absolute -bottom-2 -right-2 w-10 h-10 bg-gradient-to-br from-green-500 to-emerald-600 rounded-full border-4 ${theme === 'dark' ? 'border-gray-900' : 'border-white'} flex items-center justify-center shadow-lg animate-pulse">
-                      <CheckCircle className="w-5 h-5 text-white" />
-                    </div>
-                    {/* Floating particles */}
-                    <div className="absolute inset-0 pointer-events-none">
-                      <div className="absolute top-0 left-0 w-2 h-2 bg-indigo-400 rounded-full animate-ping"></div>
-                      <div className="absolute bottom-0 right-0 w-2 h-2 bg-blue-500 rounded-full animate-ping animation-delay-1000"></div>
-                      <div className="absolute top-1/2 left-1/2 w-2 h-2 bg-indigo-300 rounded-full animate-ping animation-delay-2000"></div>
+                    <div className="absolute -bottom-1.5 -right-1.5 w-7 h-7 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center shadow-lg border-2 border-white/30">
+                      <CheckCircle className="w-3.5 h-3.5 text-white" />
                     </div>
                   </div>
-                  <div className="mt-6 text-center xl:text-left">
-                    <div className={`inline-flex items-center px-4 py-2 rounded-full text-sm font-medium ${theme === 'dark' ? 'bg-gradient-to-r from-green-900/50 to-green-800/50 text-green-400 border border-green-700/50' : 'bg-white text-purple-700 border border-purple-300'} shadow-lg transform transition-all duration-300 hover:scale-105`}>
-                      <div className="w-2 h-2 bg-green-500 rounded-full mr-2 animate-pulse"></div>
+                  <div className="xl:text-center">
+                    <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1 rounded-full ${isDark ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-white/20 text-white border border-white/30'}`}>
+                      <div className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse" />
                       Active Student
-                    </div>
+                    </span>
                   </div>
                 </div>
-                
-                {/* Student Info Section */}
-                <div className="xl:col-span-6">
-                  <div className="space-y-4">
-                    <div className="transform transition-all duration-300 hover:translate-x-2">
-                      {loading ? (
-                        <div className="space-y-2">
-                          <div className={`h-8 w-64 ${theme === 'dark' ? 'bg-gray-700' : 'bg-gray-200'} rounded animate-pulse`}></div>
-                          <div className={`h-6 w-48 ${theme === 'dark' ? 'bg-gray-700' : 'bg-gray-200'} rounded animate-pulse`}></div>
-                        </div>
-                      ) : (
-                        <>
-                          <h1 className={`text-3xl lg:text-4xl font-bold mb-2 bg-gradient-to-r ${theme === 'dark' ? 'from-cyan-400 to-blue-400' : 'from-cyan-300 to-blue-300'} bg-clip-text text-transparent`}>
-                            {studentProfile?.first_name && studentProfile?.last_name 
-                              ? `${studentProfile.first_name} ${studentProfile.last_name}`
-                              : studentProfile?.name || currentStudent?.name || 'Loading...'
-                            }
-                          </h1>
-                          <p className={`${theme === 'dark' ? 'text-cyan-300' : 'text-cyan-200'} text-lg`}>
-                            {studentProfile?.email || currentStudent?.email || 'Loading...'}
-                          </p>
-                        </>
-                      )}
+
+                {/* Name + info grid */}
+                <div className="flex-1 min-w-0">
+                  {loading ? (
+                    <div className="space-y-2 animate-pulse">
+                      <div className="h-8 w-56 bg-white/20 rounded-lg" />
+                      <div className="h-4 w-40 bg-white/10 rounded-lg" />
                     </div>
-                    
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      {[
-                        { icon: BookOpen, label: 'Course', value: studentProfile?.department?.name || studentProfile?.department?.name || 'Loading...' },
-                        { icon: Calendar, label: 'Semester', value: studentProfile?.semester ? `Semester ${studentProfile.semester}` : 'Loading...' },
-                        { icon: Users, label: 'Batch', value: studentProfile?.batch || 'Loading...' },
-                        { icon: FileText, label: 'ID', value: studentProfile?.enrollment_number || studentProfile?.student_id || 'Loading...' }
-                      ].map((item, index) => (
-                        <div key={index} className={`flex items-center space-x-3 p-3 rounded-xl ${theme === 'dark' ? 'bg-gray-800/50' : 'bg-white border-purple-200'} border transform transition-all duration-300 hover:scale-105 hover:shadow-lg`} style={{ animationDelay: `${index * 100}ms` }}>
-                          <div className={`w-10 h-10 rounded-lg ${theme === 'dark' ? 'bg-gray-700' : 'bg-purple-100'} flex items-center justify-center`}>
-                            <item.icon className={`w-5 h-5 ${theme === 'dark' ? 'text-gray-300' : 'text-purple-600'}`} />
-                          </div>
-                          <div>
-                            <div className={`text-xs ${theme === 'dark' ? 'text-cyan-500' : 'text-purple-500'}`}>{item.label}</div>
-                            <div className={`text-sm font-medium ${theme === 'dark' ? 'text-cyan-300' : 'text-gray-800'}`}>{item.value}</div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                    
-                    <div className="flex flex-wrap gap-2 pt-2">
-                      {['Honor Roll', "Dean's List", 'Sports Club', 'Tech Lead', 'Volunteer'].map((badge, index) => (
-                        <span key={index} className={`px-3 py-1 ${theme === 'dark' ? 'bg-gradient-to-r from-emerald-900/50 to-cyan-900/50 text-emerald-300 border border-emerald-700/50' : 'bg-white text-purple-600 border border-purple-300'} rounded-full text-xs font-medium transform transition-all duration-300 hover:scale-110 hover:shadow-lg`} style={{ animationDelay: `${index * 100}ms` }}>
-                          {badge}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-                
-                {/* Quick Stats Section */}
-                <div className="xl:col-span-3">
-                  <div className="grid grid-cols-2 gap-4">
+                  ) : (
+                    <>
+                      <h1 className={`text-2xl lg:text-3xl font-bold mb-0.5 ${isDark ? 'text-white' : 'text-white'}`}>
+                        {studentProfile?.first_name && studentProfile?.last_name ? `${studentProfile.first_name} ${studentProfile.last_name}` : studentProfile?.name || currentStudent?.name || 'Student'}
+                      </h1>
+                      <p className={`text-sm mb-4 ${isDark ? 'text-indigo-300' : 'text-indigo-100'}`}>{studentProfile?.email || currentStudent?.email || ''}</p>
+                    </>
+                  )}
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
                     {[
-                      { 
-                        icon: Trophy, 
-                        value: dashboardStats?.gpa?.toFixed(1) || '0.0', 
-                        label: 'GPA', 
-                        status: dashboardStats?.gpa >= 3.5 ? 'Excellent' : dashboardStats?.gpa >= 3.0 ? 'Good' : 'Needs Improvement', 
-                        color: dashboardStats?.gpa >= 3.5 ? 'from-yellow-400 to-orange-400' : dashboardStats?.gpa >= 3.0 ? 'from-green-400 to-emerald-400' : 'from-red-400 to-pink-400'
-                      },
-                      { 
-                        icon: UserCheck, 
-                        value: `${Math.round(dashboardStats?.attendance_percentage || 0)}%`, 
-                        label: 'Attendance', 
-                        status: dashboardStats?.attendance_percentage >= 75 ? 'Good' : 'Low', 
-                        color: dashboardStats?.attendance_percentage >= 75 ? 'from-green-400 to-emerald-400' : 'from-red-400 to-orange-400'
-                      },
-                      { 
-                        icon: BookOpen, 
-                        value: dashboardStats?.submitted_tasks || '0', 
-                        label: 'Tasks', 
-                        status: `${dashboardStats?.submitted_tasks || 0} completed`, 
-                        color: 'from-blue-400 to-indigo-400'
-                      },
-                      { 
-                        icon: FileText, 
-                        value: dashboardStats?.total_documents || '0', 
-                        label: 'Documents', 
-                        status: dashboardStats?.documents_verified ? 'Verified' : 'Pending', 
-                        color: dashboardStats?.documents_verified ? 'from-green-400 to-emerald-400' : 'from-yellow-400 to-orange-400'
-                      }
-                    ].map((stat, index) => (
-                      <div key={index} className={`p-4 rounded-2xl bg-gradient-to-br ${stat.color} shadow-lg transform transition-all duration-300 hover:scale-105 hover:shadow-xl hover:-translate-y-1 relative overflow-hidden group`} style={{ animationDelay: `${index * 100}ms` }}>
-                        {/* Background decoration */}
-                        <div className="absolute inset-0 bg-white/10 transform rotate-45 scale-150 group-hover:rotate-12 transition-transform duration-500"></div>
-                        
-                        <div className="relative z-10">
-                          <div className="flex items-center justify-center mb-3">
-                            <stat.icon className="w-6 h-6 text-white" />
-                          </div>
-                          <div className="text-xl lg:text-2xl font-bold text-white">{stat.value}</div>
-                          <div className="text-xs text-white/80">{stat.label}</div>
-                          <div className="text-xs text-white font-medium mt-1">{stat.status}</div>
-                        </div>
+                      { icon: BookOpen, label: 'Course', value: studentProfile?.department?.name || '—' },
+                      { icon: Calendar, label: 'Semester', value: studentProfile?.semester ? `Sem ${studentProfile.semester}` : '—' },
+                      { icon: Users, label: 'Batch', value: studentProfile?.batch || '—' },
+                      { icon: FileText, label: 'ID', value: studentProfile?.enrollment_number || '—' },
+                    ].map((item, i) => (
+                      <div key={i} className={`flex items-center gap-2.5 p-2.5 rounded-xl ${isDark ? 'bg-slate-700/40 border border-slate-600/30' : 'bg-white/15 border border-white/20'} backdrop-blur-sm`}>
+                        <div className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${isDark ? 'bg-slate-600/60' : 'bg-white/20'}`}><item.icon className={`w-3.5 h-3.5 ${isDark ? 'text-indigo-400' : 'text-white'}`} /></div>
+                        <div className="min-w-0"><div className={`text-xs ${isDark ? 'text-slate-500' : 'text-white/60'}`}>{item.label}</div><div className={`text-xs font-semibold truncate ${isDark ? 'text-slate-200' : 'text-white'}`}>{item.value}</div></div>
                       </div>
                     ))}
                   </div>
+                  <div className="flex flex-wrap gap-1.5 mt-3">
+                    {['Honor Roll', "Dean's List", 'Tech Lead'].map((badge, i) => (
+                      <span key={i} className={`text-xs px-2.5 py-1 rounded-full font-medium ${isDark ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30' : 'bg-white/20 text-white border border-white/25'}`}>{badge}</span>
+                    ))}
+                  </div>
                 </div>
+
+                {/* Quick stats */}
+                <div className="grid grid-cols-2 xl:grid-cols-2 gap-2.5 xl:w-48 xl:flex-shrink-0">
+                  {[
+                    { icon: Trophy, value: dashboardStats?.gpa?.toFixed(1) || '—', label: 'GPA', color: 'from-amber-400 to-orange-500' },
+                    { icon: UserCheck, value: `${Math.round(dashboardStats?.attendance_percentage || 0)}%`, label: 'Attendance', color: 'from-emerald-400 to-teal-500' },
+                    { icon: CheckCircle, value: dashboardStats?.submitted_tasks || '0', label: 'Tasks Done', color: 'from-blue-400 to-indigo-500' },
+                    { icon: FileText, value: dashboardStats?.total_documents || '0', label: 'Documents', color: dashboardStats?.documents_verified ? 'from-emerald-400 to-teal-500' : 'from-amber-400 to-orange-500' },
+                  ].map((stat, i) => (
+                    <div key={i} className={`relative overflow-hidden rounded-xl p-3 bg-gradient-to-br ${stat.color} shadow-lg`}>
+                      <div className="absolute inset-0 bg-white/10 rotate-45 scale-150" />
+                      <div className="relative z-10">
+                        <stat.icon className="w-4 h-4 text-white/80 mb-1.5" />
+                        <div className="text-lg font-bold text-white leading-none">{stat.value}</div>
+                        <div className="text-xs text-white/75 mt-0.5">{stat.label}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
               </div>
             </div>
           </div>
+
+          {/* ── DYNAMIC PAGE CONTENT ───────────────────────────────────────── */}
+          {renderContent()}
         </div>
-              
-    {/* Dynamic Content */}
-    {renderContent()}
-  </main>
+      </main>
 
-  {/* Upload Document Modal */}
-  {showUploadModal && (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className={`${theme === 'dark' ? 'bg-gray-900 border-gray-700' : 'bg-white border-gray-200'} rounded-2xl border shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto transform transition-all duration-300 scale-100`}>
-        {/* Modal Header */}
-        <div className={`p-6 border-b ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'}`}>
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className={`text-xl font-bold ${theme === 'dark' ? 'text-white' : 'text-black'}`}>
-                Upload Document
-              </h3>
-              <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'} mt-1`}>
-                Submit your academic documents for verification
-              </p>
-            </div>
-            <button
-              onClick={closeUploadModal}
-              className={`p-2 rounded-lg ${theme === 'dark' ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-100 text-gray-600'} transition-colors`}
-            >
-              <CloseIcon className="w-5 h-5" />
-            </button>
-          </div>
-        </div>
-
-        {/* Modal Body */}
-        <div className="p-6 space-y-6">
-          {/* Document Type Selection */}
-          <div>
-            <label className={`block text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
-              Document Type
-            </label>
-            <select
-              id="documentType"
-              className={`w-full px-4 py-2 rounded-lg border ${theme === 'dark' ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-300 text-black'} focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
-              defaultValue=""
-            >
-              <option value="" disabled>Select document type</option>
-              
-              {documentTypesStatus.filter(doc => doc.upload_status === 'not_uploaded' || doc.verification_status === 'rejected').length > 0 ? (
-                <>
-                  {documentTypesStatus
-                    .filter(doc => doc.upload_status === 'not_uploaded' || doc.verification_status === 'rejected')
-                    .map(doc => (
-                      <option key={doc.document_type_id} value={doc.document_type_id}>
-                        {doc.name} {doc.is_required ? '(Required)' : '(Optional)'}
-                      </option>
-                    ))}
-                </>
-              ) : (
-                <option value="" disabled>All documents have been uploaded</option>
-              )}
-              
-              {/* Status Options */}
-              <optgroup label="Document Status" className="font-semibold">
-                <option value="not_applicable">Not Applicable</option>
-                <option value="not_present">Not Present</option>
-              </optgroup>
-            </select>
-            {documentTypesStatus.filter(doc => doc.upload_status === 'not_uploaded' || doc.verification_status === 'rejected').length === 0 && (
-              <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'} mt-2`}>
-                All required documents have been submitted. You can still mark documents as "Not Applicable" or "Not Present" if needed.
-              </p>
-            )}
-          </div>
-
-          {/* Document Status Reason (for Not Applicable/Not Present) */}
-          <div id="statusReasonSection" className="hidden">
-            <label className={`block text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
-              Reason for Status
-            </label>
-            <textarea
-              id="statusReason"
-              rows={2}
-              className={`w-full px-4 py-2 rounded-lg border ${theme === 'dark' ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-300 text-black'} focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
-              placeholder="Please explain why this document is not applicable or not present..."
-            />
-          </div>
-
-          {/* File Upload Area */}
-          <div data-file-upload-area>
-            <label className={`block text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
-              Select File
-            </label>
-            <div
-              className={`relative border-2 border-dashed rounded-xl p-8 text-center transition-all duration-300 ${
-                dragActive
-                  ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                  : theme === 'dark'
-                  ? 'border-gray-600 hover:border-gray-500'
-                  : 'border-gray-300 hover:border-gray-400'
-              }`}
-              onDragOver={handleDragOver}
-              onDragLeave={handleDragLeave}
-              onDrop={handleDrop}
-            >
-              <input
-                type="file"
-                id="fileInput"
-                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                onChange={handleFileUpload}
-                accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
-              />
-              
-              <div className="space-y-4">
-                <div className={`w-16 h-16 mx-auto rounded-full ${theme === 'dark' ? 'bg-gray-800' : 'bg-gray-100'} flex items-center justify-center`}>
-                  <Upload className={`w-8 h-8 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`} />
+      {/* ── UPLOAD DOCUMENT MODAL ───────────────────────────────────────────── */}
+      {showUploadModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className={`rounded-2xl border shadow-2xl w-full max-w-xl max-h-[92vh] overflow-y-auto ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-200'}`}>
+            {/* Header */}
+            <div className={`px-6 py-5 border-b flex items-center justify-between ${isDark ? 'border-slate-700' : 'border-slate-100'}`}>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shadow-lg">
+                  <Upload className="w-5 h-5 text-white" />
                 </div>
-                
                 <div>
+                  <h3 className={`font-bold ${isDark ? 'text-white' : 'text-slate-800'}`}>Upload Document</h3>
+                  <p className={`text-xs mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Submit documents for verification</p>
+                </div>
+              </div>
+              <button onClick={closeUploadModal} className={`p-2 rounded-xl transition-colors ${isDark ? 'hover:bg-slate-700 text-slate-400' : 'hover:bg-slate-100 text-slate-500'}`}><CloseIcon className="w-5 h-5" /></button>
+            </div>
+
+            {/* Body */}
+            <div className="px-6 py-5 space-y-5">
+              {/* Document type */}
+              <div>
+                <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Document Type</label>
+                <select id="documentType" defaultValue="" className={`w-full px-3 py-2.5 rounded-xl border text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 ${isDark ? 'bg-slate-800 border-slate-600 text-white' : 'bg-white border-slate-300 text-slate-800'}`}>
+                  <option value="" disabled>Select document type…</option>
+                  {documentTypesStatus.filter(d => d.upload_status === 'not_uploaded' || d.verification_status === 'rejected').length > 0
+                    ? documentTypesStatus.filter(d => d.upload_status === 'not_uploaded' || d.verification_status === 'rejected').map(doc => (
+                        <option key={doc.document_type_id} value={doc.document_type_id}>{doc.name} {doc.is_required ? '(Required)' : '(Optional)'}</option>
+                      ))
+                    : <option value="" disabled>All documents uploaded</option>
+                  }
+                  <optgroup label="Document Status">
+                    <option value="not_applicable">Not Applicable</option>
+                    <option value="not_present">Not Present</option>
+                  </optgroup>
+                </select>
+                {documentTypesStatus.filter(d => d.upload_status === 'not_uploaded' || d.verification_status === 'rejected').length === 0 && (
+                  <p className={`text-xs mt-1.5 ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>All required documents submitted. You can still mark status below.</p>
+                )}
+              </div>
+
+              {/* Status reason (hidden by default) */}
+              <div id="statusReasonSection" className="hidden">
+                <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Reason</label>
+                <textarea id="statusReason" rows={2} className={`w-full px-3 py-2.5 rounded-xl border text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 ${isDark ? 'bg-slate-800 border-slate-600 text-white placeholder-slate-500' : 'bg-white border-slate-300 text-slate-800'}`} placeholder="Explain why this document is not applicable or not present…" />
+              </div>
+
+              {/* Drop zone */}
+              <div data-file-upload-area>
+                <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Select File</label>
+                <div
+                  onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}
+                  className={`relative border-2 border-dashed rounded-2xl p-8 text-center transition-all duration-200 cursor-pointer ${dragActive ? isDark ? 'border-indigo-500 bg-indigo-900/20' : 'border-indigo-400 bg-indigo-50' : isDark ? 'border-slate-600 hover:border-slate-500 hover:bg-slate-800/50' : 'border-slate-300 hover:border-slate-400 hover:bg-slate-50'}`}
+                >
+                  <input type="file" id="fileInput" onChange={handleFileUpload} accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+                  <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-3 ${isDark ? 'bg-slate-700' : 'bg-slate-100'}`}>
+                    <Upload className={`w-7 h-7 ${isDark ? 'text-slate-400' : 'text-slate-500'}`} />
+                  </div>
                   {selectedFileName ? (
                     <>
-                      <p className={`text-lg font-medium ${theme === 'dark' ? 'text-white' : 'text-black'}`}>
-                        Selected: {selectedFileName}
-                      </p>
-                      <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'} mt-1`}>
-                        Click or drag to change file
-                      </p>
+                      <p className={`font-medium text-sm ${isDark ? 'text-white' : 'text-slate-800'}`}>{selectedFileName}</p>
+                      <p className={`text-xs mt-1 ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>Click or drag to change</p>
                     </>
                   ) : (
                     <>
-                      <p className={`text-lg font-medium ${theme === 'dark' ? 'text-white' : 'text-black'}`}>
-                        Drag and drop your file here
-                      </p>
-                      <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'} mt-1`}>
-                        or click to browse
-                      </p>
+                      <p className={`font-medium text-sm ${isDark ? 'text-white' : 'text-slate-700'}`}>Drag & drop your file here</p>
+                      <p className={`text-xs mt-1 ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>or click to browse</p>
                     </>
                   )}
-                </div>
-                
-                <div className={`text-xs ${theme === 'dark' ? 'text-gray-500' : 'text-gray-500'}`}>
-                  <p>Supported formats: PDF, JPG, PNG, DOC, DOCX</p>
-                  <p>Maximum file size: 5MB</p>
+                  <p className={`text-xs mt-3 ${isDark ? 'text-slate-600' : 'text-slate-400'}`}>PDF, JPG, PNG, DOC · Max 5 MB</p>
                 </div>
               </div>
-            </div>
-          </div>
 
-          {/* Description */}
-          <div>
-            <label className={`block text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
-              Description (Optional)
-            </label>
-            <textarea
-              id="documentDescription"
-              rows={3}
-              className={`w-full px-4 py-2 rounded-lg border ${theme === 'dark' ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-300 text-black'} focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
-              placeholder="Add any additional information about this document..."
-            />
-          </div>
-
-          {/* Upload Progress */}
-          {uploadProgress > 0 && (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <span className={`text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
-                  Uploading...
-                </span>
-                <span className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
-                  {uploadProgress}%
-                </span>
+              {/* Description */}
+              <div>
+                <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Description <span className={isDark ? 'text-slate-600' : 'text-slate-400'}>(Optional)</span></label>
+                <textarea id="documentDescription" rows={2} className={`w-full px-3 py-2.5 rounded-xl border text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 ${isDark ? 'bg-slate-800 border-slate-600 text-white placeholder-slate-500' : 'bg-white border-slate-300 text-slate-800'}`} placeholder="Additional information about this document…" />
               </div>
-              <div className="w-full bg-gray-200 rounded-full h-2 dark:bg-gray-700">
-                <div
-                  className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                  style={{ width: `${uploadProgress}%` }}
-                />
-              </div>
-            </div>
-          )}
-        </div>
 
-        {/* Modal Footer */}
-        <div className={`p-6 border-t ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'}`}>
-          <div className="flex justify-end gap-3">
-            <button
-              onClick={closeUploadModal}
-              className={`px-6 py-2 rounded-lg ${theme === 'dark' ? 'bg-gray-800 hover:bg-gray-700 text-gray-300' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'} transition-colors`}
-            >
-              Cancel
-            </button>
-            <button
-              onClick={async () => {
-                const fileInput = document.getElementById('fileInput') as HTMLInputElement;
-                const documentType = (document.getElementById('documentType') as HTMLSelectElement).value;
-                const description = (document.getElementById('documentDescription') as HTMLTextAreaElement).value;
-                const statusReason = (document.getElementById('statusReason') as HTMLTextAreaElement).value;
-                
-                if (!documentType) {
-                  alert('Please select a document type');
-                  return;
-                }
-                
-                // Handle special status options
-                if (documentType === 'not_applicable' || documentType === 'not_present') {
-                  if (!statusReason.trim()) {
-                    alert('Please provide a reason for the document status');
-                    return;
+              {/* Upload progress */}
+              {uploadProgress > 0 && (
+                <div>
+                  <div className="flex justify-between text-sm mb-1.5">
+                    <span className={isDark ? 'text-slate-300' : 'text-slate-700'}>Uploading…</span>
+                    <span className={isDark ? 'text-slate-400' : 'text-slate-500'}>{uploadProgress}%</span>
+                  </div>
+                  <div className={`w-full h-2 rounded-full ${isDark ? 'bg-slate-700' : 'bg-slate-200'}`}>
+                    <div className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-violet-600 transition-all duration-300" style={{ width: `${uploadProgress}%` }} />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className={`px-6 py-4 border-t flex justify-end gap-3 ${isDark ? 'border-slate-700' : 'border-slate-100'}`}>
+              <button onClick={closeUploadModal} className={`px-5 py-2.5 rounded-xl text-sm font-medium transition-colors ${isDark ? 'bg-slate-800 hover:bg-slate-700 text-slate-300' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'}`}>Cancel</button>
+              <button
+                className="px-5 py-2.5 rounded-xl text-sm font-medium bg-gradient-to-r from-indigo-500 to-violet-600 text-white hover:shadow-lg hover:scale-[1.02] transition-all flex items-center gap-2"
+                onClick={async () => {
+                  const fileInput = document.getElementById('fileInput') as HTMLInputElement;
+                  const documentType = (document.getElementById('documentType') as HTMLSelectElement).value;
+                  const description = (document.getElementById('documentDescription') as HTMLTextAreaElement).value;
+                  const statusReason = (document.getElementById('statusReason') as HTMLTextAreaElement)?.value || '';
+                  if (!documentType) { alert('Please select a document type'); return; }
+                  if (documentType === 'not_applicable' || documentType === 'not_present') {
+                    if (!statusReason.trim()) { alert('Please provide a reason'); return; }
+                    setUploadedDocuments(prev => [...prev, { id: Date.now().toString(), name: documentType === 'not_applicable' ? 'Not Applicable' : 'Not Present', type: 'status', size: 0, category: 'administrative', status: 'approved', uploadDate: new Date(), url: '#', description: statusReason, tags: [documentType] }]);
+                    closeUploadModal(); return;
                   }
-                  
-                  // Create a status record without file upload
-                  const statusDocument = {
-                    id: Date.now().toString(),
-                    name: documentType === 'not_applicable' ? 'Document Not Applicable' : 'Document Not Present',
-                    type: 'status',
-                    size: 0,
-                    category: 'administrative' as DocumentCategory,
-                    status: 'approved' as DocumentStatus,
-                    uploadDate: new Date(),
-                    url: '#',
-                    description: statusReason,
-                    tags: [documentType.replace('_', ' '), 'status']
-                  };
-                  
-                  setUploadedDocuments(prev => [...prev, statusDocument]);
-                  alert(`Document status recorded: ${documentType.replace('_', ' ').toUpperCase()}`);
-                  setShowUploadModal(false);
-                  return;
-                }
-                
-                if (!fileInput.files || fileInput.files.length === 0) {
-                  alert('Please select a file to upload');
-                  return;
-                }
-                
-                // Trigger file upload with selected document type
-                const file = fileInput.files[0];
-                const uploadSingleFile = async (file: File) => {
+                  if (!fileInput.files || fileInput.files.length === 0) { alert('Please select a file'); return; }
+                  const file = fileInput.files[0];
                   setUploadProgress(10);
-                  
                   try {
-                    // Get the database document type ID
-                    console.log('🔍 Debug - Selected documentType:', documentType);
-                    
-                    // The dropdown now uses numeric document_type_id directly
-                    // No need to map from string ID to numeric ID
-                    let documentTypeId: number | null = null;
-                    
-                    if (documentType === 'not_applicable' || documentType === 'not_present') {
-                      // Handle status options separately
-                      documentTypeId = null;
-                    } else {
-                      // Convert string to number if it's a numeric document type ID
-                      const numericId = parseInt(documentType);
-                      documentTypeId = isNaN(numericId) ? null : numericId;
-                    }
-                    
-                    console.log('🔍 Debug - Mapped documentTypeId:', documentTypeId);
-                    
-                    if (!documentTypeId) {
-                      if (documentType === 'not_applicable' || documentType === 'not_present') {
-                        // These are handled separately below
-                      } else {
-                        console.error('❌ Debug - Document type not found for:', documentType);
-                        alert('This document type is not available for upload. Please select a different document type.');
-                        setUploadProgress(0);
-                        return;
-                      }
-                    }
-                    
-                    // Only proceed with upload if documentTypeId is valid
-                    if (documentTypeId === null) {
-                      console.error('❌ Debug - documentTypeId is null, cannot upload');
-                      alert('Invalid document type selected. Please select a valid document type.');
-                      setUploadProgress(0);
-                      return;
-                    }
-                    
+                    const numericId = parseInt(documentType);
+                    if (isNaN(numericId)) { alert('Invalid document type'); setUploadProgress(0); return; }
+                    const select = document.getElementById('documentType') as HTMLSelectElement;
+                    const selectedText = select.options[select.selectedIndex].text.replace(' (Required)', '').replace(' (Optional)', '');
+                    const autoName = generateFileName(file.name, selectedText);
                     const formData = new FormData();
-                    
-                    // Generate automatic file name
-                    let documentTypeName = '';
-                    
-                    // Get document type name from the dropdown selection
-                    const documentTypeSelect = document.getElementById('documentType') as HTMLSelectElement;
-                    const selectedOption = documentTypeSelect.options[documentTypeSelect.selectedIndex];
-                    documentTypeName = selectedOption.text.replace(' (Required)', '').replace(' (Optional)', '');
-                    
-                    const automaticFileName = generateFileName(file.name, documentTypeName);
-                    
-                    // Use the original file but with automatic name
                     formData.append('file', file);
-                    formData.append('file_name', automaticFileName);
-                    
-                    // Use the correct API endpoint with document_type_id as query parameter
-                    const response = await documentService.uploadDocument(formData, documentTypeId.toString());
+                    formData.append('file_name', autoName);
+                    await documentService.uploadDocument(formData, numericId.toString());
                     setUploadProgress(100);
-                    
-                    // Show success message
                     alert('Document uploaded successfully! It will be reviewed by the administration.');
-                    
-                    // Refresh documents list
                     const documentsData = await studentService.getDocuments() as any[];
-                    const transformedDocuments = documentsData.map((doc: any) => ({
-                      id: doc.id.toString(),
-                      name: doc.file_name || doc.document_type?.name || 'Document',
-                      type: doc.document_type?.name || 'document',
-                      size: doc.file_size_mb * 1024 * 1024 || 0,
-                      category: 'academic' as DocumentCategory,
-                      status: doc.verification_status || 'pending',
-                      uploadDate: new Date(doc.uploaded_at || doc.created_at),
-                      description: `${doc.document_type?.name || 'Document'} - ${doc.verification_status || 'pending'}`,
-                      tags: [doc.verification_status || 'pending', doc.document_type?.name?.toLowerCase() || 'document'],
-                      url: doc.file_path ? `/uploads/documents/${doc.student?.enrollment_number}/${doc.file_name}` : '',
-                      document_type_id: doc.document_type_id, // Add this for filtering
-                      verification_status: doc.verification_status // Add this for filtering
-                    }));
-                    setUploadedDocuments(transformedDocuments);
-                    
-                    // Close modal and reset form
+                    setUploadedDocuments(documentsData.map((doc: any) => ({ id: doc.id.toString(), name: doc.file_name || doc.document_type?.name || 'Document', type: doc.document_type?.name || 'document', size: (doc.file_size_mb || 0) * 1024 * 1024, category: 'academic', status: doc.verification_status === 'verified' ? 'approved' : doc.verification_status === 'rejected' ? 'rejected' : 'pending', uploadDate: new Date(doc.uploaded_at || doc.created_at), description: `${doc.document_type?.name || 'Document'} - ${doc.verification_status || 'pending'}`, tags: [doc.verification_status || 'pending'], url: doc.file_path ? `/uploads/documents/${doc.student?.enrollment_number}/${doc.file_name}` : '', document_type_id: doc.document_type_id, verification_status: doc.verification_status })));
                     closeUploadModal();
-                    
-                  } catch (error: any) {
-                    console.error('Upload error:', error);
+                  } catch (err: any) {
                     setUploadProgress(0);
-                    
-                    // Show specific error message
-                    let errorMessage = 'Upload failed. Please try again.';
-                    if (error.response?.data?.detail) {
-                      errorMessage = error.response.data.detail;
-                    } else if (error.message) {
-                      errorMessage = error.message;
-                    }
-                    
-                    alert(`Upload failed: ${errorMessage}`);
+                    alert(`Upload failed: ${err.response?.data?.detail || err.message || 'Please try again.'}`);
                   }
-                };
-                
-                uploadSingleFile(file);
-              }}
-              className={`px-6 py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all duration-300 transform hover:scale-105 flex items-center gap-2`}
-            >
-              <Upload className="w-4 h-4" />
-              Upload Document
-            </button>
+                }}
+              >
+                <Upload className="w-4 h-4" /> Upload Document
+              </button>
+            </div>
           </div>
         </div>
+      )}
 
-        {/* Modal Footer */}
-        <div className={`p-6 border-t ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'}`}>
-          <div className="flex justify-end gap-3">
-            <button
-              onClick={closeUploadModal}
-              className={`px-6 py-2 rounded-lg ${theme === 'dark' ? 'bg-gray-800 hover:bg-gray-700 text-gray-300' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'} transition-colors`}
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  )}
-
-  {/* Document Preview Modal */}
-  {showPreviewModal && documentPreview && (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className={`${theme === 'dark' ? 'bg-gray-900 border-gray-700' : 'bg-white border-gray-200'} rounded-2xl border shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden transform transition-all duration-300 scale-100`}>
-        {/* Modal Header */}
-        <div className={`p-4 border-b ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'} flex items-center justify-between`}>
-          <div>
-            <h3 className={`text-lg font-bold ${theme === 'dark' ? 'text-white' : 'text-black'}`}>
-              Document Preview
-            </h3>
-            <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
-              {documentPreview.name}
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => downloadDocument({ id: 'preview', name: documentPreview.name, url: documentPreview.url, type: '', size: 0, category: 'academic', status: 'approved', uploadDate: new Date(), description: '', tags: [] })}
-              className={`p-2 rounded-lg ${theme === 'dark' ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-100 text-gray-600'} transition-colors`}
-              title="Download"
-            >
-              <Download className="w-5 h-5" />
-            </button>
-            <button
-              onClick={closePreviewModal}
-              className={`p-2 rounded-lg ${theme === 'dark' ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-100 text-gray-600'} transition-colors`}
-              title="Close"
-            >
-              <CloseIcon className="w-5 h-5" />
-            </button>
-          </div>
-        </div>
-
-        {/* Modal Body - Document Preview */}
-        <div className="p-4">
-          <div className={`${theme === 'dark' ? 'bg-gray-800' : 'bg-gray-100'} rounded-lg overflow-hidden`} style={{ height: '70vh' }}>
-            {documentPreview.url.endsWith('.pdf') ? (
-              <iframe
-                src={documentPreview.url}
-                className="w-full h-full"
-                title={documentPreview.name}
-              />
-            ) : documentPreview.url.match(/\.(jpg|jpeg|png|gif|webp)$/i) ? (
-              <img
-                src={documentPreview.url}
-                alt={documentPreview.name}
-                className="w-full h-full object-contain"
-              />
-            ) : (
-              <div className="flex items-center justify-center h-full">
-                <div className="text-center">
-                  <FileText className={`w-16 h-16 mx-auto mb-4 ${theme === 'dark' ? 'text-gray-600' : 'text-gray-400'}`} />
-                  <p className={`${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
-                    Preview not available for this file type
-                  </p>
-                  <button
-                    onClick={() => downloadDocument({ id: 'preview', name: documentPreview.name, url: documentPreview.url, type: '', size: 0, category: 'academic', status: 'approved', uploadDate: new Date(), description: '', tags: [] })}
-                    className={`mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors`}
-                  >
-                    Download File
-                  </button>
-                </div>
+      {/* ── DOCUMENT PREVIEW MODAL ──────────────────────────────────────────── */}
+      {showPreviewModal && documentPreview && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className={`rounded-2xl border shadow-2xl w-full max-w-4xl max-h-[92vh] overflow-hidden flex flex-col ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-200'}`}>
+            <div className={`px-5 py-4 border-b flex items-center justify-between flex-shrink-0 ${isDark ? 'border-slate-700' : 'border-slate-100'}`}>
+              <div>
+                <h3 className={`font-bold ${isDark ? 'text-white' : 'text-slate-800'}`}>Document Preview</h3>
+                <p className={`text-xs mt-0.5 truncate max-w-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{documentPreview.name}</p>
               </div>
-            )}
+              <div className="flex items-center gap-2">
+                <button onClick={() => downloadDocument({ id: 'preview', name: documentPreview.name, url: documentPreview.url, type: '', size: 0, category: 'academic', status: 'approved', uploadDate: new Date(), description: '', tags: [] })} className={`p-2 rounded-xl transition-colors ${isDark ? 'hover:bg-slate-700 text-slate-400' : 'hover:bg-slate-100 text-slate-500'}`} title="Download"><Download className="w-5 h-5" /></button>
+                <button onClick={closePreviewModal} className={`p-2 rounded-xl transition-colors ${isDark ? 'hover:bg-slate-700 text-slate-400' : 'hover:bg-slate-100 text-slate-500'}`}><CloseIcon className="w-5 h-5" /></button>
+              </div>
+            </div>
+            <div className={`flex-1 overflow-hidden p-4 ${isDark ? 'bg-slate-800' : 'bg-slate-50'}`}>
+              <div className="w-full h-full min-h-[60vh] rounded-xl overflow-hidden bg-slate-900 flex items-center justify-center">
+                {documentPreview.url.match(/\.(jpg|jpeg|png|gif|webp)$/i) ? (
+                  <img src={documentPreview.url} alt={documentPreview.name} className="max-w-full max-h-full object-contain" />
+                ) : documentPreview.url.endsWith('.pdf') || documentPreview.url.startsWith('blob:') ? (
+                  <iframe src={documentPreview.url} className="w-full h-full min-h-[60vh]" title={documentPreview.name} />
+                ) : (
+                  <div className="text-center p-8">
+                    <FileText className="w-16 h-16 text-slate-500 mx-auto mb-4" />
+                    <p className="text-slate-400 mb-4">Preview not available for this file type</p>
+                    <button onClick={() => downloadDocument({ id: 'preview', name: documentPreview.name, url: documentPreview.url, type: '', size: 0, category: 'academic', status: 'approved', uploadDate: new Date(), description: '', tags: [] })} className="px-4 py-2 bg-gradient-to-r from-indigo-500 to-violet-600 text-white rounded-xl text-sm font-medium hover:shadow-lg transition-all">Download File</button>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         </div>
-      </div>
+      )}
+
+      {/* ── LOGOUT CONFIRM ──────────────────────────────────────────────────── */}
+      {showLogoutConfirm && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className={`rounded-2xl border shadow-2xl w-full max-w-sm p-6 text-center ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-200'}`}>
+            <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4 ${isDark ? 'bg-rose-900/30' : 'bg-rose-50'}`}>
+              <LogOut className="w-7 h-7 text-rose-500" />
+            </div>
+            <h3 className={`text-lg font-bold mb-1 ${isDark ? 'text-white' : 'text-slate-800'}`}>Sign Out</h3>
+            <p className={`text-sm mb-6 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Are you sure you want to sign out of your account?</p>
+            <div className="flex gap-3">
+              <button onClick={() => setShowLogoutConfirm(false)} className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition-colors ${isDark ? 'bg-slate-800 hover:bg-slate-700 text-slate-300' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'}`}>Cancel</button>
+              <button onClick={() => logout()} className="flex-1 py-2.5 rounded-xl text-sm font-medium bg-gradient-to-r from-rose-500 to-pink-600 text-white hover:shadow-lg hover:scale-[1.02] transition-all">Sign Out</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── AI ASSISTANT ────────────────────────────────────────────────────── */}
+      <AIAssistantButton />
+
     </div>
-  )}
-  
-  {/* AI Assistant Button */}
-  <AIAssistantButton />
-</div>
   );
 };
 

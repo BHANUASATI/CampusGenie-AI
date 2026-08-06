@@ -1,4 +1,4 @@
-// API Service Layer for NetACAD
+// API Service Layer for CampusGenie
 // This file defines the API endpoints and service functions
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8002';
@@ -16,9 +16,12 @@ class ApiClient {
     options: RequestInit = {}
   ): Promise<T> {
     const url = `${this.baseURL}${endpoint}`;
+    // Do NOT set a default Content-Type here — multipart/form-data uploads
+    // require the browser to set the boundary automatically. Per-method
+    // callers (post, put, etc.) are responsible for setting Content-Type
+    // only when appropriate (i.e. for JSON bodies, not FormData).
     const config = {
       headers: {
-        'Content-Type': 'application/json',
         ...(options.headers || {}),
       },
       ...options,
@@ -66,7 +69,10 @@ class ApiClient {
   }
 
   async get<T>(endpoint: string): Promise<T> {
-    return this.request<T>(endpoint, { method: 'GET' });
+    return this.request<T>(endpoint, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+    });
   }
 
   async post<T>(endpoint: string, data?: any, options?: RequestInit): Promise<T> {
@@ -94,11 +100,15 @@ class ApiClient {
     return this.request<T>(endpoint, {
       method: 'PUT',
       body: data ? JSON.stringify(data) : undefined,
+      headers: { 'Content-Type': 'application/json' },
     });
   }
 
   async delete<T>(endpoint: string): Promise<T> {
-    return this.request<T>(endpoint, { method: 'DELETE' });
+    return this.request<T>(endpoint, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+    });
   }
 }
 
@@ -128,6 +138,19 @@ export const authService = {
 
   registerAdmin: async (data: any) => {
     return apiClient.post('/api/auth/register/admin', data);
+  },
+
+  // Microsoft OAuth functions
+  getMicrosoftAuthUrl: async () => {
+    return apiClient.get('/api/oauth/microsoft/login');
+  },
+
+  handleMicrosoftCallback: async (code: string, state: string) => {
+    return apiClient.get(`/api/oauth/microsoft/callback?code=${code}&state=${state}`);
+  },
+
+  getMicrosoftUserInfo: async (accessToken: string) => {
+    return apiClient.get(`/api/oauth/microsoft/user-info?access_token=${accessToken}`);
   },
 };
 
@@ -385,10 +408,7 @@ export const aiAssistantService = {
   },
 
   sendMessage: async (conversationId: string, content: string) => {
-    console.log('🔍 API Service: Sending message', { conversationId, content });
-    const response = await apiClient.post(`/api/ai/conversations/${conversationId}/messages`, { content });
-    console.log('🔍 API Service: Response received', response);
-    return response;
+    return apiClient.post(`/api/ai/conversations/${conversationId}/messages`, { content });
   },
 
   deleteConversation: async (conversationId: string) => {
@@ -397,6 +417,46 @@ export const aiAssistantService = {
 
   quickChat: async (content: string) => {
     return apiClient.post('/api/ai/chat', { content });
+  },
+};
+
+// AI Admin Service (knowledge base management)
+export const aiAdminService = {
+  // Upload a document to the AI knowledge base
+  uploadDocument: async (
+    file: File,
+    docType: string,
+    department: string = 'all',
+    semester?: number,
+    academicYear?: string,
+  ) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('doc_type', docType);
+    formData.append('department', department);
+    if (semester) formData.append('semester', String(semester));
+    if (academicYear) formData.append('academic_year', academicYear);
+    return apiClient.post('/api/ai/documents/upload', formData);
+  },
+
+  // List all indexed documents
+  listDocuments: async () => {
+    return apiClient.get('/api/ai/documents');
+  },
+
+  // Delete a document from the knowledge base by filename
+  deleteDocument: async (sourceFile: string) => {
+    return apiClient.delete(`/api/ai/documents/${encodeURIComponent(sourceFile)}`);
+  },
+
+  // Get vector store stats (total chunks, unique documents)
+  getStats: async () => {
+    return apiClient.get('/api/ai/documents/stats');
+  },
+
+  // AI engine health check
+  health: async () => {
+    return apiClient.get('/api/ai/health');
   },
 };
 
@@ -409,6 +469,7 @@ export const api = {
   document: documentService,
   task: taskService,
   aiAssistant: aiAssistantService,
+  aiAdmin: aiAdminService,
 };
 
 export default apiClient;
