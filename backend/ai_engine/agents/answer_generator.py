@@ -189,8 +189,8 @@ def generate_answer_node(state: AgentState) -> AgentState:
         sources_list = parsed.get("sources", [])
         follow_up = parsed.get("follow_up_questions", [])
 
-        # Add low-confidence warning if needed
-        if confidence < 0.6:
+        # Add low-confidence warning if needed (lowered threshold from 0.6 to 0.4)
+        if confidence < 0.4:
             answer_text = add_low_confidence_warning(answer_text)
 
         # Build Source objects

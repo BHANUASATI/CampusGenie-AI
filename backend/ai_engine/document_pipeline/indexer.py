@@ -96,7 +96,7 @@ class DocumentIndexer:
                 "semester": semester or 0,
                 "academic_year": academic_year or "unknown",
                 "document_id": document_id,
-                "upload_date": datetime.utcnow().isoformat(),
+                "upload_date": datetime.now().isoformat(),
             }
 
             with Timer() as t:

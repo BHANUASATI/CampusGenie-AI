@@ -219,12 +219,19 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ isOpen, onClose }) => {
     try {
       setError(null);
       const conv = await aiAssistantService.createConversation() as Conversation;
+      
+      // Validate the conversation object
+      if (!conv || !conv.id) {
+        throw new Error('Invalid conversation response from server');
+      }
+      
       setConversations(prev => [conv, ...prev]);
       setCurrentConversation(conv);
       setMessages([]);
       setView('chat');
-    } catch (err) {
-      setError('Failed to start a new chat. Please try again.');
+    } catch (err: any) {
+      console.error('Error creating conversation:', err);
+      setError(err?.message || 'Failed to start a new chat. Please try again.');
     }
   };
 
@@ -232,11 +239,22 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ isOpen, onClose }) => {
     try {
       setError(null);
       const data = await aiAssistantService.getConversation(conversationId.toString()) as any;
+      
+      // Validate the response
+      if (!data || !data.id) {
+        throw new Error('Invalid conversation data received');
+      }
+      
       setCurrentConversation(data);
-      setMessages(data.messages || []);
+      // Sort messages by created_at to ensure correct order
+      const sortedMessages = (data.messages || []).sort((a: Message, b: Message) => 
+        new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+      );
+      setMessages(sortedMessages);
       setView('chat');
-    } catch (err) {
-      setError('Failed to load conversation.');
+    } catch (err: any) {
+      console.error('Error loading conversation:', err);
+      setError(err?.message || 'Failed to load conversation.');
     }
   };
 
@@ -248,9 +266,10 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ isOpen, onClose }) => {
     setIsLoading(true);
     setError(null);
 
-    // Optimistically append user bubble
+    // 1. Optimistically show the user bubble immediately (real-time feel)
+    const tempId = Date.now();
     const tempUserMsg: Message = {
-      id: Date.now(),
+      id: tempId,
       content: text,
       sender_type: 'user',
       created_at: new Date().toISOString(),
@@ -258,21 +277,54 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ isOpen, onClose }) => {
     setMessages(prev => [...prev, tempUserMsg]);
 
     try {
+      // Check if conversation ID is valid
+      if (!currentConversation.id) {
+        throw new Error('Invalid conversation ID');
+      }
+
       const response = await aiAssistantService.sendMessage(
         currentConversation.id.toString(),
         text,
       ) as any;
 
-      const aiMsg = response.ai_message as Message;
+      // 2. Build rich AI message from response (includes confidence, sources, follow-ups)
+      const richAiMsg: Message = {
+        ...response.ai_message,
+        confidence: response.ai_message.confidence ?? undefined,
+        sources: response.ai_message.sources ?? undefined,
+        follow_up_questions: response.ai_message.follow_up_questions ?? undefined,
+        intent_detected: response.ai_message.intent_detected ?? undefined,
+      };
 
-      // Replace temp user message with real one and append AI message
+      // 3. Replace temp bubble with server-confirmed user msg + rich AI msg
       setMessages(prev => {
-        const withoutTemp = prev.filter(m => m.id !== tempUserMsg.id);
-        return [...withoutTemp, response.user_message, aiMsg];
+        const withoutTemp = prev.filter(m => m.id !== tempId);
+        // Ensure we have both messages and add them in correct order
+        const newMessages = [];
+        if (response.user_message) {
+          newMessages.push(response.user_message);
+        }
+        if (richAiMsg) {
+          newMessages.push(richAiMsg);
+        }
+        return [...withoutTemp, ...newMessages];
       });
+
+      // 4. Update conversation title in both header and sidebar list
+      if (response.conversation_title) {
+        const newTitle = response.conversation_title;
+        setCurrentConversation(prev => prev ? { ...prev, title: newTitle } : prev);
+        setConversations(prev =>
+          prev.map(c =>
+            c.id === currentConversation.id ? { ...c, title: newTitle } : c
+          )
+        );
+      }
     } catch (err: any) {
-      setMessages(prev => prev.filter(m => m.id !== tempUserMsg.id));
-      setError('Failed to send message. Please check your connection and try again.');
+      console.error('Error sending message:', err);
+      // On error remove the optimistic bubble and show error banner
+      setMessages(prev => prev.filter(m => m.id !== tempId));
+      setError(err?.message || 'Failed to send message. Please check your connection and try again.');
     } finally {
       setIsLoading(false);
     }
@@ -307,13 +359,35 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ isOpen, onClose }) => {
   };
 
   const formatRelative = (dateStr: string) => {
-    const d = new Date(dateStr);
+    if (!dateStr) return 'just now';
+    
+    let d: Date;
+    
+    // Handle different date formats
+    if (dateStr.includes('T') && dateStr.includes('Z')) {
+      // ISO format with timezone
+      d = new Date(dateStr);
+    } else if (dateStr.includes(',')) {
+      // Locale format like "8/7/2026, 8:30:00 PM"
+      d = new Date(dateStr);
+    } else {
+      // Try parsing as is
+      d = new Date(dateStr);
+    }
+    
+    if (isNaN(d.getTime())) return 'just now';
+    
     const now = new Date();
     const diff = now.getTime() - d.getTime();
+    
+    // Handle future dates (server time might be ahead)
+    if (diff < 0) return 'just now';
+    
     if (diff < 60000) return 'just now';
     if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
     if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
-    return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+    
+    return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
   };
 
   if (!isOpen) return null;
@@ -518,9 +592,9 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ isOpen, onClose }) => {
                 </div>
               )}
 
-              {messages.map((msg) => (
+              {messages.map((msg, index) => (
                 <div
-                  key={msg.id}
+                  key={`${msg.id}-${index}`}
                   className={`cg-ai-bubble-wrapper ${msg.sender_type === 'user' ? 'cg-user' : 'cg-bot'}`}
                 >
                   {msg.sender_type === 'ai' && (

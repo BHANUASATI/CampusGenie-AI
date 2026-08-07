@@ -26,7 +26,7 @@ async def ai_health_check():
         model = get_embedding_model()
         health["components"]["embedding_model"] = {
             "status": "ok",
-            "model": model.model.get_sentence_embedding_dimension(),
+            "model": model.dimension,
         }
     except Exception as e:
         health["components"]["embedding_model"] = {"status": "error", "error": str(e)}

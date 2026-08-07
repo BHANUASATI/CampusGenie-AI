@@ -57,7 +57,8 @@ class EmbeddingModel:
                 ai_config.EMBEDDING_MODEL_NAME,
                 device=ai_config.EMBEDDING_DEVICE,
             )
-            self.dimension = self.model.get_embedding_dimension()
+            # Use the correct method name for newer sentence-transformers versions
+            self.dimension = self.model.get_sentence_embedding_dimension()
 
             logger.info(
                 "embedding.loaded",

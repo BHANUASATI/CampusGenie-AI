@@ -37,7 +37,7 @@ class ConversationRepository:
 
     def create_conversation(self, user_id: int, title: str = None) -> "AIConversation":
         from models import AIConversation
-        now = datetime.utcnow()
+        now = datetime.now()
         conv = AIConversation(
             user_id=user_id,
             title=title or f"Conversation {now.strftime('%Y-%m-%d %H:%M')}",
@@ -123,7 +123,7 @@ class ConversationRepository:
             conversation_id=conversation_id,
             content=content,
             sender_type=sender_type_enum,
-            created_at=datetime.utcnow(),
+            created_at=datetime.now(),
         )
         self.db.add(msg)
         self.db.commit()

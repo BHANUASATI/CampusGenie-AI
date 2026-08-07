@@ -63,7 +63,14 @@ async def create_conversation(
         user_id=current_user.id,
         title=conversation_data.title,
     )
-    return conversation
+    
+    # Format timestamps for frontend
+    return {
+        "id": conversation.id,
+        "title": conversation.title,
+        "created_at": conversation.created_at.isoformat() if conversation.created_at else None,
+        "updated_at": conversation.updated_at.isoformat() if conversation.updated_at else None,
+    }
 
 
 @router.get("/conversations", response_model=List[schemas.AIConversationResponse])
@@ -80,7 +87,18 @@ async def get_conversations(
 
     service = ChatService(db)
     conversations = service.get_conversations(current_user.id)
-    return conversations
+    
+    # Format timestamps for frontend
+    formatted_conversations = []
+    for conv in conversations:
+        formatted_conversations.append({
+            "id": conv.id,
+            "title": conv.title,
+            "created_at": conv.created_at.isoformat() if conv.created_at else None,
+            "updated_at": conv.updated_at.isoformat() if conv.updated_at else None,
+        })
+    
+    return formatted_conversations
 
 
 @router.get("/conversations/{conversation_id}", response_model=schemas.AIConversationDetailResponse)
@@ -105,12 +123,26 @@ async def get_conversation(
             detail="Conversation not found",
         )
 
+    # Format timestamps for frontend
+    formatted_messages = []
+    for msg in result["messages"]:
+        formatted_messages.append({
+            "id": msg.id,
+            "content": msg.content,
+            "sender_type": msg.sender_type,
+            "created_at": msg.created_at.isoformat() if msg.created_at else None,
+            "confidence": getattr(msg, "confidence", None),
+            "sources": getattr(msg, "sources", None),
+            "follow_up_questions": getattr(msg, "follow_up_questions", None),
+            "intent_detected": getattr(msg, "intent_detected", None),
+        })
+
     return {
         "id": result["conversation"].id,
         "title": result["conversation"].title,
-        "created_at": result["conversation"].created_at,
-        "updated_at": result["conversation"].updated_at,
-        "messages": result["messages"],
+        "created_at": result["conversation"].created_at.isoformat() if result["conversation"].created_at else None,
+        "updated_at": result["conversation"].updated_at.isoformat() if result["conversation"].updated_at else None,
+        "messages": formatted_messages,
     }
 
 
@@ -199,14 +231,59 @@ async def send_message(
             detail="AI processing failed. Please try again.",
         )
 
+    # ── Auto-update conversation title from first user message ──────────────
+    # If title still looks like the default timestamp pattern, replace it with
+    # the first 60 chars of the user's message so the sidebar shows real context.
+    is_default_title = (
+        conv.title.startswith("Conversation ") or
+        conv.title == "New Chat" or
+        conv.title == "Quick Chat"
+    )
+    # Count messages to detect first exchange
+    from models import AIMessage as _AIMsg
+    msg_count = db.query(_AIMsg).filter(_AIMsg.conversation_id == conversation_id).count()
+    if is_default_title and msg_count <= 2:
+        raw = message_data.content.strip()
+        new_title = (raw[:57] + "…") if len(raw) > 60 else raw
+        conv.title = new_title
+
     # Update conversation timestamp
-    conv.updated_at = datetime.utcnow()
+    conv.updated_at = datetime.now()
     db.commit()
+    db.refresh(conv)
+
+    # ── Build rich ai_message response with metadata from agent_response ────
+    ai_msg_dict = {
+        "id": ai_msg.id,
+        "content": ai_msg.content,
+        "sender_type": ai_msg.sender_type,
+        "created_at": ai_msg.created_at.isoformat() if ai_msg.created_at else None,
+        "confidence": getattr(agent_response, "confidence", None),
+        "sources": [
+            {"filename": s.filename, "doc_type": s.doc_type, "relevance": s.relevance}
+            for s in (getattr(agent_response, "sources", None) or [])
+        ] or None,
+        "follow_up_questions": getattr(agent_response, "follow_up_questions", None) or None,
+        "intent_detected": getattr(agent_response, "intent_detected", None),
+    }
+
+    # Also format user_message timestamp
+    user_msg_dict = {
+        "id": user_msg.id,
+        "content": user_msg.content,
+        "sender_type": user_msg.sender_type,
+        "created_at": user_msg.created_at.isoformat() if user_msg.created_at else None,
+        "confidence": None,
+        "sources": None,
+        "follow_up_questions": None,
+        "intent_detected": None,
+    }
 
     # Return the exact shape the frontend expects
     return {
-        "user_message": user_msg,
-        "ai_message": ai_msg,
+        "user_message": user_msg_dict,
+        "ai_message": ai_msg_dict,
+        "conversation_title": conv.title,
     }
 
 

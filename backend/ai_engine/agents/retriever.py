@@ -91,11 +91,24 @@ def retrieve_context_node(state: AgentState) -> AgentState:
     # -----------------------------------------------------------------------
     with Timer() as retrieval_timer:
         try:
+            # First try with metadata filter
             candidates = vector_store.search(
                 query=query,
                 top_k=ai_config.RETRIEVAL_TOP_K,
                 where=metadata_filter,
             )
+            
+            # If no results with filter, try without filter for broader search
+            if not candidates and metadata_filter:
+                logger.info(
+                    "retriever.no_results_with_filter",
+                    extra={"query": query[:80], "trace_id": trace_id},
+                )
+                candidates = vector_store.search(
+                    query=query,
+                    top_k=ai_config.RETRIEVAL_TOP_K,
+                    where=None,  # No filter for broader search
+                )
         except Exception as e:
             logger.error("retriever.search.failed", extra={"error": str(e)})
             candidates = []

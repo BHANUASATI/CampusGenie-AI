@@ -18,14 +18,26 @@ I can help you with:
 How can I assist you today?"""
 
 
-NO_INFORMATION_RESPONSE = """I don't have that specific information in my knowledge base.
+NO_INFORMATION_RESPONSE = """I couldn't find specific information about this in my current knowledge base.
 
-For accurate information, please contact:
+This could mean:
+- The information hasn't been added to the system yet
+- Your question might need to be rephrased
+- The specific document isn't indexed
+
+**Suggested contacts:**
 - **Academic Office**: For course and curriculum queries
-- **Examination Cell**: For exam schedules and results
+- **Examination Cell**: For exam schedules and results  
 - **Department Office**: For department-specific policies
 - **Registrar**: For enrollment and attendance records
 - **Placement Cell**: For placement-related queries
+
+**Try asking about:**
+- Course requirements and syllabus
+- Attendance policies and minimum requirements
+- Exam schedules and grading patterns
+- Faculty information and office hours
+- University general policies
 
 Is there anything else I can help you with?"""
 

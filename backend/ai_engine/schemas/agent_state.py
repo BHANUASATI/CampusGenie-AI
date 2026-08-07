@@ -97,28 +97,32 @@ class AgentState(TypedDict, total=False):
 
     # -----------------------------------------------------------------------
     # Retrieval  (written by retrieve_context_node)
+    # Annotated with _keep_last so parallel branches don't conflict
     # -----------------------------------------------------------------------
-    retrieval_result: Optional[RetrievalResult]
-    retrieved_documents: Optional[List[RankedDocument]]
+    retrieval_result: Annotated[Optional[RetrievalResult], _keep_last]
+    retrieved_documents: Annotated[Optional[List[RankedDocument]], _keep_last]
 
     # -----------------------------------------------------------------------
     # Tool calling  (written by tool_call_node)
+    # Annotated with _keep_last so parallel branches don't conflict
     # -----------------------------------------------------------------------
-    tool_result: Optional[ToolResult]
+    tool_result: Annotated[Optional[ToolResult], _keep_last]
 
     # -----------------------------------------------------------------------
     # Answer  (written by generate_answer_node)
+    # Annotated with _keep_last for consistency
     # -----------------------------------------------------------------------
-    agent_response: Optional[AgentResponse]
+    agent_response: Annotated[Optional[AgentResponse], _keep_last]
 
     # -----------------------------------------------------------------------
     # Memory save  (written by save_memory_node)
+    # Annotated with _keep_last for consistency
     # -----------------------------------------------------------------------
-    memory_saved: Optional[bool]
+    memory_saved: Annotated[Optional[bool], _keep_last]
 
     # Private: persisted DB objects returned from save_memory_node
-    _saved_user_msg: Optional[Any]
-    _saved_ai_msg: Optional[Any]
+    _saved_user_msg: Annotated[Optional[Any], _keep_last]
+    _saved_ai_msg: Annotated[Optional[Any], _keep_last]
 
     # -----------------------------------------------------------------------
     # Control / observability

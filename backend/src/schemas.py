@@ -456,7 +456,12 @@ class AIMessageResponse(BaseModel):
     content: str
     sender_type: MessageSenderType
     created_at: datetime
-    
+    # Rich AI metadata — only populated on AI messages, None on user messages
+    confidence: Optional[float] = None
+    sources: Optional[List[dict]] = None
+    follow_up_questions: Optional[List[str]] = None
+    intent_detected: Optional[str] = None
+
     class Config:
         from_attributes = True
 
@@ -466,6 +471,8 @@ class AIConversationDetailResponse(AIConversationResponse):
 class AIChatResponse(BaseModel):
     user_message: AIMessageResponse
     ai_message: AIMessageResponse
+    # Updated conversation title (set from first message)
+    conversation_title: Optional[str] = None
 
 class AIQuickChat(BaseModel):
     content: str

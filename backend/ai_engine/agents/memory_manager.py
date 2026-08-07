@@ -160,7 +160,7 @@ def save_memory_node(state: AgentState, db: "Session") -> AgentState:
             conversation_id=conversation_id,
             content=user_message,
             sender_type=MessageSenderType.USER,
-            created_at=datetime.utcnow(),
+            created_at=datetime.now(),
         )
         db.add(user_msg)
 
@@ -175,7 +175,7 @@ def save_memory_node(state: AgentState, db: "Session") -> AgentState:
             conversation_id=conversation_id,
             content=answer_text,
             sender_type=MessageSenderType.AI,
-            created_at=datetime.utcnow(),
+            created_at=datetime.now(),
         )
         db.add(ai_msg)
 
@@ -184,7 +184,7 @@ def save_memory_node(state: AgentState, db: "Session") -> AgentState:
             AIConversation.id == conversation_id
         ).first()
         if conversation:
-            conversation.updated_at = datetime.utcnow()
+            conversation.updated_at = datetime.now()
 
         db.commit()
         db.refresh(user_msg)

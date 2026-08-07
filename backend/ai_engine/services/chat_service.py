@@ -199,7 +199,7 @@ class ChatService:
                     # Fallback: create in-memory objects (not persisted)
                     # Import here to avoid top-level circular dependency
                     from models import AIMessage, MessageSenderType
-                    now = datetime.utcnow()
+                    now = datetime.now()
                     user_db_msg = AIMessage(
                         id=0,
                         conversation_id=conversation_id,
