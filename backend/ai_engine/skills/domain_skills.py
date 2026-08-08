@@ -102,7 +102,7 @@ def get_skill_for_intent(intent: IntentType, query: str) -> BaseDomainSkill:
     if any(w in q_lower for w in ["hostel", "warden", "curfew", "mess", "library", "book", "ragging", "complaint", "discipline"]):
         return StudentWelfareSkill()
 
-    if intent in [IntentType.ATTENDANCE, IntentType.EXAMINATION, IntentType.ACADEMIC_CALENDAR, IntentType.COURSE_INFO] or any(w in q_lower for w in ["attendance", "exam", "grade", "cgpa", "sgpa", "fee", "marks"]):
+    if intent in [IntentType.ATTENDANCE_QUERY, IntentType.EXAM_QUERY, IntentType.COURSE_QUERY, IntentType.POLICY_QUERY, IntentType.TIMETABLE_QUERY] or any(w in q_lower for w in ["attendance", "exam", "grade", "cgpa", "sgpa", "fee", "marks"]):
         return AcademicPolicySkill()
 
     return BaseDomainSkill()

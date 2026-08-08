@@ -158,6 +158,7 @@ class RAGGrader:
                 "hit_at_k": True,
                 "top1_correct": True,
                 "keyword_recall": 100.0,
+                "skill_assigned": "N/A (Out of Scope)",
                 "passed": True,
                 "top_source": "N/A (Out of Scope)",
                 "latency_ms": latency_ms,
