@@ -140,56 +140,18 @@ def generate_answer_node(state: AgentState) -> AgentState:
             "data": tool_result_obj.data,
         }
 
-    # Build full RAG prompt
-    prompt = build_rag_prompt(
-        user_question=user_message,
-        documents=retrieved_docs,
-        tool_result=tool_result_dict,
-        conversation_history=conversation_history,
-    )
-
-    # Add system prompt (prepended to RAG prompt)
-    system_prompt_text = build_system_prompt(user_context)
-    full_prompt = system_prompt_text + "\n\n" + prompt
+    from ai_engine.agents.dual_lens_generator import DualLensGenerator
 
     try:
         with Timer() as t:
-            llm_result = call_llm(
-                prompt=full_prompt,
-                model_override=ai_config.GEMINI_CHAT_MODEL,
-                temperature=ai_config.GEMINI_TEMPERATURE,
-                max_tokens=ai_config.GEMINI_MAX_OUTPUT_TOKENS,
-            )
+            dual_res = DualLensGenerator.generate_dual_lens_response(state)
 
-        raw_text = llm_result.text
+        answer_text = dual_res["combined_answer"]
+        confidence = float(dual_res.get("confidence", 0.85))
+        sources_list = dual_res.get("sources", [])
+        follow_up = dual_res.get("follow_up_questions", [])
 
-        if llm_result.fallback_used:
-            logger.warning(
-                "answer.generate.fallback_used",
-                extra={
-                    "event": "answer.generate.fallback_used",
-                    "provider": llm_result.provider,
-                    "gemini_error": llm_result.error_before_fallback,
-                    "trace_id": trace_id,
-                },
-            )
-
-        log_llm_call(
-            logger=logger,
-            model=llm_result.model,
-            prompt_tokens=llm_result.prompt_tokens,
-            completion_tokens=llm_result.completion_tokens,
-            latency_ms=t.elapsed_ms,
-            node_name="generate_answer",
-        )
-
-        parsed = _parse_answer_json(raw_text)
-        answer_text = parsed.get("answer", raw_text)
-        confidence = float(parsed.get("confidence", 0.7))
-        sources_list = parsed.get("sources", [])
-        follow_up = parsed.get("follow_up_questions", [])
-
-        # Add low-confidence warning if needed (lowered threshold from 0.6 to 0.4)
+        # Add low-confidence warning if needed
         if confidence < 0.4:
             answer_text = add_low_confidence_warning(answer_text)
 
