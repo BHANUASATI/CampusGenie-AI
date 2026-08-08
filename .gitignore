@@ -1,154 +1,99 @@
-# ─── Python ─────────────────────────────────────────────────────────────────
+# =============================================================================
+# CampusGenie-AI — Root .gitignore
+# =============================================================================
+
+# =============================================================================
+# Python
+# =============================================================================
 __pycache__/
 *.py[cod]
 *$py.class
-*.so
+*.pyo
+*.pyd
 .Python
-build/
-develop-eggs/
+*.egg
+*.egg-info/
 dist/
-downloads/
+build/
 eggs/
-.eggs/
+parts/
+var/
+sdist/
+develop-eggs/
+.installed.cfg
 lib/
 lib64/
-parts/
-sdist/
-var/
 wheels/
 pip-wheel-metadata/
 share/python-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
+.python-version
 MANIFEST
 
-# ─── Virtual Environments ────────────────────────────────────────────────────
+# Virtual environments
 venv/
 env/
 ENV/
-env.bak/
-venv.bak/
+.env/
 .venv/
-.virtualenv/
+backend/venv/
+backend/env/
 
-# ─── Environment Variables ───────────────────────────────────────────────────
+# =============================================================================
+# Environment & Secrets
+# =============================================================================
 .env
 .env.local
-.env.development
-.env.development.local
-.env.test
-.env.test.local
-.env.staging
-.env.production
-.env.production.local
-*.env
+.env.*.local
 !.env.example
 
-# ─── Node.js / React / Frontend ──────────────────────────────────────────────
+# =============================================================================
+# Node.js / Frontend
+# =============================================================================
 node_modules/
+frontend/node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-lerna-debug.log*
-.pnpm-debug.log*
-.pnp/
+.pnp
 .pnp.js
-.yarn/cache
-.yarn/unplugged
-.yarn/build-state.yml
-.yarn/install-state.gz
+.npm
 
-# Build outputs
+# Frontend build output
 frontend/build/
 frontend/dist/
-dist/
 build/
-out/
-.next/
-.nuxt/
-.svelte-kit/
+dist/
 
-# TypeScript
-*.tsbuildinfo
-tsconfig.tsbuildinfo
+# =============================================================================
+# AI / ML — Generated data (should not be committed)
+# =============================================================================
 
-# Parcel
-.parcel-cache/
+# ChromaDB persistent vector store
+backend/chroma_db/
 
-# Vite
-.vite/
+# Uploaded knowledge documents
+backend/uploads/ai_documents/
 
-# ─── Testing & Coverage ──────────────────────────────────────────────────────
-coverage/
-.coverage
-.coverage.*
-*.cover
-*.py,cover
-htmlcov/
-.pytest_cache/
-.tox/
-.nox/
-.hypothesis/
-junit.xml
-test-results/
-playwright-report/
-test-results.xml
+# General uploads (user-uploaded files)
+backend/uploads/
 
-# Jest
-jest_html_reporters-attach/
+# Hugging Face model cache
+.cache/
+backend/.cache/
+~/.cache/huggingface/
 
-# ─── IDEs & Editors ──────────────────────────────────────────────────────────
-# VS Code
-.vscode/
-!.vscode/extensions.json
-*.code-workspace
-
-# JetBrains / PyCharm
-.idea/
-*.iml
-*.iws
-*.ipr
-out/
-
-# Vim / Neovim
-*.swp
-*.swo
-*.swn
-*~
-.netrwhist
-Session.vim
-
-# Emacs
-\#*\#
-.\#*
-*.elc
-auto-save-list
-tramp
-.\#
-
-# Kiro IDE
-.kiro/
-
-# Sublime Text
-*.tmlanguage.cache
-*.tmPreferences.cache
-*.stTheme.cache
-*.sublime-workspace
-*.sublime-project
-
-# ─── Databases ───────────────────────────────────────────────────────────────
+# =============================================================================
+# Database files (SQLite — dev only, not production)
+# =============================================================================
 *.db
 *.sqlite
 *.sqlite3
-*.db-journal
-dump.rdb
-*.sql.gz
-*.sql.bak
-mysql_data/
-postgres_data/
+backend/*.db
+backend/*.sqlite
 
-# ─── Logs ────────────────────────────────────────────────────────────────────
+# =============================================================================
+# Logs
+# =============================================================================
 *.log
 logs/
 log/
@@ -198,120 +143,87 @@ media/
 # ─── macOS ───────────────────────────────────────────────────────────────────
 .DS_Store
 .DS_Store?
-.AppleDouble
-.LSOverride
-Icon
 ._*
-.DocumentRevisions-V100
-.fseventsd
 .Spotlight-V100
-.TemporaryItems
 .Trashes
-.VolumeIcon.icns
-.com.apple.timemachine.donotpresent
-.AppleDB
-.AppleDesktop
-Network Trash Folder
-Temporary Items
-.apdisk
-
-# ─── Windows ─────────────────────────────────────────────────────────────────
-Thumbs.db
-Thumbs.db:encryptable
 ehthumbs.db
-ehthumbs_vista.db
-*.stackdump
-[Dd]esktop.ini
-$RECYCLE.BIN/
-*.cab
-*.msi
-*.msix
-*.msm
-*.msp
-*.lnk
+Thumbs.db
+desktop.ini
 
-# ─── Linux ───────────────────────────────────────────────────────────────────
+# =============================================================================
+# IDE / Editor
+# =============================================================================
+.vscode/
+.idea/
+*.swp
+*.swo
 *~
-.fuse_hidden*
-.directory
-.Trash-*
-.nfs*
+.project
+.classpath
+.settings/
+*.iml
+*.ipr
+*.iws
 
-# ─── Secrets & Credentials ───────────────────────────────────────────────────
-*.pem
-*.key
-*.crt
-*.cert
-*.p12
-*.pfx
-secrets/
-credentials/
-service-account*.json
-*-credentials.json
-*-service-account.json
-google-credentials.json
-firebase-adminsdk*.json
+# =============================================================================
+# Testing & Coverage
+# =============================================================================
+.coverage
+.pytest_cache/
+htmlcov/
+coverage.xml
+*.cover
+.hypothesis/
+.tox/
+nosetests.xml
+junit-*.xml
+frontend/coverage/
 
-# ─── Docker ──────────────────────────────────────────────────────────────────
-.dockerignore
-docker-compose.override.yml
-docker-compose.local.yml
-
-# ─── Caches ──────────────────────────────────────────────────────────────────
-.cache/
-*.cache
-.eslintcache
-.stylelintcache
-.prettiercache
-.sass-cache/
-.rpt2_cache/
-.rts2_cache_cjs/
-.rts2_cache_es/
-.rts2_cache_umd/
-
-# ─── Python scientific / notebook ────────────────────────────────────────────
-.ipynb_checkpoints
-*.ipynb
-profile_default/
-ipython_config.py
-.python-version
-
-# ─── Task runners / CI ───────────────────────────────────────────────────────
-celerybeat-schedule
-celerybeat.pid
-*.sage.py
-.spyderproject
-.spyproject
-.ropeproject
-/site
+# =============================================================================
+# Type checking
+# =============================================================================
 .mypy_cache/
 .dmypy.json
 dmypy.json
-.pyre/
-.pytype/
-cython_debug/
+.pyright/
 
-# ─── Temporary & Backup ──────────────────────────────────────────────────────
+# =============================================================================
+# Jupyter Notebooks
+# =============================================================================
+.ipynb_checkpoints
+*.ipynb
+
+# =============================================================================
+# Distribution / packaging (Python)
+# =============================================================================
+.eggs/
+*.egg-link
+pip-log.txt
+pip-delete-this-directory.txt
+
+# =============================================================================
+# Temporary files
+# =============================================================================
+tmp/
+temp/
 *.tmp
-*.temp
 *.bak
-*.backup
 *.orig
-*.rej
 
-# ─── Archives ────────────────────────────────────────────────────────────────
-*.tar.gz
-*.zip
-*.rar
-*.7z
-*.tgz
+# =============================================================================
+# Docker (if added later)
+# =============================================================================
+.docker/
+docker-compose.override.yml
 
-# ─── Misc ────────────────────────────────────────────────────────────────────
-.session
-connect.lock
-typings/
-.serverless/
-.fusebox/
-.dynamodb/
-.tern-port
-.env.vault
+# =============================================================================
+# LangSmith / LangChain artifacts
+# =============================================================================
+.langchain/
+langsmith-traces/
+
+# =============================================================================
+# TypeScript build
+# =============================================================================
+frontend/tsconfig.tsbuildinfo
+*.tsbuildinfo
