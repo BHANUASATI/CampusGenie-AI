@@ -181,7 +181,6 @@ uploads/
 backend/uploads/ai_documents/*
 !backend/uploads/ai_documents/.gitkeep
 media/
-*.pdf
 *.jpg
 *.jpeg
 *.png

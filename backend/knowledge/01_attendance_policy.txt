@@ -1,0 +1,42 @@
+DEPARTMENT OF COMPUTER APPLICATIONS (MCA)
+ATTENDANCE POLICY
+
+Document Type: Academic Policy
+Applicable To: MCA I, II, III Semester Students
+Effective From: Academic Year 2025-26
+
+1. MINIMUM ATTENDANCE REQUIREMENT
+1.1 Every student must maintain a minimum of 75% attendance in each theory and practical (lab) course during a semester.
+1.2 Attendance is calculated separately for each subject and separately for lab sessions.
+1.3 Students with attendance between 65% and 74% may be granted condonation by the Head of Department only on medical grounds, supported by valid medical certificates, subject to a maximum of two condonations during the entire course.
+1.4 Students with attendance below 65% in any subject will be detained and will NOT be permitted to appear for the End Semester Examination of that subject.
+
+2. CONDITIONS FOR SHORTAGE OF ATTENDANCE
+2.1 Attendance shortage due to participation in university-approved sports, NSS/NCC camps, or technical competitions (with prior written approval from the Dean) will be counted as present for the days of absence, subject to submission of proof within 3 working days of return.
+2.2 Medical leave exceeding 3 consecutive working days must be supported by a certificate from a registered medical practitioner, submitted to the class coordinator within 7 days.
+2.3 Leave for personal reasons (family functions, personal work) is not counted towards condonation and will affect the attendance percentage.
+
+3. ATTENDANCE CALCULATION
+Attendance % = (Number of classes attended / Total number of classes held) x 100
+This is calculated on a rolling basis and displayed on the student portal every Monday.
+
+4. DEBARRING FROM EXAMINATION
+4.1 A list of students detained due to shortage of attendance will be published on the notice board and student portal at least 10 days before the commencement of examinations.
+4.2 Students detained for attendance shortage must repeat the course in the subsequent semester when it is offered.
+
+5. SPECIAL PROVISIONS
+5.1 Students representing the college in placement drives, internships approved by the Training & Placement Cell, or academic conferences will have such days counted as "on duty" and will not be deducted from attendance, provided prior approval is obtained.
+5.2 Parents/guardians will be notified via SMS/email if a student's attendance falls below 70% in any subject at the mid-semester stage.
+
+6. FREQUENTLY ASKED QUESTIONS
+Q: What is the minimum attendance criteria to sit in exams?
+A: 75% attendance is mandatory. Between 65-74% requires medical condonation approval from HOD. Below 65% means the student is detained.
+
+Q: Is attendance calculated subject-wise or overall?
+A: Subject-wise (and lab-wise) attendance is tracked separately.
+
+Q: Can I get condonation for a family function?
+A: No, personal reasons other than medical emergencies are not eligible for condonation.
+
+Q: How many times can attendance be condoned during the MCA program?
+A: A maximum of two times, only on medical grounds.

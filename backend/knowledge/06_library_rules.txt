@@ -1,0 +1,28 @@
+CENTRAL LIBRARY RULES
+
+1. TIMINGS
+Library working hours: 8:30 AM to 8:00 PM (Monday to Saturday)
+Reading room (extended hours during exams): 8:00 AM to 10:00 PM
+Sundays: 10:00 AM to 2:00 PM (reading room only, no book issue)
+
+2. BOOK ISSUE POLICY
+2.1 MCA students can issue a maximum of 3 books at a time for a period of 14 days.
+2.2 Renewal is allowed once for an additional 14 days if the book is not reserved by another student.
+2.3 Fine for late return: Rs. 2 per day per book.
+2.4 Reference books, journals, and back-year project reports are for in-library reading only and cannot be issued.
+2.5 Final year students working on their major project can issue up to 5 books, and reference project reports for a maximum of 3 days for photocopying purposes.
+
+3. DIGITAL LIBRARY ACCESS
+3.1 Access to IEEE Xplore, ACM Digital Library, and Springer is available through the library portal using institutional login credentials.
+3.2 e-books and previous year question papers can be downloaded from the student portal under "Library Resources".
+
+4. LOST OR DAMAGED BOOKS
+4.1 If a book is lost or damaged, the student must pay the current market price of the book plus a processing fee of Rs. 100.
+
+5. FREQUENTLY ASKED QUESTIONS
+Q: How many books can I issue at a time?
+A: MCA students can issue up to 3 books for 14 days (5 books for final year project students).
+Q: What is the fine for a late return?
+A: Rs. 2 per day per book.
+Q: Can I access IEEE papers from the library?
+A: Yes, via IEEE Xplore and ACM Digital Library through the library portal login.

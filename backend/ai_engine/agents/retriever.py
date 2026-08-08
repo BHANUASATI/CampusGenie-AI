@@ -87,12 +87,12 @@ def retrieve_context_node(state: AgentState) -> AgentState:
     metadata_filter = _build_metadata_filter(user_context)
 
     # -----------------------------------------------------------------------
-    # Step 2: Semantic search
+    # Step 2: Hybrid Search (Vector + BM25)
     # -----------------------------------------------------------------------
     with Timer() as retrieval_timer:
         try:
-            # First try with metadata filter
-            candidates = vector_store.search(
+            # First try with metadata filter using hybrid search
+            candidates = vector_store.hybrid_search(
                 query=query,
                 top_k=ai_config.RETRIEVAL_TOP_K,
                 where=metadata_filter,
@@ -104,7 +104,7 @@ def retrieve_context_node(state: AgentState) -> AgentState:
                     "retriever.no_results_with_filter",
                     extra={"query": query[:80], "trace_id": trace_id},
                 )
-                candidates = vector_store.search(
+                candidates = vector_store.hybrid_search(
                     query=query,
                     top_k=ai_config.RETRIEVAL_TOP_K,
                     where=None,  # No filter for broader search
@@ -112,6 +112,7 @@ def retrieve_context_node(state: AgentState) -> AgentState:
         except Exception as e:
             logger.error("retriever.search.failed", extra={"error": str(e)})
             candidates = []
+
 
     retrieval_latency = retrieval_timer.elapsed_ms
     total_retrieved = len(candidates)

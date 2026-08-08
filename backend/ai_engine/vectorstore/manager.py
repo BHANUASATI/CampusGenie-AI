@@ -185,6 +185,70 @@ class VectorStoreManager:
             logger.error("vectorstore.mmr_failed", extra={"error": str(e)})
             return self.search(query, top_k=top_k, where=where)
 
+    def hybrid_search(
+        self,
+        query: str,
+        top_k: int = None,
+        where: Dict[str, Any] = None,
+    ) -> List[RetrievedDocument]:
+        """
+        Hybrid search combining ChromaDB semantic vector search and BM25 keyword search
+        via Reciprocal Rank Fusion (RRF).
+
+        Args:
+            query: Search query string
+            top_k: Number of results to return
+            where: Optional metadata filter dict
+
+        Returns:
+            List of RetrievedDocument objects sorted by hybrid score.
+        """
+        from ai_engine.vectorstore.bm25_search import BM25Searcher, reciprocal_rank_fusion
+
+        if top_k is None:
+            top_k = ai_config.RETRIEVAL_TOP_K
+
+        # Step 1: Vector search candidates
+        vector_results = self.search(query=query, top_k=top_k * 2, where=where, similarity_threshold=0.0)
+
+        # Step 2: Fetch documents for BM25 keyword scoring
+        try:
+            all_chunks_data = self.collection.get(where=where, include=["documents", "metadatas"])
+            if all_chunks_data and all_chunks_data.get("documents"):
+                corpus_texts = all_chunks_data["documents"]
+                bm25_searcher = BM25Searcher()
+                bm25_searcher.fit(corpus_texts)
+                bm25_hits = bm25_searcher.search(query, top_k=top_k * 2)
+
+                bm25_results = []
+                for idx, score in bm25_hits:
+                    chunk_id = all_chunks_data["ids"][idx]
+                    content = all_chunks_data["documents"][idx]
+                    metadata = all_chunks_data["metadatas"][idx]
+                    norm_score = min(1.0, max(0.0, float(score) / (float(score) + 1.0)))
+                    bm25_results.append((
+                        RetrievedDocument(
+                            chunk_id=chunk_id,
+                            content=content,
+                            metadata=DocumentMetadata(**metadata),
+                            similarity_score=norm_score,
+                        ),
+                        float(score)
+                    ))
+
+                vector_tuples = [(doc, doc.similarity_score) for doc in vector_results]
+                fused = reciprocal_rank_fusion(vector_tuples, bm25_results, top_n=top_k)
+                logger.info(
+                    "vectorstore.hybrid_search.done",
+                    extra={"vector_candidates": len(vector_results), "bm25_candidates": len(bm25_results), "fused": len(fused)}
+                )
+                return [doc for doc, _ in fused]
+        except Exception as e:
+            logger.warning("vectorstore.hybrid_search_fallback", extra={"error": str(e)})
+
+        return vector_results[:top_k]
+
+
     # -----------------------------------------------------------------------
     # Delete
     # -----------------------------------------------------------------------

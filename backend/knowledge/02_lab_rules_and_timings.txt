@@ -1,0 +1,44 @@
+DEPARTMENT OF COMPUTER APPLICATIONS (MCA)
+COMPUTER LABORATORY RULES AND TIMINGS
+
+Document Type: Lab Guidelines
+Applicable To: All MCA Lab Sessions (Programming Lab, Networking Lab, AI/ML Lab, Project Lab)
+
+1. LAB TIMINGS
+1.1 Regular Lab Hours (Monday to Friday): 9:30 AM to 4:30 PM
+1.2 Each lab slot duration: 2 hours (as per timetable)
+1.3 Extended/Open Lab access for project work: 4:30 PM to 7:00 PM (prior permission from lab in-charge required, entry logged in register)
+1.4 Saturday Lab Access (only for final semester project students): 10:00 AM to 2:00 PM
+1.5 Labs remain closed on Sundays and university holidays unless specially notified for hackathons or workshops.
+1.6 Students must report to the lab at least 5 minutes before the scheduled time. Entry after 10 minutes of commencement will be marked late; after 15 minutes, entry is not allowed for that session.
+
+2. GENERAL LAB RULES
+2.1 Food and drinks (including tea, coffee, snacks, water bottles) are STRICTLY NOT ALLOWED inside the computer lab at any time. Students found consuming food/drinks near the systems will be fined Rs. 200 for the first offense and may be barred from the lab for repeated violations.
+2.2 Footwear must be removed and kept in the designated rack before entering carpeted lab areas (Lab 3 and Lab 4 only); other labs require covered shoes.
+2.3 Mobile phones must be kept on silent mode. Voice calls are not permitted inside the lab; students may step outside to attend calls.
+2.4 Students must log in using their own credentials only. Sharing of login IDs is a violation of the Code of Conduct and may lead to disciplinary action.
+2.5 Any hardware/software issue must be reported immediately to the lab assistant. Students are not permitted to open CPU cabinets or attempt hardware repairs themselves.
+2.6 Personal USB drives/external storage must be scanned for viruses using the antivirus software installed on the lab system before use.
+2.7 Downloading or installing unauthorized software, games, or torrents on lab systems is prohibited and may result in suspension of lab access.
+
+3. PRACTICAL/PROJECT SUBMISSION IN LAB
+3.1 All lab programs must be recorded in the lab record/journal and get it signed by the faculty in-charge within the same week.
+3.2 Continuous absence from lab sessions (more than 3 consecutive sessions without prior intimation) will lead to a warning letter to the student and parent.
+
+4. SAFETY AND MAINTENANCE
+4.1 Students must shut down systems properly before leaving and push in chairs.
+4.2 Any damage to lab equipment due to negligence will be charged to the student as per actual replacement/repair cost.
+4.3 Fire extinguishers and emergency exits are marked in each lab; students must familiarize themselves with evacuation routes during the orientation session.
+
+5. FREQUENTLY ASKED QUESTIONS
+Q: What are the normal lab timings?
+A: Regular lab hours are 9:30 AM to 4:30 PM on weekdays, with each session lasting 2 hours as per the timetable.
+
+Q: Can I bring food or water bottles into the lab?
+A: No. Food and drinks are strictly not allowed inside the lab. A fine of Rs. 200 applies for violations.
+
+Q: Is the lab open on Saturdays?
+A: Only for final semester project students, from 10:00 AM to 2:00 PM.
+
+Q: What happens if I damage lab equipment?
+A: The actual repair/replacement cost will be charged to the student if damage is due to negligence.
