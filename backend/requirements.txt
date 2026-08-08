@@ -1,55 +1,92 @@
-# =========================================================================
-# CampusGenie Backend Requirements
-# =========================================================================
-# Original dependencies (FastAPI, SQLAlchemy, auth, email, etc.)
-# =========================================================================
+# =============================================================================
+# CampusGenie-AI — Backend Requirements
+# Python 3.11+
+# =============================================================================
+# Install with:
+#   pip install -r requirements.txt
+# =============================================================================
 
+# =============================================================================
+# Web Framework & Server
+# =============================================================================
 fastapi==0.104.1
-uvicorn==0.24.0
+uvicorn[standard]==0.24.0
+python-multipart==0.0.6
+
+# =============================================================================
+# Database
+# =============================================================================
 sqlalchemy==2.0.23
+mysql-connector-python==8.2.0
+alembic==1.13.1
+
+# =============================================================================
+# Authentication & Security
+# =============================================================================
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
-python-multipart==0.0.6
+msal==1.24.0
+
+# =============================================================================
+# Data Validation & Settings
+# =============================================================================
 pydantic[email]==2.5.0
 pydantic-settings==2.1.0
+email-validator==2.1.0
+typing-extensions==4.8.0
+
+# =============================================================================
+# Environment & Configuration
+# =============================================================================
 python-dotenv==1.0.0
-alembic==1.13.1
-msal==1.24.0
+
+# =============================================================================
+# HTTP Clients
+# =============================================================================
 requests==2.31.0
 aiohttp==3.9.1
+openai==1.14.0              # Used for OpenRouter (OpenAI-compatible) fallback
 
-# =========================================================================
-# AI Engine Dependencies (LangGraph + RAG + Embeddings + Vector Store)
-# =========================================================================
-
-# LangChain ecosystem
+# =============================================================================
+# AI Orchestration — LangGraph + LangChain
+# =============================================================================
 langgraph==0.2.16
 langchain==0.2.16
 langchain-core==0.2.38
 langchain-community==0.2.16
 langchain-text-splitters==0.2.2
 
-# LLM provider
-google-generativeai==0.3.2
+# =============================================================================
+# LLM Providers
+# =============================================================================
+google-generativeai==0.3.2  # Gemini 2.5 Flash (primary LLM)
 
-# Embeddings + reranking
-sentence-transformers==2.2.2
-torch==2.0.1                    # PyTorch for sentence-transformers (CPU)
+# =============================================================================
+# Embeddings & Reranking (local, no API cost)
+# =============================================================================
+sentence-transformers==2.7.0  # all-MiniLM-L6-v2 for embeddings
+                               # cross-encoder/ms-marco-MiniLM-L-6-v2 for reranking
+torch==2.0.1                   # PyTorch (CPU) required by sentence-transformers
 
-# Vector database
+# =============================================================================
+# Vector Store
+# =============================================================================
 chromadb==0.4.22
-# Note: ChromaDB needs these:
-hnswlib==0.7.0
-pydantic==2.5.0                 # Already listed above
+hnswlib==0.7.0                 # Required by ChromaDB for ANN indexing
 
-# Document processing
-pymupdf==1.23.8                 # PDF extraction (fitz)
-python-docx==1.1.0              # DOCX extraction
-pandas==2.1.4                   # CSV processing
+# =============================================================================
+# Document Processing (RAG pipeline)
+# =============================================================================
+pymupdf==1.23.8                # PDF extraction (import as fitz)
+python-docx==1.1.0             # DOCX extraction
+pandas==2.1.4                  # CSV processing
 
-# Observability (optional)
-# opentelemetry-api==1.21.0
-# langsmith==0.0.69
+# =============================================================================
+# Email Notifications
+# =============================================================================
+# Uses Python built-in smtplib — no extra package needed
 
-# Type hints
-typing-extensions==4.8.0
+# =============================================================================
+# Observability (optional — enable via .env)
+# =============================================================================
+# langsmith==0.1.0             # Uncomment to enable LangSmith tracing
