@@ -41,11 +41,11 @@ class AIEngineConfig(BaseSettings):
     # -----------------------------------------------------------------------
     GEMINI_API_KEY: str = Field(default="", description="Google Gemini API key")
     GEMINI_CHAT_MODEL: str = Field(
-        default="gemini-2.5-flash",
+        default="gemini-2.0-flash",
         description="Model for answer generation (high quality, streaming)",
     )
     GEMINI_FAST_MODEL: str = Field(
-        default="gemini-2.5-flash",
+        default="gemini-2.0-flash",
         description="Model for intent classification (low latency)",
     )
     GEMINI_TEMPERATURE: float = Field(default=0.1, ge=0.0, le=2.0)

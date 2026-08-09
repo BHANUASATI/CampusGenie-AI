@@ -83,15 +83,28 @@ def get_or_create_collection(
     """
     client = get_chroma_client()
     try:
-        collection = client.get_or_create_collection(
-            name=name,
-            embedding_function=_embedding_function,
-            metadata={
-                "hnsw:space": "cosine",       # use cosine similarity
-                "hnsw:construction_ef": 200,  # higher = better quality index
-                "hnsw:M": 16,                 # number of bidirectional links
-            },
-        )
+        # Try to get existing collection first
+        try:
+            collection = client.get_collection(name=name, embedding_function=_embedding_function)
+            logger.info(
+                "chromadb.collection_exists",
+                extra={"event": "chromadb.collection_exists", "collection_name": name},
+            )
+        except Exception:
+            # Collection doesn't exist, create it with proper settings
+            collection = client.create_collection(
+                name=name,
+                embedding_function=_embedding_function,
+                metadata={
+                    "hnsw:space": "cosine",       # use cosine similarity
+                    "hnsw:construction_ef": 200,  # higher = better quality index
+                    "hnsw:M": 16,                 # number of bidirectional links
+                },
+            )
+            logger.info(
+                "chromadb.collection_created",
+                extra={"event": "chromadb.collection_created", "collection_name": name},
+            )
         logger.info(
             "chromadb.collection_ready",
             extra={"event": "chromadb.collection_ready", "collection_name": name},
