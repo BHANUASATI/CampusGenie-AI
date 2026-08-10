@@ -1,6 +1,6 @@
 <div align="center">
 
-# CampusGenie — AI for Smarter Learning ERP
+# CampusGenie — AI for Smarter Learning With ERP Service
 
 ### Transforming Educational Administration Through Agentic AI
 
