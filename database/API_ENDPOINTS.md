@@ -1,4 +1,4 @@
-# API Endpoints Documentation
+# API Endpoints Documentation Updated
 
 ## Authentication Endpoints
 
