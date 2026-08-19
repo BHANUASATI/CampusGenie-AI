@@ -2,6 +2,7 @@
 -- Created: 2026-02-21
 -- Description: Complete schema for student document verification and task management system
 -- Compatible with MySQL 5.6+ and MariaDB 10.0+
+-- Database
 USE CampusGenie;
 -- Drop existing tables if they exist (for development)
 SET FOREIGN_KEY_CHECKS = 0;
