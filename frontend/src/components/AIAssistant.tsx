@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { aiAssistantService } from '../services/api';
+import { useVoiceRecognition } from '../hooks/useVoiceRecognition';
+import { useTextToSpeech } from '../hooks/useTextToSpeech';
 import './AIAssistant.css';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -21,6 +23,12 @@ interface Message {
   sources?: Source[];
   follow_up_questions?: string[];
   intent_detected?: string;
+  download_suggestions?: {
+    should_download: boolean;
+    formats: string[];
+    content_type: string;
+    filename: string;
+  };
 }
 
 interface Conversation {
@@ -39,7 +47,21 @@ interface AIAssistantProps {
 // Handles **bold**, *italic*, `code`, ## headers, bullet lists, numbered lists.
 // No external dep needed.
 function renderMarkdown(text: string): React.ReactNode[] {
-  const lines = text.split('\n');
+  // Clean up the text - remove JSON-like formatting if present
+  let cleanText = text;
+  
+  // Remove JSON-like structures that might be in the response
+  cleanText = cleanText.replace(/\{[\s\S]*?\}/g, ''); // Remove JSON objects
+  cleanText = cleanText.replace(/\[[\s\S]*?\]/g, ''); // Remove JSON arrays
+  cleanText = cleanText.replace(/"[^"]+"\s*:\s*"[^"]+"/g, ''); // Remove key-value pairs
+  cleanText = cleanText.replace(/"[^"]+"\s*:\s*/g, ''); // Remove key with colon
+  cleanText = cleanText.replace(/,\s*$/gm, ''); // Remove trailing commas
+  cleanText = cleanText.replace(/^\s*-\s+/gm, '• '); // Convert JSON bullets to bullets
+  cleanText = cleanText.replace(/^\s*[\r\n]/gm, ''); // Remove empty lines
+  cleanText = cleanText.replace(/\n\s*\n/g, '\n\n'); // Fix multiple newlines
+  cleanText = cleanText.trim();
+  
+  const lines = cleanText.split('\n');
   const nodes: React.ReactNode[] = [];
   let listBuffer: string[] = [];
   let listType: 'ul' | 'ol' | null = null;
@@ -68,6 +90,9 @@ function renderMarkdown(text: string): React.ReactNode[] {
   };
 
   lines.forEach((line, i) => {
+    // Skip empty lines after JSON cleanup
+    if (!line.trim()) return;
+    
     // H1/H2
     if (/^## /.test(line)) {
       flushList(`fl${i}`);
@@ -88,11 +113,6 @@ function renderMarkdown(text: string): React.ReactNode[] {
       listType = 'ol';
       listBuffer.push(line.replace(/^\d+\. /, ''));
     }
-    // Blank line
-    else if (line.trim() === '') {
-      flushList(`fl${i}`);
-      nodes.push(<br key={i} />);
-    }
     // Normal paragraph line
     else {
       flushList(`fl${i}`);
@@ -104,19 +124,26 @@ function renderMarkdown(text: string): React.ReactNode[] {
 }
 
 function inlineFormat(text: string): React.ReactNode {
+  // Clean up any remaining JSON-like artifacts
+  let cleanText = text;
+  cleanText = cleanText.replace(/"\s*:\s*/g, ': '); // Clean up JSON colons
+  cleanText = cleanText.replace(/,\s*$/gm, ''); // Remove trailing commas
+  cleanText = cleanText.replace(/^\s*-\s+/gm, '• '); // Convert JSON bullets to bullets
+  cleanText = cleanText.trim();
+  
   // Process **bold**, *italic*, `code` inline
   const parts: React.ReactNode[] = [];
   const regex = /(\*\*(.+?)\*\*|\*(.+?)\*|`(.+?)`)/g;
   let last = 0;
   let match: RegExpExecArray | null;
-  while ((match = regex.exec(text)) !== null) {
-    if (match.index > last) parts.push(text.slice(last, match.index));
+  while ((match = regex.exec(cleanText)) !== null) {
+    if (match.index > last) parts.push(cleanText.slice(last, match.index));
     if (match[2]) parts.push(<strong key={match.index}>{match[2]}</strong>);
     else if (match[3]) parts.push(<em key={match.index}>{match[3]}</em>);
     else if (match[4]) parts.push(<code key={match.index} className="cg-ai-code">{match[4]}</code>);
     last = match.index + match[0].length;
   }
-  if (last < text.length) parts.push(text.slice(last));
+  if (last < cleanText.length) parts.push(cleanText.slice(last));
   return parts.length === 1 ? parts[0] : <>{parts}</>;
 }
 
@@ -124,6 +151,7 @@ function inlineFormat(text: string): React.ReactNode {
 const ConfidenceBar: React.FC<{ value: number }> = ({ value }) => {
   const pct = Math.round(value * 100);
   const color = pct >= 80 ? '#10b981' : pct >= 60 ? '#f59e0b' : '#ef4444';
+  
   return (
     <div className="cg-confidence">
       <span className="cg-confidence-label">Confidence</span>
@@ -169,6 +197,32 @@ const FollowUpSuggestions: React.FC<{ questions: string[]; onSelect: (q: string)
   );
 };
 
+// ─── Download suggestions ──────────────────────────────────────────────────────
+const DownloadSuggestions: React.FC<{ 
+  suggestions: Message['download_suggestions']; 
+  content: string;
+  onDownload: (content: string, format: string, filename?: string) => void;
+}> = ({ suggestions, content, onDownload }) => {
+  if (!suggestions?.should_download) return null;
+  
+  return (
+    <div className="cg-download">
+      <span className="cg-download-label">📥 Download as</span>
+      <div className="cg-download-buttons">
+        {suggestions.formats.map((format) => (
+          <button 
+            key={format} 
+            className="cg-download-btn"
+            onClick={() => onDownload(content, format, suggestions.filename)}
+          >
+            {format.toUpperCase()}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+};
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 const AIAssistant: React.FC<AIAssistantProps> = ({ isOpen, onClose }) => {
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -181,6 +235,11 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ isOpen, onClose }) => {
   const [error, setError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  
+  // Voice functionality
+  const voiceRecognition = useVoiceRecognition({ continuous: false, lang: 'en-US' });
+  const textToSpeech = useTextToSpeech({ lang: 'en-US' });
+  const [voiceMode, setVoiceMode] = useState(false);
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -202,6 +261,21 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ isOpen, onClose }) => {
       setTimeout(() => inputRef.current?.focus(), 100);
     }
   }, [view]);
+
+  // Auto-send voice message when speech recognition completes
+  useEffect(() => {
+    if (voiceRecognition.transcript && !voiceRecognition.isListening) {
+      setInputMessage(voiceRecognition.transcript);
+      // Auto-send after a short delay to allow user to see the transcript
+      const timer = setTimeout(() => {
+        if (voiceRecognition.transcript.trim()) {
+          sendMessage(voiceRecognition.transcript);
+          voiceRecognition.resetTranscript();
+        }
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [voiceRecognition.transcript, voiceRecognition.isListening]);
 
   const loadConversations = async () => {
     setLoadingConversations(true);
@@ -246,11 +320,9 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ isOpen, onClose }) => {
       }
       
       setCurrentConversation(data);
-      // Sort messages by created_at to ensure correct order
-      const sortedMessages = (data.messages || []).sort((a: Message, b: Message) => 
-        new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-      );
-      setMessages(sortedMessages);
+      // Messages arrive from the backend already ordered by (created_at, id) ASC.
+      // Trust that order — no client-side sort needed.
+      setMessages(data.messages || []);
       setView('chat');
     } catch (err: any) {
       console.error('Error loading conversation:', err);
@@ -294,20 +366,20 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ isOpen, onClose }) => {
         sources: response.ai_message.sources ?? undefined,
         follow_up_questions: response.ai_message.follow_up_questions ?? undefined,
         intent_detected: response.ai_message.intent_detected ?? undefined,
+        download_suggestions: response.ai_message.download_suggestions ?? undefined,
       };
 
-      // 3. Replace temp bubble with server-confirmed user msg + rich AI msg
+      // 3. Replace temp bubble with server-confirmed user msg + append AI msg.
+      // We do NOT sort here — existing messages are already in chronological order,
+      // and the two new messages (user confirmation + AI reply) belong at the end.
       setMessages(prev => {
         const withoutTemp = prev.filter(m => m.id !== tempId);
-        // Ensure we have both messages and add them in correct order
-        const newMessages = [];
+        const tail: Message[] = [];
         if (response.user_message) {
-          newMessages.push(response.user_message);
+          tail.push(response.user_message);
         }
-        if (richAiMsg) {
-          newMessages.push(richAiMsg);
-        }
-        return [...withoutTemp, ...newMessages];
+        tail.push(richAiMsg);
+        return [...withoutTemp, ...tail];
       });
 
       // 4. Update conversation title in both header and sidebar list
@@ -319,6 +391,11 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ isOpen, onClose }) => {
             c.id === currentConversation.id ? { ...c, title: newTitle } : c
           )
         );
+      }
+
+      // 5. Auto-speak the AI response if voice mode is enabled
+      if (voiceMode && richAiMsg.content) {
+        textToSpeech.speak(richAiMsg.content);
       }
     } catch (err: any) {
       console.error('Error sending message:', err);
@@ -356,6 +433,66 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ isOpen, onClose }) => {
     setInputMessage(e.target.value);
     e.target.style.height = 'auto';
     e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px';
+  };
+
+  const handleDownload = async (content: string, format: string, filename?: string) => {
+    try {
+      const response = await fetch('http://localhost:8002/api/ai/download', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        },
+        body: JSON.stringify({
+          content,
+          format,
+          filename,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Download failed');
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      
+      // Get filename from response headers or use default
+      const contentDisposition = response.headers.get('Content-Disposition');
+      let downloadFilename = filename || `download.${format}`;
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+        if (filenameMatch && filenameMatch[1]) {
+          downloadFilename = filenameMatch[1].replace(/['"]/g, '');
+        }
+      }
+      
+      a.download = downloadFilename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      console.error('Download error:', error);
+      setError('Failed to download content. Please try again.');
+    }
+  };
+
+  const toggleVoiceMode = () => {
+    setVoiceMode(!voiceMode);
+    if (!voiceMode) {
+      textToSpeech.stop();
+    }
+  };
+
+  const handleVoiceInput = () => {
+    if (voiceRecognition.isListening) {
+      voiceRecognition.stopListening();
+    } else {
+      voiceRecognition.startListening();
+    }
   };
 
   const formatRelative = (dateStr: string) => {
@@ -614,8 +751,13 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ isOpen, onClose }) => {
                       }
                     </div>
 
-                    {/* Rich metadata for AI messages */}
+                    {/* Rich metadata for AI messages — only render the wrapper when there is something to show */}
                     {msg.sender_type === 'ai' && (
+                      typeof msg.confidence === 'number' ||
+                      (msg.sources && msg.sources.length > 0) ||
+                      (msg.follow_up_questions && msg.follow_up_questions.length > 0) ||
+                      (msg.download_suggestions && msg.download_suggestions.should_download)
+                    ) && (
                       <div className="cg-ai-bubble-meta">
                         {typeof msg.confidence === 'number' && (
                           <ConfidenceBar value={msg.confidence} />
@@ -627,6 +769,13 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ isOpen, onClose }) => {
                           <FollowUpSuggestions
                             questions={msg.follow_up_questions}
                             onSelect={(q) => sendMessage(q)}
+                          />
+                        )}
+                        {msg.download_suggestions && msg.download_suggestions.should_download && (
+                          <DownloadSuggestions
+                            suggestions={msg.download_suggestions}
+                            content={msg.content}
+                            onDownload={handleDownload}
                           />
                         )}
                       </div>
@@ -662,16 +811,68 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ isOpen, onClose }) => {
             {/* Input area */}
             <div className="cg-ai-input-area">
               <div className="cg-ai-input-wrapper">
+                {/* Voice input button */}
+                {voiceRecognition.isSupported && (
+                  <button
+                    className={`cg-ai-voice-btn ${voiceRecognition.isListening ? 'cg-ai-voice-active' : ''}`}
+                    onClick={handleVoiceInput}
+                    disabled={isLoading}
+                    title={voiceRecognition.isListening ? 'Stop listening' : 'Start voice input'}
+                  >
+                    {voiceRecognition.isListening ? (
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <rect x="6" y="4" width="4" height="16"/>
+                        <rect x="14" y="4" width="4" height="16"/>
+                      </svg>
+                    ) : (
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                        <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                        <line x1="12" y1="19" x2="12" y2="23"/>
+                        <line x1="8" y1="23" x2="16" y2="23"/>
+                      </svg>
+                    )}
+                  </button>
+                )}
+
                 <textarea
                   ref={inputRef}
                   className="cg-ai-textarea"
-                  value={inputMessage}
+                  value={voiceRecognition.isListening ? voiceRecognition.transcript : inputMessage}
                   onChange={autoResize}
                   onKeyDown={handleKey}
-                  placeholder="Ask me anything… (Enter to send, Shift+Enter for new line)"
+                  placeholder={
+                    voiceRecognition.isListening 
+                      ? 'Listening...' 
+                      : 'Ask me anything… (Enter to send, Shift+Enter for new line)'
+                  }
                   rows={1}
-                  disabled={isLoading}
+                  disabled={isLoading || voiceRecognition.isListening}
                 />
+
+                {/* Voice mode toggle button */}
+                {textToSpeech.isSupported && (
+                  <button
+                    className={`cg-ai-tts-btn ${voiceMode ? 'cg-ai-tts-active' : ''}`}
+                    onClick={toggleVoiceMode}
+                    disabled={isLoading}
+                    title={voiceMode ? 'Disable voice responses' : 'Enable voice responses'}
+                  >
+                    {voiceMode ? (
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+                        <line x1="23" y1="9" x2="17" y2="15"/>
+                        <line x1="17" y1="9" x2="23" y2="15"/>
+                      </svg>
+                    ) : (
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+                        <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/>
+                      </svg>
+                    )}
+                  </button>
+                )}
+
                 <button
                   className="cg-ai-send"
                   onClick={() => sendMessage()}
@@ -688,8 +889,26 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ isOpen, onClose }) => {
                   )}
                 </button>
               </div>
+              
+              {/* Voice status indicator */}
+              {voiceRecognition.isListening && (
+                <div className="cg-ai-voice-status">
+                  <span className="cg-ai-voice-pulse"/>
+                  <span className="cg-ai-voice-text">Listening... {voiceRecognition.transcript}</span>
+                </div>
+              )}
+
+              {/* Voice mode indicator */}
+              {voiceMode && (
+                <div className="cg-ai-tts-status">
+                  <span>🔊 Voice responses enabled</span>
+                </div>
+              )}
+
               <p className="cg-ai-footer-note">
                 Answers grounded in university documents · Powered by Gemini 2.5 Flash
+                {voiceRecognition.isSupported && ' · Voice input available'}
+                {textToSpeech.isSupported && ' · Voice responses available'}
               </p>
             </div>
           </div>

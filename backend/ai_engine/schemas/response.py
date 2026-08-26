@@ -23,8 +23,8 @@ class AgentResponse(BaseModel):
     """
 
     answer: str = Field(..., description="The main answer text (markdown supported)")
-    confidence: float = Field(
-        ..., ge=0.0, le=1.0, description="Answer confidence score 0–1"
+    confidence: Optional[float] = Field(
+        None, ge=0.0, le=1.0, description="Answer confidence score 0–1; None for canned responses"
     )
     sources: List[Source] = Field(
         default_factory=list, description="Cited source documents"
@@ -45,6 +45,9 @@ class AgentResponse(BaseModel):
         default_factory=list, description="LangGraph nodes executed in order"
     )
     total_latency_ms: float = Field(0.0, description="End-to-end latency")
+    download_suggestions: Optional[Dict[str, Any]] = Field(
+        None, description="Download suggestions for the response content"
+    )
 
 
 class ToolResult(BaseModel):

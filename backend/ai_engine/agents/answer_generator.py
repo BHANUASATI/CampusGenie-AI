@@ -91,17 +91,16 @@ def generate_answer_node(state: AgentState) -> AgentState:
 
     # -----------------------------------------------------------------------
     # Special case 1: Greeting
+    # Show a short welcome message. No confidence bar (it's a canned response,
+    # not an answer), and no generic follow-up suggestions — let the user ask
+    # their real question naturally.
     # -----------------------------------------------------------------------
     if intent == IntentType.GREETING:
         response = AgentResponse(
             answer=GREETING_RESPONSE,
-            confidence=1.0,
+            confidence=None,          # suppresses the confidence bar in the UI
             sources=[],
-            follow_up_questions=[
-                "What is the minimum attendance requirement?",
-                "How do I check my course schedule?",
-                "Who is my faculty advisor?",
-            ],
+            follow_up_questions=[],   # no generic suggestions on greeting
             intent_detected=intent.value,
             retrieval_used=False,
             tool_used=None,

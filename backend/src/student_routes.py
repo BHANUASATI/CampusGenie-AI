@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from models import Student, User, Task, TaskSubmission, StudentDocument, DocumentType, Department, School, Course
@@ -6,6 +6,10 @@ from database import get_db
 from schemas import StudentResponse, StudentUpdate, StudentCreate
 from dependencies import get_current_active_user, get_current_student, get_current_faculty, get_current_admin
 from typing import List
+import os
+import uuid
+from auth import get_password_hash, verify_password
+from pydantic import BaseModel
 
 router = APIRouter(prefix="/students", tags=["students"])
 
@@ -75,6 +79,7 @@ def get_my_student_info(
         "verification_status": result.verification_status,
         "verified_by": result.verified_by,
         "verified_at": result.verified_at,
+        "profile_image": result.profile_image,
         "created_at": result.created_at,
         "updated_at": result.updated_at,
         "school": {
@@ -171,21 +176,6 @@ def create_student(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error creating student: {str(e)}"
         )
-
-@router.get("/{student_id}", response_model=StudentResponse)
-def get_student(
-    student_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_admin)
-):
-    """Get specific student by ID (Admin only)."""
-    student = db.query(Student).filter(Student.id == student_id).first()
-    if not student:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Student not found"
-        )
-    return student
 
 @router.put("/me", response_model=StudentResponse)
 def update_my_student_info(
@@ -296,3 +286,106 @@ def get_verification_status(
             for doc in documents
         ]
     }
+
+# Password change request model
+class PasswordChangeRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+@router.post("/upload-profile-image")
+async def upload_profile_image(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_student),
+    db: Session = Depends(get_db)
+):
+    """Upload profile image for current student."""
+    student = db.query(Student).filter(Student.user_id == current_user.id).first()
+    if not student:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Student profile not found"
+        )
+    
+    # Validate file type
+    allowed_extensions = {".jpg", ".jpeg", ".png", ".gif"}
+    file_ext = os.path.splitext(file.filename)[1].lower()
+    if file_ext not in allowed_extensions:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid file type. Only JPG, JPEG, PNG, and GIF files are allowed."
+        )
+    
+    # Create upload directory if it doesn't exist
+    upload_dir = "uploads/profile_images"
+    os.makedirs(upload_dir, exist_ok=True)
+    
+    # Generate unique filename
+    file_id = str(uuid.uuid4())
+    filename = f"{file_id}{file_ext}"
+    file_path = os.path.join(upload_dir, filename)
+    
+    # Save file
+    try:
+        with open(file_path, "wb") as buffer:
+            content = await file.read()
+            buffer.write(content)
+        
+        # Delete old profile image if exists
+        if student.profile_image:
+            old_file_path = student.profile_image.replace("/uploads/profile_images/", "")
+            old_full_path = os.path.join(upload_dir, old_file_path)
+            if os.path.exists(old_full_path):
+                os.remove(old_full_path)
+        
+        # Update student profile
+        student.profile_image = f"/uploads/profile_images/{filename}"
+        db.commit()
+        
+        return {
+            "message": "Profile image uploaded successfully",
+            "profile_image": student.profile_image
+        }
+        
+    except Exception as e:
+        # Clean up file if upload failed
+        if os.path.exists(file_path):
+            os.remove(file_path)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error uploading profile image: {str(e)}"
+        )
+
+@router.post("/change-password")
+def change_password(
+    password_data: PasswordChangeRequest,
+    current_user: User = Depends(get_current_student),
+    db: Session = Depends(get_db)
+):
+    """Change password for current student."""
+    # Verify current password
+    if not verify_password(password_data.current_password, current_user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Current password is incorrect"
+        )
+    
+    # Update password
+    current_user.password_hash = get_password_hash(password_data.new_password)
+    db.commit()
+    
+    return {"message": "Password changed successfully"}
+
+@router.get("/{student_id}", response_model=StudentResponse)
+def get_student(
+    student_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_admin)
+):
+    """Get specific student by ID (Admin only)."""
+    student = db.query(Student).filter(Student.id == student_id).first()
+    if not student:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Student not found"
+        )
+    return student

@@ -1,11 +1,10 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { authService } from '../../services/api';
-import { LogIn, User, Lock, Eye, EyeOff, GraduationCap, Users, ChevronRight, CheckCircle2, XCircle, Shield, Zap, BookOpen, ArrowRight, ChevronDown, Briefcase } from 'lucide-react';
+import { LogIn, User, Lock, Eye, EyeOff, ChevronRight, CheckCircle2, XCircle, Shield, Zap, BookOpen, ArrowRight, X } from 'lucide-react';
 
 export const AuthPage: React.FC = () => {
   const { login, state } = useApp();
-  const [userRole, setUserRole] = useState<'student' | 'faculty' | 'admin' | 'registrar'>('student');
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -16,7 +15,14 @@ export const AuthPage: React.FC = () => {
   const [oauthError, setOauthError] = useState('');
   const [loginSuccess, setLoginSuccess] = useState(false);
   const [focusedField, setFocusedField] = useState<string | null>(null);
-  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
+  const [resetLoading, setResetLoading] = useState(false);
+  const [resetMessage, setResetMessage] = useState('');
+  const [showResetForm, setShowResetForm] = useState(false);
+  const [resetToken, setResetToken] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
 
   const validateEmail = (email: string): boolean => {
     const universityEmailRegex = /^[a-zA-Z0-9._%+-]+@university\.edu\.in$/;
@@ -31,13 +37,12 @@ export const AuthPage: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
     if (!validateEmail(formData.email)) {
       setEmailError('Only university email addresses ending with @university.edu.in are allowed');
       return;
     }
-    const isFaculty = userRole === 'faculty' || userRole === 'registrar';
-    const isAdmin = userRole === 'admin';
-    await login(formData.email, formData.password, isFaculty || isAdmin);
+    await login(formData.email, formData.password);
   };
 
   const handleMicrosoftLogin = async () => {
@@ -76,24 +81,74 @@ export const AuthPage: React.FC = () => {
       if (response.is_new_user) {
         setOauthError(response.message || 'Please complete your profile');
       } else {
-        const userRole = response.user.role;
-        const isUserFaculty = userRole === 'faculty';
-        const isUserAdmin = userRole === 'admin';
-        let user: any;
-        if (isUserAdmin) {
-          user = { id: response.user.id.toString(), name: 'Admin User', email: response.user.email, role: 'admin' as const, permissions: ['all'] };
-        } else if (isUserFaculty) {
-          user = { id: response.user.id.toString(), name: 'Faculty User', email: response.user.email, department: 'Computer Science', role: 'faculty' as const, permissions: ['manage_tasks', 'view_students'] };
-        } else {
-          user = { id: response.user.id.toString(), name: 'Student User', email: response.user.email, course: 'BCA', currentSemester: 1, totalSemesters: 6 };
-        }
-        await login(response.user.email, '', isUserFaculty || isUserAdmin);
+        await login(response.user.email, '');
       }
       window.history.replaceState({}, document.title, window.location.pathname);
     } catch (error: any) {
       console.error('OAuth callback error:', error);
       setOauthError(error.message || 'OAuth authentication failed');
       setOauthLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    console.log('handleForgotPassword called with email:', resetEmail);
+    
+    if (!resetEmail) {
+      setResetMessage('Please enter your email address');
+      return;
+    }
+    
+    setResetLoading(true);
+    setResetMessage('');
+    
+    try {
+      console.log('Calling forgotPassword API with email:', resetEmail);
+      const response = await authService.forgotPassword(resetEmail) as any;
+      console.log('Forgot password response:', response);
+      setResetMessage(response.message || 'If the email exists, a reset link has been sent');
+      if (response.reset_token) {
+        setResetToken(response.reset_token);
+        setShowResetForm(true);
+      }
+    } catch (error: any) {
+      console.error('Forgot password error:', error);
+      setResetMessage(error.message || 'Failed to send reset link');
+    } finally {
+      setResetLoading(false);
+    }
+  };
+
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (newPassword !== confirmPassword) {
+      setResetMessage('Passwords do not match');
+      return;
+    }
+    
+    if (newPassword.length < 6) {
+      setResetMessage('Password must be at least 6 characters');
+      return;
+    }
+    
+    setResetLoading(true);
+    setResetMessage('');
+    
+    try {
+      const response = await authService.resetPassword(resetToken, newPassword) as any;
+      setResetMessage(response.message || 'Password reset successfully');
+      setShowResetForm(false);
+      setShowForgotPassword(false);
+      setResetToken('');
+      setNewPassword('');
+      setConfirmPassword('');
+      setResetEmail('');
+    } catch (error: any) {
+      setResetMessage(error.message || 'Failed to reset password');
+    } finally {
+      setResetLoading(false);
     }
   };
 
@@ -140,7 +195,7 @@ export const AuthPage: React.FC = () => {
 
               <div className="flex items-center space-x-4 p-4 bg-white/5 rounded-xl border border-white/10">
                 <div className="p-3 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl">
-                  <GraduationCap className="w-6 h-6 text-white" />
+                  <BookOpen className="w-6 h-6 text-white" />
                 </div>
                 <div>
                   <h3 className="font-semibold text-white">Smart Learning Paths</h3>
@@ -257,7 +312,7 @@ export const AuthPage: React.FC = () => {
                             ? 'border-blue-500 focus:ring-blue-500 shadow-lg shadow-blue-500/20'
                             : 'border-white/20 focus:ring-blue-500'
                         }`}
-                        placeholder={userRole === 'faculty' || userRole === 'registrar' ? "staff@university.edu.in" : "student@university.edu.in"}
+                        placeholder="your.email@university.edu.in"
                       />
                       {formData.email && !emailError && (
                         <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
@@ -271,74 +326,6 @@ export const AuthPage: React.FC = () => {
                         <span>{emailError}</span>
                       </div>
                     )}
-                  </div>
-
-                  {/* Role Selection Dropdown */}
-                  <div className="space-y-2 relative z-40">
-                    <label htmlFor="userRole" className="block text-sm font-medium text-purple-200">
-                      Select Your Role
-                    </label>
-                    <div className="relative">
-                      <button
-                        type="button"
-                        onClick={() => setDropdownOpen(!dropdownOpen)}
-                        className="w-full pl-4 pr-10 py-3 bg-white/10 border border-white/20 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm transition-all duration-300 flex items-center justify-between"
-                      >
-                        <div className="flex items-center">
-                          {userRole === 'student' && <GraduationCap className="w-5 h-5 text-blue-400 mr-2" />}
-                          {userRole === 'faculty' && <Users className="w-5 h-5 text-purple-400 mr-2" />}
-                          {userRole === 'admin' && <Shield className="w-5 h-5 text-pink-400 mr-2" />}
-                          {userRole === 'registrar' && <Briefcase className="w-5 h-5 text-green-400 mr-2" />}
-                          <span style={{ textTransform: 'capitalize' }}>{userRole}</span>
-                        </div>
-                        <ChevronDown className={`w-5 h-5 text-purple-400 transition-transform ${dropdownOpen ? 'rotate-180' : ''}`} />
-                      </button>
-                      
-                      {dropdownOpen && (
-                        <div className="absolute z-50 w-full mt-2 bg-gray-900/95 backdrop-blur-xl border border-gray-700 rounded-xl shadow-2xl overflow-hidden">
-                          <button
-                            type="button"
-                            onClick={() => { setUserRole('student'); setDropdownOpen(false); }}
-                            className={`w-full px-4 py-3 text-left flex items-center space-x-3 transition-colors ${
-                              userRole === 'student' ? 'bg-blue-600/30 text-blue-300' : 'text-gray-300 hover:bg-gray-800'
-                            }`}
-                          >
-                            <GraduationCap className="w-5 h-5" />
-                            <span>Student</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => { setUserRole('faculty'); setDropdownOpen(false); }}
-                            className={`w-full px-4 py-3 text-left flex items-center space-x-3 transition-colors ${
-                              userRole === 'faculty' ? 'bg-purple-600/30 text-purple-300' : 'text-gray-300 hover:bg-gray-800'
-                            }`}
-                          >
-                            <Users className="w-5 h-5" />
-                            <span>Faculty</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => { setUserRole('admin'); setDropdownOpen(false); }}
-                            className={`w-full px-4 py-3 text-left flex items-center space-x-3 transition-colors ${
-                              userRole === 'admin' ? 'bg-pink-600/30 text-pink-300' : 'text-gray-300 hover:bg-gray-800'
-                            }`}
-                          >
-                            <Shield className="w-5 h-5" />
-                            <span>Admin</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => { setUserRole('registrar'); setDropdownOpen(false); }}
-                            className={`w-full px-4 py-3 text-left flex items-center space-x-3 transition-colors ${
-                              userRole === 'registrar' ? 'bg-green-600/30 text-green-300' : 'text-gray-300 hover:bg-gray-800'
-                            }`}
-                          >
-                            <Briefcase className="w-5 h-5" />
-                            <span>Registrar</span>
-                          </button>
-                        </div>
-                      )}
-                    </div>
                   </div>
 
                   <div className="space-y-2">
@@ -396,14 +383,22 @@ export const AuthPage: React.FC = () => {
                       </>
                     ) : (
                       <>
-                        <span>Sign in as {userRole.charAt(0).toUpperCase() + userRole.slice(1)}</span>
+                        <span>Sign In</span>
                         <ChevronRight className="w-4 h-4" />
                       </>
                     )}
                   </button>
 
                   <div className="text-center">
-                    <button type="button" className="text-sm text-purple-200 hover:text-white transition-colors">
+                    <button 
+                      type="button" 
+                      onClick={(e) => {
+                        e.preventDefault();
+                        console.log('Forgot password button clicked');
+                        setShowForgotPassword(true);
+                      }}
+                      className="text-sm text-purple-200 hover:text-white transition-colors cursor-pointer underline p-2 rounded hover:bg-white/10"
+                    >
                       Forgot your password?
                     </button>
                   </div>
@@ -413,6 +408,153 @@ export const AuthPage: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Forgot Password Modal */}
+      {showForgotPassword && (
+        <div 
+          className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[100] p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setShowForgotPassword(false);
+              setShowResetForm(false);
+              setResetMessage('');
+              setResetToken('');
+              setNewPassword('');
+              setConfirmPassword('');
+              setResetEmail('');
+            }
+          }}
+        >
+          <div className="bg-white/10 backdrop-blur-xl rounded-3xl p-8 shadow-2xl border border-white/20 w-full max-w-md relative">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold text-white">
+                {showResetForm ? 'Reset Password' : 'Forgot Password'}
+              </h2>
+              <button
+                onClick={() => {
+                  setShowForgotPassword(false);
+                  setShowResetForm(false);
+                  setResetMessage('');
+                  setResetToken('');
+                  setNewPassword('');
+                  setConfirmPassword('');
+                  setResetEmail('');
+                }}
+                className="text-purple-300 hover:text-white transition-colors bg-white/10 rounded-full p-2 hover:bg-white/20"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            {!showResetForm ? (
+              <form onSubmit={handleForgotPassword} className="space-y-5">
+                <div>
+                  <label htmlFor="reset-email" className="block text-sm font-medium text-purple-200 mb-2">
+                    Email Address
+                  </label>
+                  <input
+                    id="reset-email"
+                    type="email"
+                    required
+                    value={resetEmail}
+                    onChange={(e) => setResetEmail(e.target.value)}
+                    className="block w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl placeholder-purple-300 text-white focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent backdrop-blur-sm transition-all duration-300"
+                    placeholder="your.email@university.edu.in"
+                  />
+                </div>
+
+                {resetMessage && (
+                  <div className={`p-4 rounded-xl ${
+                    resetMessage.includes('success') || resetMessage.includes('sent') 
+                      ? 'bg-green-500/20 border border-green-500/50' 
+                      : 'bg-red-500/20 border border-red-500/50'
+                  }`}>
+                    <p className="text-sm text-white">{resetMessage}</p>
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={resetLoading}
+                  className="w-full bg-gradient-to-r from-purple-500 to-blue-600 text-white py-3 px-4 rounded-xl font-semibold hover:from-purple-600 hover:to-blue-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-transparent disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 transform hover:scale-[1.02] shadow-lg flex items-center justify-center space-x-2"
+                >
+                  {resetLoading ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      <span>Sending...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>Send Reset Link</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </>
+                  )}
+                </button>
+              </form>
+            ) : (
+              <form onSubmit={handleResetPassword} className="space-y-5">
+                <div>
+                  <label htmlFor="new-password" className="block text-sm font-medium text-purple-200 mb-2">
+                    New Password
+                  </label>
+                  <input
+                    id="new-password"
+                    type="password"
+                    required
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    className="block w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl placeholder-purple-300 text-white focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent backdrop-blur-sm transition-all duration-300"
+                    placeholder="••••••••"
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="confirm-password" className="block text-sm font-medium text-purple-200 mb-2">
+                    Confirm New Password
+                  </label>
+                  <input
+                    id="confirm-password"
+                    type="password"
+                    required
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className="block w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl placeholder-purple-300 text-white focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent backdrop-blur-sm transition-all duration-300"
+                    placeholder="••••••••"
+                  />
+                </div>
+
+                {resetMessage && (
+                  <div className={`p-4 rounded-xl ${
+                    resetMessage.includes('success') 
+                      ? 'bg-green-500/20 border border-green-500/50' 
+                      : 'bg-red-500/20 border border-red-500/50'
+                  }`}>
+                    <p className="text-sm text-white">{resetMessage}</p>
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={resetLoading}
+                  className="w-full bg-gradient-to-r from-purple-500 to-blue-600 text-white py-3 px-4 rounded-xl font-semibold hover:from-purple-600 hover:to-blue-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-transparent disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 transform hover:scale-[1.02] shadow-lg flex items-center justify-center space-x-2"
+                >
+                  {resetLoading ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      <span>Resetting...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>Reset Password</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </>
+                  )}
+                </button>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

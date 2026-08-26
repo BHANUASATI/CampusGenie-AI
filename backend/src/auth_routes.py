@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from datetime import timedelta
+from datetime import timedelta, datetime
 from models import User, Student, Faculty, Admin, UserRole
 from database import get_db
 from schemas import UserLogin, Token, UserResponse, StudentCreate, FacultyCreate, AdminCreate, StudentProfileResponse, FacultyProfileResponse, AdminProfileResponse
@@ -8,6 +8,17 @@ from auth import authenticate_user, create_access_token, get_password_hash
 from dependencies import get_current_active_user
 from config import settings
 from sqlalchemy import func
+import secrets
+import string
+from pydantic import BaseModel
+
+# Password reset request models
+class ForgotPasswordRequest(BaseModel):
+    email: str
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str
 
 router = APIRouter(prefix="/api/auth", tags=["authentication"])
 
@@ -236,6 +247,96 @@ def register_admin(admin_data: AdminCreate, db: Session = Depends(get_db)):
 def get_current_user_info(current_user: User = Depends(get_current_active_user), db: Session = Depends(get_db)):
     """Get current user information with role-specific details."""
     user_data = UserResponse.from_orm(current_user)
+
+# Password reset functionality
+# In-memory storage for reset tokens (in production, use database with expiration)
+password_reset_tokens = {}
+
+@router.post("/forgot-password")
+def forgot_password(request: ForgotPasswordRequest, db: Session = Depends(get_db)):
+    """Initiate password reset by sending a reset token."""
+    user = db.query(User).filter(User.email == request.email).first()
+    
+    if not user:
+        # Don't reveal if email exists for security
+        return {"message": "If the email exists, a reset link has been sent"}
+    
+    # Generate reset token
+    reset_token = secrets.token_urlsafe(32)
+    expiry_time = datetime.utcnow() + timedelta(hours=1)  # Token valid for 1 hour
+    
+    # Store token (in production, store in database)
+    password_reset_tokens[reset_token] = {
+        "user_id": user.id,
+        "email": request.email,
+        "expires_at": expiry_time
+    }
+    
+    # In production, send email with reset link
+    # For now, return the token for testing
+    return {
+        "message": "Password reset link generated",
+        "reset_token": reset_token,  # Remove this in production
+        "expires_in": "1 hour"
+    }
+
+@router.post("/reset-password")
+def reset_password(request: ResetPasswordRequest, db: Session = Depends(get_db)):
+    """Reset password using valid reset token."""
+    # Check if token exists and is valid
+    if request.token not in password_reset_tokens:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired reset token"
+        )
+    
+    token_data = password_reset_tokens[request.token]
+    
+    # Check if token has expired
+    if datetime.utcnow() > token_data["expires_at"]:
+        del password_reset_tokens[request.token]
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Reset token has expired"
+        )
+    
+    # Get user
+    user = db.query(User).filter(User.id == token_data["user_id"]).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+    
+    # Update password
+    user.password_hash = get_password_hash(request.new_password)
+    db.commit()
+    
+    # Remove used token
+    del password_reset_tokens[request.token]
+    
+    return {"message": "Password reset successfully"}
+
+@router.get("/verify-reset-token/{token}")
+def verify_reset_token(token: str):
+    """Verify if a reset token is valid."""
+    if token not in password_reset_tokens:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid reset token"
+        )
+    
+    token_data = password_reset_tokens[token]
+    
+    # Check if token has expired
+    if datetime.utcnow() > token_data["expires_at"]:
+        del password_reset_tokens[token]
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Reset token has expired"
+        )
+    
+    return {"valid": True, "email": token_data["email"]}
     
     # Get role-specific information
     if current_user.role == UserRole.STUDENT:

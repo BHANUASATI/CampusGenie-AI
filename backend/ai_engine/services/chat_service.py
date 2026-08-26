@@ -31,6 +31,7 @@ from ai_engine.graph.orchestrator import run_agent
 from ai_engine.repositories.conversation_repo import ConversationRepository
 from ai_engine.schemas.agent_state import AgentState, UserContext
 from ai_engine.schemas.response import AgentResponse
+from ai_engine.services.download_service import DownloadService
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -177,27 +178,49 @@ class ChatService:
                     )
 
                 # -----------------------------------------------------------
+                # 5.5. Add download suggestions
+                # -----------------------------------------------------------
+                download_service = DownloadService()
+                download_suggestions = download_service.detect_download_need(
+                    agent_response.answer,
+                    final_state.get("intent")
+                )
+                
+                # Add download suggestions to agent response
+                if download_suggestions["should_download"]:
+                    agent_response.download_suggestions = download_suggestions
+
+                # -----------------------------------------------------------
                 # 6. Retrieve the persisted messages from save_memory_node
                 # -----------------------------------------------------------
-                # save_memory_node wrote them to DB; we need to return the
-                # actual DB objects for the API response.
-                # We fetch them by getting the last 2 messages for this conversation.
-                from models import AIMessage
-                last_two = (
-                    self.db.query(AIMessage)
-                    .filter(AIMessage.conversation_id == conversation_id)
-                    .order_by(AIMessage.created_at.desc())
-                    .limit(2)
-                    .all()
-                )
-                last_two.reverse()
+                # save_memory_node stores the committed DB objects directly on
+                # the state under _saved_user_msg / _saved_ai_msg.  Use them
+                # instead of doing a fragile positional query that breaks when
+                # the two rows share the same created_at timestamp.
+                user_db_msg = final_state.get("_saved_user_msg")
+                ai_db_msg   = final_state.get("_saved_ai_msg")
 
-                if len(last_two) >= 2:
-                    user_db_msg = last_two[-2]
-                    ai_db_msg = last_two[-1]
-                else:
-                    # Fallback: create in-memory objects (not persisted)
-                    # Import here to avoid top-level circular dependency
+                if user_db_msg is None or ai_db_msg is None:
+                    # Fallback: query by sender_type so we never rely on position
+                    from models import AIMessage, MessageSenderType
+                    last_msgs = (
+                        self.db.query(AIMessage)
+                        .filter(AIMessage.conversation_id == conversation_id)
+                        .order_by(AIMessage.id.desc())
+                        .limit(2)
+                        .all()
+                    )
+                    user_db_msg = next(
+                        (m for m in last_msgs if m.sender_type == MessageSenderType.USER),
+                        None,
+                    )
+                    ai_db_msg = next(
+                        (m for m in last_msgs if m.sender_type == MessageSenderType.AI),
+                        None,
+                    )
+
+                if user_db_msg is None or ai_db_msg is None:
+                    # Last-resort fallback: return in-memory objects (not persisted)
                     from models import AIMessage, MessageSenderType
                     now = datetime.now()
                     user_db_msg = AIMessage(

@@ -17,7 +17,7 @@ import {
   Upload, Download, Eye, Trash2, File, Folder, Paperclip,
   Check, AlertTriangle as WarningIcon, CalendarDays, CalendarCheck,
   CalendarPlus, TrendingUp, ChevronDown, Sun, Moon, Shield, Key,
-  Star, Zap, Award, Activity, GraduationCap, Sparkles
+  Star, Zap, Award, Activity, GraduationCap, Sparkles, Mail
 } from 'lucide-react';
 import { ThemeToggle } from '../components/common/ThemeToggle';
 
@@ -64,6 +64,7 @@ interface UploadedDocument {
 }
 
 type CalendarType = 'academic' | 'personal';
+type TodoCategory = 'academic' | 'personal';
 type TodoStatus = 'pending' | 'in-progress' | 'completed';
 
 interface CalendarEvent {
@@ -83,6 +84,9 @@ interface CalendarEvent {
   alertMessage?: string;
   alertEnabled?: boolean;
   alertSent?: boolean;
+  emailNotificationEnabled?: boolean;
+  notificationEmail?: string;
+  notificationTime?: string;
 }
 
 export const StudentDashboard: React.FC = () => {
@@ -98,6 +102,19 @@ export const StudentDashboard: React.FC = () => {
   const [dashboardStats, setDashboardStats] = useState<any>(null);
   const [documentTypesStatus, setDocumentTypesStatus] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [profileImageFile, setProfileImageFile] = useState<File | null>(null);
+  const [profileImagePreview, setProfileImagePreview] = useState<string>('');
+  const [passwordData, setPasswordData] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: ''
+  });
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [changingPassword, setChangingPassword] = useState(false);
+  const [profileMessage, setProfileMessage] = useState('');
+  const [profileImageError, setProfileImageError] = useState(false);
 
   useEffect(() => {
     const fetchStudentData = async () => {
@@ -164,7 +181,10 @@ export const StudentDashboard: React.FC = () => {
           priority: event.priority, riskLevel: event.risk_level, category: event.category,
           location: event.location, startDate: event.start_date, endDate: event.end_date,
           alertDate: event.alert_date, alertMessage: event.alert_message,
-          alertEnabled: event.alert_enabled, alertSent: event.alert_sent
+          alertEnabled: event.alert_enabled, alertSent: event.alert_sent,
+          emailNotificationEnabled: event.email_notification_enabled,
+          notificationEmail: event.notification_email,
+          notificationTime: event.notification_time
         }));
         setCalendarEvents(transformedEvents);
       } catch (error) { console.error('Error fetching calendar data:', error); }
@@ -221,6 +241,104 @@ export const StudentDashboard: React.FC = () => {
   const [documentPreview, setDocumentPreview] = useState<{url: string, name: string} | null>(null);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [selectedFileName, setSelectedFileName] = useState<string>('');
+
+  // Profile image upload handler
+  const handleProfileImageUpload = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!profileImageFile) {
+      setProfileMessage('Please select an image file');
+      return;
+    }
+
+    // Validate file type
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif'];
+    if (!allowedTypes.includes(profileImageFile.type)) {
+      setProfileMessage('Only JPG, JPEG, PNG, and GIF files are allowed');
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    if (profileImageFile.size > 5 * 1024 * 1024) {
+      setProfileMessage('File size must be less than 5MB');
+      return;
+    }
+
+    setUploadingImage(true);
+    setProfileMessage('');
+
+    try {
+      const response = await studentService.uploadProfileImage(profileImageFile) as any;
+      setProfileMessage('Profile image uploaded successfully!');
+      
+      // Refresh student profile data to get updated profile_image
+      const profileData = await studentService.getProfile() as any;
+      setStudentProfile(profileData);
+      setProfileImageError(false);
+      
+      // Clear form
+      setProfileImageFile(null);
+      setProfileImagePreview('');
+      
+      setTimeout(() => {
+        setShowProfileModal(false);
+        setProfileMessage('');
+      }, 2000);
+      
+    } catch (error: any) {
+      setProfileMessage(error.message || 'Failed to upload profile image');
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
+  // Password change handler
+  const handlePasswordChange = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (passwordData.newPassword !== passwordData.confirmPassword) {
+      setProfileMessage('New passwords do not match');
+      return;
+    }
+    
+    if (passwordData.newPassword.length < 6) {
+      setProfileMessage('Password must be at least 6 characters');
+      return;
+    }
+    
+    setChangingPassword(true);
+    setProfileMessage('');
+
+    try {
+      await studentService.changePassword(passwordData.currentPassword, passwordData.newPassword);
+      setProfileMessage('Password changed successfully!');
+      
+      // Clear form
+      setPasswordData({
+        currentPassword: '',
+        newPassword: '',
+        confirmPassword: ''
+      });
+      
+      setTimeout(() => {
+        setShowPasswordModal(false);
+        setProfileMessage('');
+      }, 2000);
+      
+    } catch (error: any) {
+      setProfileMessage(error.message || 'Failed to change password');
+    } finally {
+      setChangingPassword(false);
+    }
+  };
+
+  // Profile image selection handler
+  const handleProfileImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setProfileImageFile(file);
+      setProfileImagePreview(URL.createObjectURL(file));
+    }
+  };
 
   useEffect(() => {
     if (!currentUser) return;
@@ -296,11 +414,14 @@ export const StudentDashboard: React.FC = () => {
   const [todoDescription, setTodoDescription] = useState('');
   const [todoPriority, setTodoPriority] = useState<'low' | 'medium' | 'high' | 'urgent'>('medium');
   const [todoRiskLevel, setTodoRiskLevel] = useState<'low' | 'medium' | 'high' | 'critical'>('low');
-  const [todoCategory, setTodoCategory] = useState('Personal');
+  const [todoCategory, setTodoCategory] = useState<TodoCategory>('personal');
   const [todoLocation, setTodoLocation] = useState('');
   const [todoAlertEnabled, setTodoAlertEnabled] = useState(false);
   const [todoAlertMessage, setTodoAlertMessage] = useState('');
   const [todoAlertDate, setTodoAlertDate] = useState('');
+  const [todoEmailNotificationEnabled, setTodoEmailNotificationEnabled] = useState(false);
+  const [todoNotificationEmail, setTodoNotificationEmail] = useState('');
+  const [todoNotificationTime, setTodoNotificationTime] = useState('');
   const [editingTodo, setEditingTodo] = useState<CalendarEvent | null>(null);
   const [showAlertModal, setShowAlertModal] = useState(false);
   const [alertMessages, setAlertMessages] = useState<{ academic: string[]; personal: string[]; }>({ academic: [], personal: [] });
@@ -471,10 +592,15 @@ export const StudentDashboard: React.FC = () => {
       setTodoCategory(todo.category || 'Personal'); setTodoLocation(todo.location || '');
       setTodoAlertEnabled(todo.alertEnabled || false); setTodoAlertMessage(todo.alertMessage || '');
       setTodoAlertDate(todo.alertDate ? new Date(todo.alertDate).toISOString().split('T')[0] : '');
+      setTodoEmailNotificationEnabled(todo.emailNotificationEnabled || false);
+      setTodoNotificationEmail(todo.notificationEmail || '');
+      setTodoNotificationTime(todo.notificationTime || '');
+      setTodoCategory(todo.type === 'academic' ? 'academic' : 'personal');
     } else {
       setEditingTodo(null); setTodoTitle(''); setTodoDescription(''); setTodoPriority('medium');
-      setTodoRiskLevel('low'); setTodoCategory('Personal'); setTodoLocation('');
+      setTodoRiskLevel('low'); setTodoCategory('personal'); setTodoLocation('');
       setTodoAlertEnabled(false); setTodoAlertMessage(''); setTodoAlertDate('');
+      setTodoEmailNotificationEnabled(false); setTodoNotificationEmail(''); setTodoNotificationTime('');
     }
     setShowTodoModal(true);
   };
@@ -482,8 +608,9 @@ export const StudentDashboard: React.FC = () => {
   const closeTodoModal = () => {
     setShowTodoModal(false); setSelectedDate(null); setEditingTodo(null);
     setTodoTitle(''); setTodoDescription(''); setTodoPriority('medium'); setTodoRiskLevel('low');
-    setTodoCategory('Personal'); setTodoLocation(''); setTodoAlertEnabled(false);
-    setTodoAlertMessage(''); setTodoAlertDate('');
+    setTodoCategory('personal'); setTodoLocation(''); setTodoAlertEnabled(false);
+    setTodoAlertMessage(''); setTodoAlertDate(''); setTodoEmailNotificationEnabled(false);
+    setTodoNotificationEmail(''); setTodoNotificationTime('');
   };
 
   const refreshCalendarEvents = async () => {
@@ -494,14 +621,35 @@ export const StudentDashboard: React.FC = () => {
       priority: event.priority, riskLevel: event.risk_level, category: event.category,
       location: event.location, startDate: event.start_date, endDate: event.end_date,
       alertDate: event.alert_date, alertMessage: event.alert_message,
-      alertEnabled: event.alert_enabled, alertSent: event.alert_sent
+      alertEnabled: event.alert_enabled, alertSent: event.alert_sent,
+      emailNotificationEnabled: event.email_notification_enabled,
+      notificationEmail: event.notification_email,
+      notificationTime: event.notification_time
     })));
   };
 
   const saveTodo = async () => {
     if (!todoTitle.trim() || !selectedDate) { alert('Please enter a title and select a date'); return; }
+    if (todoEmailNotificationEnabled && (!todoNotificationEmail.trim() || !todoNotificationTime.trim())) { 
+      alert('Please provide email and notification time when email notifications are enabled'); return; 
+    }
     try {
-      const todoData = { title: todoTitle, description: todoDescription, event_type: 'personal', priority: todoPriority, risk_level: todoRiskLevel, start_date: selectedDate.toISOString(), category: todoCategory, location: todoLocation, alert_enabled: todoAlertEnabled, alert_message: todoAlertMessage, alert_date: todoAlertDate ? new Date(todoAlertDate).toISOString() : null };
+      const todoData = { 
+        title: todoTitle, 
+        description: todoDescription, 
+        event_type: todoCategory, 
+        priority: todoPriority, 
+        risk_level: todoRiskLevel, 
+        start_date: selectedDate.toISOString(), 
+        category: todoCategory, 
+        location: todoLocation, 
+        alert_enabled: todoAlertEnabled, 
+        alert_message: todoAlertMessage, 
+        alert_date: todoAlertDate ? new Date(todoAlertDate).toISOString() : null,
+        email_notification_enabled: todoEmailNotificationEnabled,
+        notification_email: todoNotificationEmail,
+        notification_time: todoNotificationTime
+      };
       if (editingTodo) await calendarService.updateEvent(editingTodo.id, todoData);
       else await calendarService.createEvent(todoData);
       await refreshCalendarEvents(); closeTodoModal(); alert(editingTodo ? 'Todo updated!' : 'Todo created!');
@@ -522,6 +670,14 @@ export const StudentDashboard: React.FC = () => {
   const markTodoComplete = async (todoId: string) => {
     try { await calendarService.markEventComplete(todoId); await refreshCalendarEvents(); }
     catch (error: any) { alert(`Error: ${error.response?.data?.detail || 'Failed to mark todo complete'}`); }
+  };
+
+  const testNotification = async (todoId: string) => {
+    try { 
+      const result = await calendarService.testNotification(todoId) as any;
+      alert(`✅ Test notification sent to: ${result.email}`); 
+    }
+    catch (error: any) { alert(`Error: ${error.response?.data?.detail || 'Failed to send test notification'}`); }
   };
 
   const toggleDropdown = (categoryId: string) => setOpenDropdown(openDropdown === categoryId ? null : categoryId);
@@ -554,10 +710,10 @@ export const StudentDashboard: React.FC = () => {
   ];
 
   const userMenuItems = [
-    { id: 'profile', label: 'Profile', icon: User, action: () => {} },
+    { id: 'profile', label: 'Profile', icon: User, action: () => setShowProfileModal(true) },
     { id: 'settings', label: 'Settings', icon: Settings, action: () => {} },
     { id: 'security', label: 'Security', icon: Shield, action: () => {} },
-    { id: 'change-password', label: 'Change Password', icon: Key, action: () => {} },
+    { id: 'change-password', label: 'Change Password', icon: Key, action: () => setShowPasswordModal(true) },
   ];
 
   const isDark = theme === 'dark';
@@ -868,12 +1024,55 @@ export const StudentDashboard: React.FC = () => {
                       <div><label className={`block text-sm font-medium mb-1.5 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Risk Level</label><select value={todoRiskLevel} onChange={e => setTodoRiskLevel(e.target.value as any)} className={`w-full px-3 py-2.5 rounded-xl border text-sm ${isDark ? 'bg-slate-800 border-slate-600 text-white' : 'bg-white border-slate-300 text-slate-800'} focus:outline-none focus:ring-2 focus:ring-indigo-500`}><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="critical">Critical</option></select></div>
                     </div>
                     <div className="grid grid-cols-2 gap-3">
-                      <div><label className={`block text-sm font-medium mb-1.5 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Category</label><input type="text" value={todoCategory} onChange={e => setTodoCategory(e.target.value)} className={`w-full px-3 py-2.5 rounded-xl border text-sm ${isDark ? 'bg-slate-800 border-slate-600 text-white' : 'bg-white border-slate-300 text-slate-800'} focus:outline-none focus:ring-2 focus:ring-indigo-500`} placeholder="Personal, Work…" /></div>
+                      <div>
+                        <label className={`block text-sm font-medium mb-1.5 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Category</label>
+                        <select 
+                          value={todoCategory} 
+                          onChange={e => setTodoCategory(e.target.value as 'academic' | 'personal')} 
+                          className={`w-full px-3 py-2.5 rounded-xl border text-sm ${isDark ? 'bg-slate-800 border-slate-600 text-white' : 'bg-white border-slate-300 text-slate-800'} focus:outline-none focus:ring-2 focus:ring-indigo-500`}
+                        >
+                          <option value="personal">👤 Personal</option>
+                          <option value="academic">🎓 Academic</option>
+                        </select>
+                      </div>
                       <div><label className={`block text-sm font-medium mb-1.5 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Location</label><input type="text" value={todoLocation} onChange={e => setTodoLocation(e.target.value)} className={`w-full px-3 py-2.5 rounded-xl border text-sm ${isDark ? 'bg-slate-800 border-slate-600 text-white' : 'bg-white border-slate-300 text-slate-800'} focus:outline-none focus:ring-2 focus:ring-indigo-500`} placeholder="Where? (optional)" /></div>
                     </div>
                     <div className={`p-4 rounded-xl ${isDark ? 'bg-slate-800' : 'bg-slate-50'}`}>
                       <div className="flex items-center mb-3"><input type="checkbox" id="alertEnabled" checked={todoAlertEnabled} onChange={e => setTodoAlertEnabled(e.target.checked)} className="mr-2 accent-indigo-500" /><label htmlFor="alertEnabled" className={`text-sm font-medium ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Enable Alert</label></div>
                       {todoAlertEnabled && (<div className="space-y-3"><div><label className={`block text-sm font-medium mb-1.5 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Alert Date</label><input type="date" value={todoAlertDate} onChange={e => setTodoAlertDate(e.target.value)} className={`w-full px-3 py-2.5 rounded-xl border text-sm ${isDark ? 'bg-slate-800 border-slate-600 text-white' : 'bg-white border-slate-300 text-slate-800'} focus:outline-none focus:ring-2 focus:ring-indigo-500`} /></div><div><label className={`block text-sm font-medium mb-1.5 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Alert Message</label><input type="text" value={todoAlertMessage} onChange={e => setTodoAlertMessage(e.target.value)} className={`w-full px-3 py-2.5 rounded-xl border text-sm ${isDark ? 'bg-slate-800 border-slate-600 text-white' : 'bg-white border-slate-300 text-slate-800'} focus:outline-none focus:ring-2 focus:ring-indigo-500`} placeholder="Alert message (optional)" /></div></div>)}
+                    </div>
+                    
+                    {/* Email Notification Section */}
+                    <div className={`p-4 rounded-xl ${isDark ? 'bg-slate-800' : 'bg-slate-50'}`}>
+                      <div className="flex items-center mb-3">
+                        <input type="checkbox" id="emailNotificationEnabled" checked={todoEmailNotificationEnabled} onChange={e => setTodoEmailNotificationEnabled(e.target.checked)} className="mr-2 accent-indigo-500" />
+                        <label htmlFor="emailNotificationEnabled" className={`text-sm font-medium ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Enable Email Notifications</label>
+                        <Mail className="w-4 h-4 ml-2 text-indigo-500" />
+                      </div>
+                      {todoEmailNotificationEnabled && (
+                        <div className="space-y-3">
+                          <div>
+                            <label className={`block text-sm font-medium mb-1.5 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Notification Email</label>
+                            <input 
+                              type="email" 
+                              value={todoNotificationEmail} 
+                              onChange={e => setTodoNotificationEmail(e.target.value)} 
+                              className={`w-full px-3 py-2.5 rounded-xl border text-sm ${isDark ? 'bg-slate-800 border-slate-600 text-white placeholder-slate-500' : 'bg-white border-slate-300 text-slate-800'} focus:outline-none focus:ring-2 focus:ring-indigo-500`} 
+                              placeholder="your@email.com" 
+                            />
+                          </div>
+                          <div>
+                            <label className={`block text-sm font-medium mb-1.5 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Notification Time</label>
+                            <input 
+                              type="time" 
+                              value={todoNotificationTime} 
+                              onChange={e => setTodoNotificationTime(e.target.value)} 
+                              className={`w-full px-3 py-2.5 rounded-xl border text-sm ${isDark ? 'bg-slate-800 border-slate-600 text-white' : 'bg-white border-slate-300 text-slate-800'} focus:outline-none focus:ring-2 focus:ring-indigo-500`} 
+                            />
+                            <p className={`text-xs mt-1 ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>You'll receive a daily email reminder at this time until the todo is completed</p>
+                          </div>
+                        </div>
+                      )}
                     </div>
                     {editingTodo && (
                       <div className={`p-4 rounded-xl ${isDark ? 'bg-slate-800' : 'bg-slate-50'}`}>
@@ -881,6 +1080,11 @@ export const StudentDashboard: React.FC = () => {
                         <div className="flex flex-wrap gap-2">
                           <button onClick={() => toggleTodoStatus(editingTodo.id)} className={`px-3 py-1.5 rounded-lg text-sm ${editingTodo.status === 'pending' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-amber-600 hover:bg-amber-700'} text-white transition-colors`}>{editingTodo.status === 'pending' ? 'Start' : 'Pause'}</button>
                           <button onClick={() => markTodoComplete(editingTodo.id)} className="px-3 py-1.5 rounded-lg text-sm bg-emerald-600 hover:bg-emerald-700 text-white transition-colors">Complete</button>
+                          {editingTodo.emailNotificationEnabled && editingTodo.notificationEmail && (
+                            <button onClick={() => testNotification(editingTodo.id)} className="px-3 py-1.5 rounded-lg text-sm bg-indigo-600 hover:bg-indigo-700 text-white transition-colors flex items-center gap-1">
+                              <Mail className="w-3 h-3" /> Test Email
+                            </button>
+                          )}
                           <button onClick={() => deleteTodo(editingTodo.id)} className="px-3 py-1.5 rounded-lg text-sm bg-rose-600 hover:bg-rose-700 text-white transition-colors">Delete</button>
                         </div>
                       </div>
@@ -1456,12 +1660,23 @@ export const StudentDashboard: React.FC = () => {
           {/* User menu */}
           <div className="relative">
             <button onClick={() => { setShowUserMenu(!showUserMenu); setShowNotifications(false); }} className={`flex items-center gap-2 px-2 py-1.5 rounded-xl transition-colors ${isDark ? 'hover:bg-slate-700' : 'hover:bg-slate-100'}`}>
-              <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shadow">
-                <User className="w-4 h-4 text-white" />
+              <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shadow overflow-hidden">
+                {studentProfile?.profile_image && !profileImageError ? (
+                  <img 
+                    src={`http://localhost:8002${studentProfile.profile_image}`} 
+                    alt="Profile" 
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      setProfileImageError(true);
+                    }}
+                  />
+                ) : (
+                  <User className="w-4 h-4 text-white" />
+                )}
               </div>
               <div className="hidden sm:block text-left">
                 <div className={`text-sm font-semibold leading-tight ${isDark ? 'text-white' : 'text-slate-800'}`}>
-                  {studentProfile?.first_name && studentProfile?.last_name ? `${studentProfile.first_name} ${studentProfile.last_name}` : studentProfile?.name || 'Student'}
+                  {studentProfile?.first_name && studentProfile?.last_name ? `${studentProfile.first_name} ${studentProfile.last_name}` : studentProfile?.name || currentStudent?.name || currentUser?.email?.split('@')[0] || 'Student'}
                 </div>
                 <div className="flex items-center gap-1 mt-0.5">
                   <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full" />
@@ -1575,8 +1790,19 @@ export const StudentDashboard: React.FC = () => {
                 {/* Avatar + status */}
                 <div className="flex items-start gap-4 xl:flex-col xl:items-center xl:w-40 xl:flex-shrink-0">
                   <div className="relative">
-                    <div className={`w-20 h-20 lg:w-24 lg:h-24 rounded-2xl flex items-center justify-center shadow-xl ${isDark ? 'bg-slate-700/80' : 'bg-white/20 backdrop-blur-sm border border-white/30'}`}>
-                      <User className={`w-10 h-10 lg:w-12 lg:h-12 ${isDark ? 'text-indigo-400' : 'text-white'}`} />
+                    <div className={`w-20 h-20 lg:w-24 lg:h-24 rounded-2xl flex items-center justify-center shadow-xl overflow-hidden ${isDark ? 'bg-slate-700/80' : 'bg-white/20 backdrop-blur-sm border border-white/30'}`}>
+                      {studentProfile?.profile_image && !profileImageError ? (
+                        <img 
+                          src={`http://localhost:8002${studentProfile.profile_image}`} 
+                          alt="Profile" 
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            setProfileImageError(true);
+                          }}
+                        />
+                      ) : (
+                        <User className={`w-10 h-10 lg:w-12 lg:h-12 ${isDark ? 'text-indigo-400' : 'text-white'}`} />
+                      )}
                     </div>
                     <div className="absolute -bottom-1.5 -right-1.5 w-7 h-7 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center shadow-lg border-2 border-white/30">
                       <CheckCircle className="w-3.5 h-3.5 text-white" />
@@ -1600,9 +1826,9 @@ export const StudentDashboard: React.FC = () => {
                   ) : (
                     <>
                       <h1 className={`text-2xl lg:text-3xl font-bold mb-0.5 ${isDark ? 'text-white' : 'text-white'}`}>
-                        {studentProfile?.first_name && studentProfile?.last_name ? `${studentProfile.first_name} ${studentProfile.last_name}` : studentProfile?.name || currentStudent?.name || 'Student'}
+                        {studentProfile?.first_name && studentProfile?.last_name ? `${studentProfile.first_name} ${studentProfile.last_name}` : studentProfile?.name || currentStudent?.name || currentUser?.email?.split('@')[0] || 'Student'}
                       </h1>
-                      <p className={`text-sm mb-4 ${isDark ? 'text-indigo-300' : 'text-indigo-100'}`}>{studentProfile?.email || currentStudent?.email || ''}</p>
+                      <p className={`text-sm mb-4 ${isDark ? 'text-indigo-300' : 'text-indigo-100'}`}>{currentUser?.email || ''}</p>
                     </>
                   )}
                   <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
@@ -1610,7 +1836,7 @@ export const StudentDashboard: React.FC = () => {
                       { icon: BookOpen, label: 'Course', value: studentProfile?.department?.name || '—' },
                       { icon: Calendar, label: 'Semester', value: studentProfile?.semester ? `Sem ${studentProfile.semester}` : '—' },
                       { icon: Users, label: 'Batch', value: studentProfile?.batch || '—' },
-                      { icon: FileText, label: 'ID', value: studentProfile?.enrollment_number || '—' },
+                      { icon: FileText, label: 'ID', value: studentProfile?.enrollment_number || currentUser?.email?.split('@')[0] || '—' },
                     ].map((item, i) => (
                       <div key={i} className={`flex items-center gap-2.5 p-2.5 rounded-xl ${isDark ? 'bg-slate-700/40 border border-slate-600/30' : 'bg-white/15 border border-white/20'} backdrop-blur-sm`}>
                         <div className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${isDark ? 'bg-slate-600/60' : 'bg-white/20'}`}><item.icon className={`w-3.5 h-3.5 ${isDark ? 'text-indigo-400' : 'text-white'}`} /></div>
@@ -1839,6 +2065,197 @@ export const StudentDashboard: React.FC = () => {
               <button onClick={() => setShowLogoutConfirm(false)} className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition-colors ${isDark ? 'bg-slate-800 hover:bg-slate-700 text-slate-300' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'}`}>Cancel</button>
               <button onClick={() => logout()} className="flex-1 py-2.5 rounded-xl text-sm font-medium bg-gradient-to-r from-rose-500 to-pink-600 text-white hover:shadow-lg hover:scale-[1.02] transition-all">Sign Out</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── PROFILE MODAL ──────────────────────────────────────────────────── */}
+      {showProfileModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className={`rounded-2xl border shadow-2xl w-full max-w-md p-6 ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-200'}`}>
+            <div className="flex items-center justify-between mb-6">
+              <h3 className={`text-xl font-bold ${isDark ? 'text-white' : 'text-slate-800'}`}>Profile Settings</h3>
+              <button onClick={() => { setShowProfileModal(false); setProfileMessage(''); setProfileImageFile(null); setProfileImagePreview(''); }} className={`p-2 rounded-xl transition-colors ${isDark ? 'hover:bg-slate-700 text-slate-400' : 'hover:bg-slate-100 text-slate-600'}`}>
+                <CloseIcon className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Profile Image Section */}
+            <div className="mb-6">
+              <label className={`block text-sm font-medium mb-3 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Profile Image</label>
+              <div className="flex items-center gap-4 mb-4">
+                <div className="w-20 h-20 rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center overflow-hidden shadow-lg">
+                  {profileImagePreview ? (
+                    <img src={profileImagePreview} alt="Profile Preview" className="w-full h-full object-cover" />
+                  ) : studentProfile?.profile_image && !profileImageError ? (
+                    <img src={`http://localhost:8002${studentProfile.profile_image}`} alt="Current Profile" className="w-full h-full object-cover" onError={() => setProfileImageError(true)} />
+                  ) : (
+                    <User className="w-10 h-10 text-white" />
+                  )}
+                </div>
+                <div className="flex-1">
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/jpg,image/png,image/gif"
+                    onChange={handleProfileImageSelect}
+                    className="hidden"
+                    id="profileImageInput"
+                  />
+                  <label
+                    htmlFor="profileImageInput"
+                    className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-colors cursor-pointer ${
+                      isDark 
+                        ? 'bg-indigo-500 hover:bg-indigo-600 text-white' 
+                        : 'bg-indigo-500 hover:bg-indigo-600 text-white'
+                    }`}
+                  >
+                    <Upload className="w-4 h-4" />
+                    Choose Image
+                  </label>
+                  <p className={`text-xs mt-2 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>JPG, PNG, GIF (Max 5MB)</p>
+                </div>
+              </div>
+            </div>
+
+            {profileMessage && (
+              <div className={`p-3 rounded-xl mb-4 text-sm ${
+                profileMessage.includes('success') 
+                  ? 'bg-green-500/20 text-green-300 border border-green-500/50' 
+                  : 'bg-red-500/20 text-red-300 border border-red-500/50'
+              }`}>
+                {profileMessage}
+              </div>
+            )}
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => { setShowProfileModal(false); setProfileMessage(''); setProfileImageFile(null); setProfileImagePreview(''); }}
+                className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition-colors ${isDark ? 'bg-slate-800 hover:bg-slate-700 text-slate-300' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'}`}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleProfileImageUpload}
+                disabled={uploadingImage || !profileImageFile}
+                className={`flex-1 py-2.5 rounded-xl text-sm font-medium bg-gradient-to-r from-indigo-500 to-violet-600 text-white hover:shadow-lg hover:scale-[1.02] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2`}
+              >
+                {uploadingImage ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    Uploading...
+                  </>
+                ) : (
+                  <>
+                    <Upload className="w-4 h-4" />
+                    Upload
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── PASSWORD CHANGE MODAL ──────────────────────────────────────────────── */}
+      {showPasswordModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className={`rounded-2xl border shadow-2xl w-full max-w-md p-6 ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-200'}`}>
+            <div className="flex items-center justify-between mb-6">
+              <h3 className={`text-xl font-bold ${isDark ? 'text-white' : 'text-slate-800'}`}>Change Password</h3>
+              <button onClick={() => { setShowPasswordModal(false); setProfileMessage(''); setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' }); }} className={`p-2 rounded-xl transition-colors ${isDark ? 'hover:bg-slate-700 text-slate-400' : 'hover:bg-slate-100 text-slate-600'}`}>
+                <CloseIcon className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handlePasswordChange} className="space-y-4">
+              <div>
+                <label htmlFor="currentPassword" className={`block text-sm font-medium mb-2 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Current Password</label>
+                <input
+                  type="password"
+                  id="currentPassword"
+                  value={passwordData.currentPassword}
+                  onChange={(e) => setPasswordData({ ...passwordData, currentPassword: e.target.value })}
+                  required
+                  className={`w-full px-4 py-3 rounded-xl border focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all ${
+                    isDark 
+                      ? 'bg-slate-800 border-slate-700 text-white placeholder-slate-500' 
+                      : 'bg-white border-slate-200 text-slate-800 placeholder-slate-400'
+                  }`}
+                  placeholder="Enter current password"
+                />
+              </div>
+
+              <div>
+                <label htmlFor="newPassword" className={`block text-sm font-medium mb-2 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>New Password</label>
+                <input
+                  type="password"
+                  id="newPassword"
+                  value={passwordData.newPassword}
+                  onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
+                  required
+                  className={`w-full px-4 py-3 rounded-xl border focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all ${
+                    isDark 
+                      ? 'bg-slate-800 border-slate-700 text-white placeholder-slate-500' 
+                      : 'bg-white border-slate-200 text-slate-800 placeholder-slate-400'
+                  }`}
+                  placeholder="Enter new password"
+                />
+              </div>
+
+              <div>
+                <label htmlFor="confirmPassword" className={`block text-sm font-medium mb-2 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Confirm New Password</label>
+                <input
+                  type="password"
+                  id="confirmPassword"
+                  value={passwordData.confirmPassword}
+                  onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
+                  required
+                  className={`w-full px-4 py-3 rounded-xl border focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all ${
+                    isDark 
+                      ? 'bg-slate-800 border-slate-700 text-white placeholder-slate-500' 
+                      : 'bg-white border-slate-200 text-slate-800 placeholder-slate-400'
+                  }`}
+                  placeholder="Confirm new password"
+                />
+              </div>
+
+              {profileMessage && (
+                <div className={`p-3 rounded-xl text-sm ${
+                  profileMessage.includes('success') 
+                    ? 'bg-green-500/20 text-green-300 border border-green-500/50' 
+                    : 'bg-red-500/20 text-red-300 border border-red-500/50'
+                }`}>
+                  {profileMessage}
+                </div>
+              )}
+
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => { setShowPasswordModal(false); setProfileMessage(''); setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' }); }}
+                  className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition-colors ${isDark ? 'bg-slate-800 hover:bg-slate-700 text-slate-300' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'}`}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={changingPassword}
+                  className={`flex-1 py-2.5 rounded-xl text-sm font-medium bg-gradient-to-r from-indigo-500 to-violet-600 text-white hover:shadow-lg hover:scale-[1.02] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2`}
+                >
+                  {changingPassword ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      Changing...
+                    </>
+                  ) : (
+                    <>
+                      <Key className="w-4 h-4" />
+                      Change Password
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

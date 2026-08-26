@@ -4,7 +4,7 @@ from sqlalchemy import text
 from datetime import datetime, timedelta
 from typing import List, Optional
 from database import get_db
-from calendar_models import CalendarEvent, EventType, EventStatus, Priority, RiskLevel
+from calendar_models import CalendarEvent, EventType, EventStatus, Priority, RiskLevel, PersonalTask
 from calendar_schemas import CalendarEventCreate, CalendarEventUpdate, CalendarEventResponse, CalendarEventList, CalendarStats
 from dependencies import get_current_active_user, get_current_student, get_current_faculty, get_current_admin
 from models import User
@@ -19,6 +19,7 @@ def get_calendar_events(
     risk_level: Optional[RiskLevel] = Query(None, description="Filter by risk level"),
     start_date: Optional[datetime] = Query(None, description="Filter events from this date"),
     end_date: Optional[datetime] = Query(None, description="Filter events until this date"),
+    include_tasks: bool = Query(False, description="Include tasks as events"),
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=1000),
     db: Session = Depends(get_db),
@@ -49,6 +50,35 @@ def get_calendar_events(
     
     # Apply pagination
     events = query.offset(skip).limit(limit).all()
+    
+    # Include tasks as events if requested
+    if include_tasks:
+        tasks = db.query(PersonalTask).filter(
+            PersonalTask.user_id == current_user.id,
+            PersonalTask.status != "archived",
+            PersonalTask.status != "cancelled"
+        ).all()
+        
+        # Convert tasks to event-like structures for calendar display
+        for task in tasks:
+            if task.due_date:
+                # Create a dict that looks like an event
+                task_event_dict = {
+                    "id": f"task_{task.id}",  # Use prefix to distinguish from real events
+                    "title": task.title,
+                    "description": task.description,
+                    "event_type": "personal",
+                    "status": "pending" if task.status == "todo" else "in_progress" if task.status == "in_progress" else "completed",
+                    "priority": task.priority,
+                    "start_date": task.due_date,
+                    "end_date": task.due_date,
+                    "user_id": current_user.id,
+                    "task_id": task.id,
+                    "created_at": task.created_at,
+                    "updated_at": task.updated_at,
+                    "is_task": True  # Flag to identify as task
+                }
+                events.append(task_event_dict)
     
     return CalendarEventList(events=events, total=total)
 
@@ -286,3 +316,59 @@ def toggle_event_status(
     db.commit()
     
     return {"message": f"Event status changed to {event.status.value}"}
+
+
+@router.post("/events/{event_id}/test-notification")
+def test_notification(
+    event_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Test email notification for a specific event immediately."""
+    from email_service import email_service
+    from calendar_models import EventType
+    
+    event = db.query(CalendarEvent).filter(
+        CalendarEvent.id == event_id,
+        CalendarEvent.user_id == current_user.id
+    ).first()
+    
+    if not event:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Event not found"
+        )
+    
+    if not event.notification_email:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Event does not have a notification email configured"
+        )
+    
+    try:
+        # Determine todo type based on event_type
+        todo_type = "academic" if event.event_type == EventType.ACADEMIC else "personal"
+        
+        # Send test email immediately
+        success = email_service.send_todo_notification(
+            to_email=event.notification_email,
+            todo_title=event.title,
+            todo_description=event.description or "",
+            due_date=event.start_date,
+            todo_type=todo_type,
+            priority=event.priority.value
+        )
+        
+        if success:
+            return {"message": "Test notification sent successfully", "email": event.notification_email}
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to send test notification"
+            )
+            
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error sending test notification: {str(e)}"
+        )

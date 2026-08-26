@@ -134,7 +134,7 @@ const appReducer = (state: AppState, action: AppAction): AppState => {
 interface AppContextType {
   state: AppState;
   dispatch: React.Dispatch<AppAction>;
-  login: (email: string, password: string, isFaculty: boolean) => Promise<void>;
+  login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   updateTaskStatus: (taskId: string, status: Task['status']) => void;
 }
@@ -144,7 +144,7 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [state, dispatch] = useReducer(appReducer, initialState);
 
-  const login = async (email: string, password: string, isFaculty: boolean) => {
+  const login = async (email: string, password: string) => {
     dispatch({ type: 'SET_LOADING', payload: true });
     
     try {

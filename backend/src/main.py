@@ -21,6 +21,7 @@ if _BACKEND_DIR not in sys.path:
 
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 from datetime import timedelta
 from typing import List
@@ -40,6 +41,7 @@ from document_routes import router as document_router
 from calendar_routes import router as calendar_router
 from school_routes import router as school_router
 from oauth_routes import router as oauth_router
+from personal_task_routes import router as personal_task_router
 
 # ---------------------------------------------------------------------------
 # AI Engine routers  (replaces old ai_assistant_routes import)
@@ -47,6 +49,7 @@ from oauth_routes import router as oauth_router
 from ai_engine.api.ai_routes import router as ai_assistant_router
 from ai_engine.api.document_routes import router as ai_document_router
 from ai_engine.api.health import router as ai_health_router
+from notification_scheduler import start_notification_scheduler, stop_notification_scheduler
 
 # Create all database tables
 models.Base.metadata.create_all(bind=engine)
@@ -122,6 +125,23 @@ async def startup_warmup():
     loop = asyncio.get_event_loop()
     executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
     loop.run_in_executor(executor, _warmup)
+    
+    # Start notification scheduler
+    try:
+        await start_notification_scheduler()
+        print("🔔 Notification scheduler started successfully")
+    except Exception as e:
+        print(f"⚠️ Failed to start notification scheduler: {e}")
+
+
+@app.on_event("shutdown")
+async def shutdown_cleanup():
+    """Cleanup on application shutdown."""
+    try:
+        await stop_notification_scheduler()
+        print("🔔 Notification scheduler stopped")
+    except Exception as e:
+        print(f"⚠️ Failed to stop notification scheduler: {e}")
 
 
 # ---------------------------------------------------------------------------
@@ -204,11 +224,16 @@ app.include_router(calendar_router, tags=["calendar"])
 app.include_router(registrar_router, tags=["registrar"])
 app.include_router(school_router, tags=["schools"])
 app.include_router(oauth_router, tags=["oauth"])
+app.include_router(personal_task_router, tags=["personal-tasks"])
 
 # AI Engine routers (new enterprise system)
 app.include_router(ai_assistant_router, prefix="/api/ai", tags=["ai-assistant"])
 app.include_router(ai_document_router, prefix="/api/ai", tags=["ai-documents"])
 app.include_router(ai_health_router, prefix="/api/ai", tags=["ai-health"])
+
+# Serve static files for profile images
+os.makedirs("uploads/profile_images", exist_ok=True)
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 if __name__ == "__main__":
     import uvicorn

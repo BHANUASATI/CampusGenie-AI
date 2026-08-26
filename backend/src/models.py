@@ -154,7 +154,9 @@ class User(Base):
     admin = relationship("Admin", back_populates="user", uselist=False)
     audit_logs = relationship("AuditLog", back_populates="user")
     notifications = relationship("Notification", back_populates="user")
-    # calendar_events = relationship("CalendarEvent", back_populates="user")  # Commented out as CalendarEvent class doesn't exist
+    
+    # Calendar and personal tasks relationships (added after calendar_models to avoid circular imports)
+    # These are loaded dynamically to avoid circular dependency issues
 
 class Faculty(Base):
     __tablename__ = "faculties"
@@ -235,6 +237,7 @@ class Student(Base):
     verification_status = Column(Enum(VerificationStatus, values_callable=lambda x: [e.value for e in x]), default=VerificationStatus.PENDING)
     verified_by = Column(Integer, ForeignKey("faculties.id"))
     verified_at = Column(TIMESTAMP, nullable=True)
+    profile_image = Column(String(500), nullable=True)  # URL to profile image
     created_at = Column(TIMESTAMP, server_default=func.now())
     updated_at = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())
     

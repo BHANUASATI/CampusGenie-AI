@@ -22,6 +22,7 @@ class UserCreate(UserBase):
 class UserLogin(BaseModel):
     email: EmailStr
     password: str
+    selected_role: Optional[str] = None
     
     @validator('email')
     def validate_university_email(cls, v):

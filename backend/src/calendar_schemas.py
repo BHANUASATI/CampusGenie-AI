@@ -38,6 +38,11 @@ class CalendarEventBase(BaseModel):
     category: Optional[str] = None
     alert_message: Optional[str] = None
     alert_enabled: bool = False
+    
+    # Email notification settings
+    notification_email: Optional[str] = None
+    notification_time: Optional[str] = None  # HH:MM format
+    email_notification_enabled: bool = False
 
     @validator('end_date')
     def validate_end_date(cls, v, values):
@@ -69,6 +74,11 @@ class CalendarEventUpdate(BaseModel):
     category: Optional[str] = None
     alert_message: Optional[str] = None
     alert_enabled: Optional[bool] = None
+    
+    # Email notification settings
+    notification_email: Optional[str] = None
+    notification_time: Optional[str] = None
+    email_notification_enabled: Optional[bool] = None
 
 class CalendarEventResponse(CalendarEventBase):
     id: int

@@ -166,34 +166,40 @@ def get_my_faculty_profile(
     db: Session = Depends(get_db)
 ):
     """Get current faculty's profile"""
-    faculty = db.query(Faculty).filter(Faculty.user_id == current_user.id).first()
-    if not faculty:
+    try:
+        faculty = db.query(Faculty).filter(Faculty.user_id == current_user.id).first()
+        if not faculty:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Faculty profile not found"
+            )
+        
+        department = db.query(Department).filter(Department.id == faculty.department_id).first()
+        
+        permissions = {
+            "can_verify_documents": faculty.can_verify_documents,
+            "can_assign_tasks": faculty.can_assign_tasks,
+            "can_grade_submissions": faculty.can_grade_submissions,
+            "can_manage_students": faculty.can_manage_students,
+            "can_generate_reports": faculty.can_generate_reports,
+            "can_access_all_departments": faculty.can_access_all_departments
+        }
+        
+        return {
+            **faculty.__dict__,
+            "department": {
+                "id": department.id,
+                "name": department.name,
+                "code": department.code,
+                "type": department.type.value
+            } if department else None,
+            "permissions": permissions
+        }
+    except Exception as e:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Faculty profile not found"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error fetching faculty profile: {str(e)}"
         )
-    
-    department = db.query(Department).filter(Department.id == faculty.department_id).first()
-    
-    permissions = {
-        "can_verify_documents": faculty.can_verify_documents,
-        "can_assign_tasks": faculty.can_assign_tasks,
-        "can_grade_submissions": faculty.can_grade_submissions,
-        "can_manage_students": faculty.can_manage_students,
-        "can_generate_reports": faculty.can_generate_reports,
-        "can_access_all_departments": faculty.can_access_all_departments
-    }
-    
-    return {
-        **faculty.__dict__,
-        "department": {
-            "id": department.id,
-            "name": department.name,
-            "code": department.code,
-            "type": department.type.value
-        } if department else None,
-        "permissions": permissions
-    }
 
 @router.put("/{faculty_id}", response_model=FacultyResponse)
 def update_faculty(

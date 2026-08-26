@@ -152,6 +152,19 @@ export const authService = {
   getMicrosoftUserInfo: async (accessToken: string) => {
     return apiClient.get(`/api/oauth/microsoft/user-info?access_token=${accessToken}`);
   },
+
+  // Password reset functions
+  forgotPassword: async (email: string) => {
+    return apiClient.post('/api/auth/forgot-password', { email });
+  },
+
+  resetPassword: async (token: string, newPassword: string) => {
+    return apiClient.post('/api/auth/reset-password', { token, new_password: newPassword });
+  },
+
+  verifyResetToken: async (token: string) => {
+    return apiClient.get(`/api/auth/verify-reset-token/${token}`);
+  },
 };
 
 // Student Service
@@ -169,7 +182,20 @@ export const studentService = {
   },
 
   getVerificationStatus: async () => {
-    return apiClient.get('/students/verification/status');
+    return apiClient.get('/students/verification-status');
+  },
+
+  uploadProfileImage: async (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return apiClient.post('/students/upload-profile-image', formData);
+  },
+
+  changePassword: async (currentPassword: string, newPassword: string) => {
+    return apiClient.post('/students/change-password', {
+      current_password: currentPassword,
+      new_password: newPassword,
+    });
   },
 
   getTasks: async () => {
@@ -192,7 +218,7 @@ export const studentService = {
 // Faculty Service
 export const facultyService = {
   getProfile: async () => {
-    return apiClient.get('/faculty/me');
+    return apiClient.get('/faculty/simple/me');
   },
 
   updateProfile: async (data: any) => {
@@ -278,6 +304,10 @@ export const calendarService = {
 
   toggleEventStatus: async (eventId: string) => {
     return apiClient.post(`/calendar/events/${eventId}/toggle-status`);
+  },
+
+  testNotification: async (eventId: string) => {
+    return apiClient.post(`/calendar/events/${eventId}/test-notification`);
   },
 };
 

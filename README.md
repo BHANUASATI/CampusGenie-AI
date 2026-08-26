@@ -1,8 +1,8 @@
 <div align="center">
 
-# CampusGenie — AI for Smarter Learning
+# 🎓 CampusGenie — AI for Smarter Learning
 
-### Transforming Educational Administration Through Agentic AI
+### 🤖 Transforming Educational Administration Through Agentic AI
 
 [![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.104-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
@@ -14,7 +14,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=for-the-badge)](http://makeapullrequest.com)
 
-[Features](#-features) • [Architecture](#-architecture) • [Quick Start](#-quick-start) • [AI Engine](#-ai-engine) • [API Docs](#-api-reference) • [Contributing](#-contributing)
+[Features](#-features) • [Architecture](#-architecture) • [Workflow Diagrams](#-workflow-diagrams) • [Quick Start](#-quick-start) • [AI Engine](#-ai-engine) • [API Docs](#-api-reference) • [Contributing](#-contributing)
 
 </div>
 
@@ -112,6 +112,481 @@
 | Database | MySQL 8.0+ |
 | Auth | JWT (python-jose) + bcrypt |
 | Observability | LangSmith tracing |
+
+---
+
+## 🔄 Workflow Diagrams
+
+### 📋 Diagram Legend
+
+| Icon | Meaning |
+|------|---------|
+| 👤 | User/Person |
+| 🎨 | Frontend/UI |
+| ⚡ | Backend/API |
+| 🤖 | AI Engine |
+| 🗄️ | Database |
+| 🔍 | Search/Vector DB |
+| 🔐 | Authentication/Security |
+| 📤 | Upload/Export |
+| 📥 | Input/Request |
+| ✅ | Success/Complete |
+| ❌ | Error/Failure |
+| ⚠️ | Warning/Alert |
+| 🔄 | Process/Flow |
+| 📊 | Monitoring/Metrics |
+| 🚀 | Deployment |
+| 🧠 | LLM/Intelligence |
+| 🔢 | Embeddings/Vectors |
+| 📝 | Logging/Documentation |
+| 🔨 | Build/Compile |
+| 🧪 | Testing |
+| 📧 | Notification/Email |
+| 💾 | Storage/Cache |
+| 🌐 | Network/Web |
+| 🛡️ | Security/Protection |
+
+### 🌐 Overall System Architecture Flow
+
+```mermaid
+graph TB
+    User[👤 User] -->|Authentication| Auth[🔐 JWT Auth Service]
+    Auth --> Frontend[🎨 React Frontend<br/>localhost:3000]
+    Frontend -->|REST API| Backend[⚡ FastAPI Backend<br/>localhost:8002]
+    
+    Backend --> AI_Engine[🤖 AI Engine<br/>LangGraph]
+    Backend --> MySQL[(🗄️ MySQL Database)]
+    Backend --> ChromaDB[(🔍 ChromaDB<br/>Vector Store)]
+    
+    AI_Engine --> LLM1[🧠 Gemini 2.5 Flash]
+    AI_Engine --> LLM2[🧠 OpenRouter Fallback]
+    AI_Engine --> ChromaDB
+    AI_Engine --> MySQL
+    
+    subgraph "Document Processing Pipeline"
+        Frontend -->|Upload| Backend
+        Backend --> Extractor[📄 Text Extractor]
+        Extractor --> Cleaner[🧹 Text Cleaner]
+        Cleaner --> Chunker[✂️ Text Chunker]
+        Chunker --> Embeddings[🔢 Embedding Generator]
+        Embeddings --> ChromaDB
+    end
+    
+    subgraph "AI Query Processing"
+        Frontend -->|Chat Query| Backend
+        Backend --> AI_Engine
+        AI_Engine -->|Intent Classification| LLM1
+        AI_Engine -->|RAG Retrieval| ChromaDB
+        AI_Engine -->|DB Tools| MySQL
+        AI_Engine -->|Answer Generation| LLM1
+        LLM1 -->|Fallback| LLM2
+    end
+    
+    style User fill:#e1f5ff
+    style Frontend fill:#90caf9
+    style Backend fill:#81c784
+    style AI_Engine fill:#ffcc80
+    style MySQL fill:#a5d6a7
+    style ChromaDB fill:#ce93d8
+    style LLM1 fill:#ef9a9a
+    style LLM2 fill:#f48fb1
+```
+
+### 📤 Document Upload & Indexing Workflow
+
+```mermaid
+sequenceDiagram
+    participant User as 👤 Admin/Faculty
+    participant Frontend as 🎨 Frontend
+    participant Backend as ⚡ Backend API
+    participant Database as 🗄️ MySQL
+    participant AI as 🤖 AI Engine
+    participant VectorDB as 🔍 ChromaDB
+    
+    User->>Frontend: Upload Document
+    Frontend->>Backend: POST /documents/upload
+    Backend->>Backend: Validate permissions & file
+    Backend->>Database: Create document record
+    Database-->>Backend: Document ID generated
+    Backend->>Backend: Save file to filesystem
+    Backend-->>Frontend: Upload success
+    
+    Backend->>AI: Trigger document indexing
+    AI->>AI: Text Extraction (PDF/DOCX)
+    AI->>AI: Text Cleaning
+    AI->>AI: Text Chunking
+    AI->>AI: Generate Embeddings
+    AI->>VectorDB: Store vectors in ChromaDB
+    VectorDB-->>AI: Indexing complete
+    AI-->>Backend: Document ready for AI queries
+    Backend-->>User: Document indexed notification
+```
+
+### 💬 AI Chat Query Processing Flow
+
+```mermaid
+graph LR
+    Query[❓ User Query] --> LoadMemory[🧠 Load Memory<br/>Last 6 turns]
+    LoadMemory --> IntentClassify[🎯 Intent Classification<br/>Gemini LLM]
+    
+    IntentClassify -->|Academic| RAGRetrieval[🔍 RAG Retrieval]
+    IntentClassify -->|Data| DBTools[🛠️ DB Tools]
+    IntentClassify -->|General| AnswerGen[🤖 Answer Generation]
+    
+    RAGRetrieval --> VectorSearch[🔍 ChromaDB Search]
+    VectorSearch --> Rerank[📊 Rerank Results]
+    Rerank --> AnswerGen
+    
+    DBTools --> DBQueries[🗄️ Live DB Queries]
+    DBQueries --> MySQL[(🗄️ MySQL)]
+    MySQL --> DBQueries
+    DBQueries --> AnswerGen
+    
+    AnswerGen --> Gemini[🧠 Gemini 2.5 Flash]
+    Gemini -->|Fallback| OpenRouter[🧠 OpenRouter]
+    OpenRouter --> AnswerGen
+    
+    AnswerGen --> SaveMemory[💾 Save Memory]
+    SaveMemory --> FinalAnswer[✅ Final Answer]
+    
+    style Query fill:#e1f5ff
+    style LoadMemory fill:#90caf9
+    style IntentClassify fill:#ffcc80
+    style RAGRetrieval fill:#ce93d8
+    style DBTools fill:#a5d6a7
+    style AnswerGen fill:#ef9a9a
+    style FinalAnswer fill:#81c784
+```
+
+### 🔐 Authentication & Authorization Flow
+
+```mermaid
+sequenceDiagram
+    participant User as 👤 User
+    participant Frontend as 🎨 Frontend
+    participant Backend as ⚡ Backend
+    participant JWTService as 🔐 JWT Service
+    participant Database as 🗄️ MySQL
+    
+    User->>Frontend: Login (email/password)
+    Frontend->>Backend: POST /auth/login
+    Backend->>Database: Verify credentials
+    Database-->>Backend: User data
+    Backend->>JWTService: Generate JWT token
+    JWTService-->>Backend: Access token
+    Backend-->>Frontend: Token + user info
+    Frontend->>Frontend: Store token
+    
+    Note over Frontend,Backend: Subsequent requests
+    
+    Frontend->>Backend: API Request + JWT header
+    Backend->>JWTService: Validate token
+    JWTService-->>Backend: User ID & role
+    Backend->>Database: Get user permissions
+    Database-->>Backend: Role-based access
+    Backend-->>Frontend: Processed response
+```
+
+### 📋 Document Verification Workflow
+
+```mermaid
+stateDiagram-v2
+    [*] --> Upload: Student uploads document
+    Upload --> Pending: Document created in DB
+    Pending --> Verified: Faculty approves
+    Pending --> Rejected: Faculty rejects
+    Pending --> Missing: File not found
+    
+    Verified --> [*]: Process complete
+    Rejected --> Upload: Student re-uploads
+    Missing --> Upload: Student re-uploads
+    
+    Verified: ✅ Document verified
+    Rejected: ❌ Verification failed
+    Missing: ⚠️ File missing
+    Pending: ⏳ Awaiting review
+```
+
+### 🎓 Multi-Role Dashboard Workflow
+
+```mermaid
+graph TB
+    subgraph "👨‍🎓 Student Portal"
+        S1[📤 Upload Documents]
+        S2[📊 View Grades & GPA]
+        S3[📅 Check Timetable]
+        S4[🤖 Chat with AI Assistant]
+        S5[📋 View Tasks & Deadlines]
+    end
+    
+    subgraph "👨‍🏫 Faculty Portal"
+        F1[✅ Verify Documents]
+        F2[📊 View Student Records]
+        F3[📅 Manage Timetables]
+        F4[📝 Create & Grade Tasks]
+        F5[📈 Track Attendance]
+    end
+    
+    subgraph "👨‍💼 Admin Portal"
+        A1[👥 User Management]
+        A2[🏫 Course Setup]
+        A3[🔧 System Configuration]
+        A4[📊 Analytics Dashboard]
+        A5[📚 Document Types Setup]
+    end
+    
+    subgraph "👨‍⚖️ Registrar Portal"
+        R1[📊 Full Oversight]
+        R2[📈 Analytics & Reports]
+        R3[🔧 Bulk Operations]
+        R4[👥 All User Management]
+        R5[🏫 Academic Oversight]
+    end
+    
+    S4 --> AI[🤖 AI Engine]
+    F1 --> DB[(🗄️ MySQL)]
+    A1 --> DB
+    R1 --> DB
+    
+    style S1 fill:#e1f5ff
+    style F1 fill:#fff9c4
+    style A1 fill:#f3e5f5
+    style R1 fill:#e8f5e9
+```
+
+### 🔄 Real-time Data Synchronization
+
+```mermaid
+graph LR
+    subgraph "📱 Frontend Real-time Updates"
+        WebSocket[🔌 WebSocket Connection]
+        SSE[📡 Server-Sent Events]
+        Polling[🔄 Polling Fallback]
+    end
+    
+    subgraph "⚡ Backend Event System"
+        EventDispatcher[🎯 Event Dispatcher]
+        NotificationService[📧 Notification Service]
+        RedisCache[💾 Redis Cache]
+    end
+    
+    subgraph "🗄️ Database Triggers"
+        DBChangeEvents[📊 DB Change Events]
+        DataUpdates[🔄 Data Updates]
+    end
+    
+    DataUpdates --> DBChangeEvents
+    DBChangeEvents --> EventDispatcher
+    EventDispatcher --> NotificationService
+    EventDispatcher --> RedisCache
+    EventDispatcher --> WebSocket
+    EventDispatcher --> SSE
+    EventDispatcher --> Polling
+    
+    WebSocket --> ReactComponents[🎨 React Components]
+    SSE --> ReactComponents
+    Polling --> ReactComponents
+    
+    style ReactComponents fill:#90caf9
+    style EventDispatcher fill:#ffcc80
+    style DBChangeEvents fill:#a5d6a7
+```
+
+### 📊 System Monitoring & Logging Flow
+
+```mermaid
+graph TB
+    subgraph "📊 Monitoring Components"
+        AppLogs[📝 Application Logs]
+        PerfMetrics[📈 Performance Metrics]
+        DistTraces[🔍 Distributed Tracing]
+        ErrorTracking[⚠️ Error Tracking]
+    end
+    
+    subgraph "🤖 AI Engine Monitoring"
+        LangSmithTracing[🔬 LangSmith Tracing]
+        LLMApiCalls[📊 LLM API Calls]
+        RAGPerformance[🔍 RAG Performance]
+        EmbeddingStats[🔢 Embedding Stats]
+    end
+    
+    subgraph "🗄️ Database Monitoring"
+        DBQueryPerf[📊 Query Performance]
+        DBConnectionPool[🔗 Connection Pool]
+        DBIndexHealth[📈 Index Health]
+    end
+    
+    AppLogs --> CentralLogging[🎯 Central Logging]
+    PerfMetrics --> CentralLogging
+    DistTraces --> CentralLogging
+    ErrorTracking --> CentralLogging
+    
+    LangSmithTracing --> AIDashboard[🤖 AI Dashboard]
+    LLMApiCalls --> AIDashboard
+    RAGPerformance --> AIDashboard
+    EmbeddingStats --> AIDashboard
+    
+    DBQueryPerf --> DBDashboard[🗄️ DB Dashboard]
+    DBConnectionPool --> DBDashboard
+    DBIndexHealth --> DBDashboard
+    
+    CentralLogging --> AlertSystem[🚨 Alert System]
+    AIDashboard --> AlertSystem
+    DBDashboard --> AlertSystem
+    
+    style CentralLogging fill:#ffcc80
+    style AIDashboard fill:#ce93d8
+    style DBDashboard fill:#a5d6a7
+    style AlertSystem fill:#ef9a9a
+```
+
+### 🚀 Deployment & CI/CD Workflow
+
+```mermaid
+graph TB
+    Developer[💻 Developer] --> GitPush[📤 Git Push]
+    GitPush --> CIPipeline[🔄 CI Pipeline]
+    
+    CIPipeline --> RunTests[🧪 Run Tests]
+    RunTests --> CodeLinting[🔍 Code Linting]
+    CodeLinting --> Build[🔨 Build]
+    Build --> SecurityScan[🔒 Security Scan]
+    
+    SecurityScan -->|Pass| CDPipeline[🚀 CD Pipeline]
+    SecurityScan -->|Fail| NotifyDev[📧 Notify Developer]
+    
+    CDPipeline --> StagingDeploy[🧪 Staging Deploy]
+    StagingDeploy --> E2ETests[🔬 E2E Tests]
+    E2ETests -->|Pass| ProductionDeploy[🌐 Production Deploy]
+    E2ETests -->|Fail| Rollback[🔄 Rollback]
+    
+    ProductionDeploy --> Monitor[📊 Monitor]
+    Monitor --> AlertSystem[🚨 Alert System]
+    AlertSystem --> AutoScale[📈 Auto Scale]
+    
+    Rollback --> NotifyDev
+    NotifyDev --> Developer
+    
+    style CIPipeline fill:#90caf9
+    style CDPipeline fill:#ffcc80
+    style ProductionDeploy fill:#a5d6a7
+    style StagingDeploy fill:#fff9c4
+    style AlertSystem fill:#ef9a9a
+```
+
+### 🔄 Error Handling & Recovery Flow
+
+```mermaid
+graph TB
+    IncomingRequest[📥 Incoming Request] --> TryExecution[🎯 Try Execution]
+    
+    TryExecution -->|Success| SuccessResponse[✅ Success Response]
+    TryExecution -->|Error| ErrorDetected[❌ Error Detected]
+    
+    ErrorDetected --> ErrorTypeClassification[🔍 Error Type Classification]
+    
+    ErrorTypeClassification -->|Validation| ValidationError[📝 Validation Error]
+    ErrorTypeClassification -->|Auth| AuthError[🔐 Auth Error]
+    ErrorTypeClassification -->|Database| DatabaseError[🗄️ Database Error]
+    ErrorTypeClassification -->|AI| AIError[🤖 AI Error]
+    ErrorTypeClassification -->|Network| NetworkError[🌐 Network Error]
+    
+    ValidationError --> LogError[📝 Log Error]
+    AuthError --> LogError
+    DatabaseError --> LogError
+    AIError --> LogError
+    NetworkError --> LogError
+    
+    LogError --> RetryLogic[🔄 Retry Logic]
+    LogError --> FallbackStrategy[🔄 Fallback Strategy]
+    LogError --> NotifyUser[📧 Notify User]
+    
+    DatabaseError --> RetryLogic
+    NetworkError --> RetryLogic
+    AIError --> FallbackStrategy
+    
+    RetryLogic -->|Success| SuccessResponse
+    RetryLogic -->|Failed| FallbackStrategy
+    
+    FallbackStrategy -->|Success| SuccessResponse
+    FallbackStrategy -->|Failed| GracefulDegradation[🛡️ Graceful Degradation]
+    
+    GracefulDegradation --> NotifyUser
+    NotifyUser --> ErrorResponse[❓ Error Response]
+    
+    style IncomingRequest fill:#e1f5ff
+    style SuccessResponse fill:#a5d6a7
+    style ErrorDetected fill:#ef9a9a
+    style GracefulDegradation fill:#fff9c4
+```
+
+### 📚 Data Flow & State Management
+
+```mermaid
+graph LR
+    subgraph "🎨 Frontend State"
+        ReduxStore[🔄 Redux Store]
+        ReactContext[🎯 React Context]
+        LocalState[💾 Local State]
+    end
+    
+    subgraph "⚡ Backend State"
+        RedisCache[💾 Redis Cache]
+        SessionStore[🔐 Session Store]
+        TaskQueue[📬 Task Queue]
+    end
+    
+    subgraph "🗄️ Database State"
+        MySQLDB[(🗄️ MySQL)]
+        ChromaDB[(🔍 ChromaDB)]
+    end
+    
+    UserActions[👤 User Actions] --> ReduxStore
+    UserActions --> ReactContext
+    UserActions --> LocalState
+    
+    ReduxStore --> APICalls[📡 API Calls]
+    ReactContext --> APICalls
+    LocalState --> APICalls
+    
+    APICalls --> RedisCache
+    APICalls --> SessionStore
+    APICalls --> TaskQueue
+    
+    RedisCache --> MySQLDB
+    SessionStore --> MySQLDB
+    TaskQueue --> MySQLDB
+    
+    APICalls --> ChromaDB
+    
+    MySQLDB --> APICalls
+    ChromaDB --> APICalls
+    
+    APICalls --> ReduxStore
+    APICalls --> ReactContext
+    APICalls --> LocalState
+    
+    style ReduxStore fill:#90caf9
+    style RedisCache fill:#ffcc80
+    style MySQLDB fill:#a5d6a7
+    style ChromaDB fill:#ce93d8
+```
+
+### 📊 Workflow Summary Table
+
+| Workflow | Purpose | Key Components | Status |
+|----------|---------|----------------|--------|
+| **System Architecture** | Overall system design | Frontend, Backend, AI Engine, Databases | ✅ Active |
+| **Document Upload** | File processing & indexing | Extractor, Cleaner, Chunker, Embeddings | ✅ Active |
+| **AI Chat Query** | Conversational AI processing | Intent classification, RAG, DB tools | ✅ Active |
+| **Authentication** | User login & authorization | JWT, Role-based access | ✅ Active |
+| **Document Verification** | Faculty review process | Status management, Notifications | ✅ Active |
+| **Multi-Role Dashboard** | Role-specific interfaces | Student, Faculty, Admin, Registrar portals | ✅ Active |
+| **Real-time Sync** | Live data updates | WebSocket, SSE, Event system | 🚧 Planned |
+| **Monitoring** | System health tracking | Logs, Metrics, Traces, Alerts | 🚧 Planned |
+| **CI/CD** | Deployment automation | Testing, Building, Security scanning | 🚧 Planned |
+| **Error Handling** | Fault tolerance | Retry logic, Fallback strategies | ✅ Active |
+| **State Management** | Data flow coordination | Redux, Context, Cache, Database | ✅ Active |
 
 ---
 

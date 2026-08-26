@@ -36,6 +36,8 @@ from dependencies import get_current_user
 from ai_engine.core.exceptions import AIEngineError, PromptInjectionDetected, RateLimitExceeded
 from ai_engine.core.logging import get_logger
 from ai_engine.services.chat_service import ChatService
+from ai_engine.services.download_service import DownloadService
+from fastapi.responses import Response
 
 logger = get_logger(__name__)
 router = APIRouter()
@@ -265,6 +267,7 @@ async def send_message(
         ] or None,
         "follow_up_questions": getattr(agent_response, "follow_up_questions", None) or None,
         "intent_detected": getattr(agent_response, "intent_detected", None),
+        "download_suggestions": getattr(agent_response, "download_suggestions", None),
     }
 
     # Also format user_message timestamp
@@ -328,4 +331,117 @@ async def quick_chat(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="AI processing failed",
+        )
+
+
+# ---------------------------------------------------------------------------
+# Download Endpoints
+# ---------------------------------------------------------------------------
+
+@router.post("/download")
+async def download_content(
+    download_request: dict,
+    current_user: models.User = Depends(get_current_user),
+):
+    """
+    Generate downloadable content from AI response.
+    
+    Expected request body:
+    {
+        "content": "AI response content",
+        "format": "pdf|csv|text",
+        "filename": "optional_custom_filename"
+    }
+    """
+    if current_user.role != models.UserRole.STUDENT:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only students can download content",
+        )
+
+    content = download_request.get("content", "")
+    format_type = download_request.get("format", "text").lower()
+    custom_filename = download_request.get("filename")
+
+    if not content:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Content is required for download",
+        )
+
+    if format_type not in ["pdf", "csv", "text"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Format must be one of: pdf, csv, text",
+        )
+
+    try:
+        download_service = DownloadService()
+        filename, mime_type, content_bytes = download_service.generate_download(
+            content, format_type
+        )
+
+        # Use custom filename if provided
+        if custom_filename:
+            # Ensure proper extension
+            if not custom_filename.endswith(f".{format_type}"):
+                filename = f"{custom_filename}.{format_type}"
+            else:
+                filename = custom_filename
+
+        return Response(
+            content=content_bytes,
+            media_type=mime_type,
+            headers={
+                "Content-Disposition": f"attachment; filename={filename}"
+            }
+        )
+
+    except Exception as e:
+        logger.error("download.failed", extra={"error": str(e)})
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Download generation failed: {str(e)}",
+        )
+
+
+@router.post("/detect-download")
+async def detect_download_need(
+    content_request: dict,
+    current_user: models.User = Depends(get_current_user),
+):
+    """
+    Detect if AI response content suggests downloadable format.
+    
+    Expected request body:
+    {
+        "content": "AI response content",
+        "intent": "detected_intent_optional"
+    }
+    """
+    if current_user.role != models.UserRole.STUDENT:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only students can use this endpoint",
+        )
+
+    content = content_request.get("content", "")
+    intent = content_request.get("intent")
+
+    if not content:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Content is required",
+        )
+
+    try:
+        download_service = DownloadService()
+        suggestions = download_service.detect_download_need(content, intent)
+        return suggestions
+
+    except Exception as e:
+        logger.error("detect_download.failed", extra={"error": str(e)})
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to detect download need",
         )

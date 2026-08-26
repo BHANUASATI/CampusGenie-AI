@@ -102,7 +102,7 @@ class ConversationRepository:
         return (
             self.db.query(AIMessage)
             .filter(AIMessage.conversation_id == conversation_id)
-            .order_by(AIMessage.created_at.asc())
+            .order_by(AIMessage.created_at.asc(), AIMessage.id.asc())
             .limit(limit)
             .all()
         )
@@ -137,7 +137,7 @@ class ConversationRepository:
         messages = (
             self.db.query(AIMessage)
             .filter(AIMessage.conversation_id == conversation_id)
-            .order_by(AIMessage.created_at.desc())
+            .order_by(AIMessage.created_at.desc(), AIMessage.id.desc())
             .limit(n)
             .all()
         )

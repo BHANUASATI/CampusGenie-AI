@@ -68,7 +68,7 @@ def load_memory_node(state: AgentState, db: "Session") -> AgentState:
         messages = (
             db.query(AIMessage)
             .filter(AIMessage.conversation_id == conversation_id)
-            .order_by(AIMessage.created_at.desc())
+            .order_by(AIMessage.created_at.desc(), AIMessage.id.desc())
             .limit(ai_config.MEMORY_WINDOW_SIZE * 2)  # *2 because each turn = user + ai
             .all()
         )
@@ -153,16 +153,25 @@ def save_memory_node(state: AgentState, db: "Session") -> AgentState:
         if src_dir not in sys.path:
             sys.path.insert(0, src_dir)
 
+        from datetime import timedelta
         from models import AIConversation, AIMessage, MessageSenderType
 
-        # Save user message
+        # Capture a single base timestamp for this exchange.
+        # The user message is stamped at `now`, the AI reply 1 ms later so
+        # that (created_at, id) ordering always puts user before AI even when
+        # the DB clock has second-level resolution.
+        now = datetime.now()
+        ai_now = now + timedelta(milliseconds=1)
+
+        # Save user message first and flush to obtain its DB id before commit.
         user_msg = AIMessage(
             conversation_id=conversation_id,
             content=user_message,
             sender_type=MessageSenderType.USER,
-            created_at=datetime.now(),
+            created_at=now,
         )
         db.add(user_msg)
+        db.flush()  # assigns user_msg.id without committing the transaction
 
         # Build AI answer text
         if agent_response:
@@ -170,12 +179,12 @@ def save_memory_node(state: AgentState, db: "Session") -> AgentState:
         else:
             answer_text = "I'm sorry, I encountered an error. Please try again."
 
-        # Save AI message
+        # Save AI message with a timestamp guaranteed to be after the user message.
         ai_msg = AIMessage(
             conversation_id=conversation_id,
             content=answer_text,
             sender_type=MessageSenderType.AI,
-            created_at=datetime.now(),
+            created_at=ai_now,
         )
         db.add(ai_msg)
 
@@ -184,7 +193,7 @@ def save_memory_node(state: AgentState, db: "Session") -> AgentState:
             AIConversation.id == conversation_id
         ).first()
         if conversation:
-            conversation.updated_at = datetime.now()
+            conversation.updated_at = ai_now
 
         db.commit()
         db.refresh(user_msg)

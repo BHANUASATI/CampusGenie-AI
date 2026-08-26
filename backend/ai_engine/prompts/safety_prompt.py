@@ -4,18 +4,9 @@ Safety Prompt Templates
 Canned safe responses for edge cases.
 """
 
-GREETING_RESPONSE = """Hello! I'm **CampusGenie**, your AI academic assistant.
+GREETING_RESPONSE = """Hello! I'm **CampusGenie**, your AI academic assistant. 👋
 
-I can help you with:
-- 📚 Course information and curriculum queries
-- 📊 Attendance rules and eligibility checks
-- 📋 University policies and regulations
-- 📅 Assignment deadlines and exam schedules
-- 👨‍🏫 Faculty contact information
-- 📢 Campus notices and announcements
-- 💼 Placement statistics and company information
-
-How can I assist you today?"""
+How can I help you today?"""
 
 
 NO_INFORMATION_RESPONSE = """I couldn't find specific information about this in my current knowledge base.
