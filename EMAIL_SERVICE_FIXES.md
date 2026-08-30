@@ -6,7 +6,7 @@
 **Problem**: The email service was not reading environment variables from the `.env` file
 **Fix**: Added `from dotenv import load_dotenv` and `load_dotenv()` to the email service
 **File**: `backend/src/email_service.py`
-
+           
 ### 2. **Missing Error Handling and Logging**.   
 **Problem**: Limited visibility into email service status and failures.    
 **Fix**: 
