@@ -8,7 +8,7 @@
 **File**: `backend/src/email_service.py`
            
 ### 2. **Missing Error Handling and Logging**.   
-**Problem**: Limited visibility into email service status and failures.    
+**Problem**: Limited visibility into email service status and failures.       
 **Fix**: 
 - Added comprehensive logging with status messages
 - Added configuration validation on startup
