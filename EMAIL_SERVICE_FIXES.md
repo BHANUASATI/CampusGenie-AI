@@ -3,7 +3,7 @@
 ## Issues Found and Fixed
 
 ### 1. **Environment Variables Not Loading**
-**Problem**: The email service was not reading environment variables from the `.env` file
+**Problem**: The email service was not reading environment variables from the `.env` file.   
 **Fix**: Added `from dotenv import load_dotenv` and `load_dotenv()` to the email service
 **File**: `backend/src/email_service.py`
            
