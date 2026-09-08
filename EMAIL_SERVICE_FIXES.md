@@ -1,6 +1,6 @@
 # Email Service Issues and Fixes 
 
-## Issues Found and Fixed
+## Issues Found and Fixed. 
 
 ### 1. **Environment Variables Not Loading**
 **Problem**: The email service was not reading environment variables from the `.env` file.   
