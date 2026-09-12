@@ -3,7 +3,7 @@
 ## HIGH-LEVEL SYSTEM ARCHITECTURE
 
 ```mermaid
-graph TB
+graph TB.   
     subgraph "🎨 FRONTEND LAYER"
         ReactApp[React 19 + TypeScript<br/>localhost:3000]
         ContextProviders[Context Providers<br/>App, Theme, Language]
