@@ -1,4 +1,4 @@
-# CampusGenie-AI System Architecture Diagrams
+# CampusGenie-AI System Architecture Diagrams.  
 
 ## HIGH-LEVEL SYSTEM ARCHITECTURE
  
