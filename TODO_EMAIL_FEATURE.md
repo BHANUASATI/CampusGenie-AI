@@ -1,4 +1,4 @@
-# Todo Email Notification Feature
+# Todo Email Notification Feature.  
 
 ## Overview
 This feature adds email notification capabilities to the student dashboard todo system, allowing students to receive email reminders for their academic and personal tasks at scheduled times.
