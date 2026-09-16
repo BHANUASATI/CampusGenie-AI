@@ -1,4 +1,4 @@
-# CampusGenie Project Structure
+# CampusGenie Project Structure.  
 
 This document describes the organized folder structure of the CampusGenie project.
 
