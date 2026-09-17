@@ -1,6 +1,6 @@
 // Animation Enhancement Script for Modern Registrar Dashboard
 // This script adds professional animations to all existing components
-
+   
 // 1. Header Animations
 document.addEventListener('DOMContentLoaded', function() {
     // Animate header elements on load
