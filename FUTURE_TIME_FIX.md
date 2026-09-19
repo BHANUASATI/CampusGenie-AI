@@ -7,7 +7,7 @@ The notification scheduler was not sending emails for todos with future times be
 3. **Poor debugging**: Limited logging made it hard to diagnose issues
 
 ## Fixes Applied
-
+    
 ### 1. **Fixed Date Logic in Scheduler**
 **Problem**: `CalendarEvent.start_date > now` excluded events due today
 **Fix**: Changed to `CalendarEvent.start_date >= now.date()` to include today's events
