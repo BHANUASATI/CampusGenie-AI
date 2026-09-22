@@ -60,6 +60,27 @@ def _overlap_fraction(query: str, content: str) -> float:
     return len(matches) / len(query_toks)
 
 
+# ---------------------------------------------------------------------------
+# Schedule / timetable ranking bonus
+# ---------------------------------------------------------------------------
+# For schedule-type questions ("when is the X class?", "who teaches X on
+# Wednesday?", "Monday timetable ..."), timetable rows are the ground truth —
+# but a well-written course chapter in the handbook can outrank the actual
+# row on semantics alone.  Timetable chunks (self-describing labeled rows
+# produced by the docx table extractor) get a fixed relevance nudge when the
+# question is schedule-intent.
+_TABLE_ROW_BONUS = 0.22
+_TABLE_ROW_LABELS = (
+    "Day:", "Time:", "Subject / Course:", "Faculty:", "Room:",
+    "Course Title:", "Credits:", "Type:", "Code:",
+)
+
+
+def _looks_like_table_row(content: str) -> bool:
+    """True when the chunk is predominantly labeled table rows (>= 3 label hits)."""
+    return sum(1 for label in _TABLE_ROW_LABELS if label in content) >= 3
+
+
 def _hybrid_score(
     sim_rank: int,
     rerank_rank: Optional[int],
@@ -131,6 +152,79 @@ def _curriculum_enrichment_queries(user_message: str, retrieval_query: str) -> L
             queries.append(f"BCA syllabus scheme of study SEMESTER {label} courses")
     # Always add a generic "scheme of study" probe for syllabus-type questions
     queries.append("Scheme of Study and Syllabi courses list")
+    return queries
+
+
+# ---------------------------------------------------------------------------
+# Schedule / timetable enrichment queries
+# ---------------------------------------------------------------------------
+# Timetable rows are tables — they embed and rerank poorly against prose
+# questions like "who teaches X?" / "when is the X class?" / "which room?".
+# The docx extractor now renders each row with labels
+# (Day: ..., Time: ..., Subject / Course: ..., Faculty: ..., Room: ...), so we
+# probe with the same label vocabulary plus the detected day / subject.  These
+# rows then rank high on cosine (sim component) and lexical overlap.
+_SCHEDULE_KEYWORDS = (
+    "timetable", "time table", "schedule", "class", "lecture", "period",
+    "session", "who teaches", "which room", "in which room", "what time",
+    "when is", "when are", "whats the time", "what's the time", "today",
+    "tomorrow",
+)
+_DAY_NAMES_FULL = ("monday", "tuesday", "wednesday", "thursday", "friday",
+                   "saturday", "sunday")
+
+_SCHEDULE_FILLER_WORDS = frozenset({
+    "a", "an", "and", "are", "as", "at", "be", "by", "can", "class", "course",
+    "day", "days", "do", "does", "first", "for", "from", "have", "held",
+    "happens", "in", "is", "it", "its", "me", "my", "of", "on", "or",
+    "please", "schedule", "sem", "semester", "session", "show", "subject",
+    "subjects", "taught", "teaches", "teaching", "tell", "the", "their",
+    "there", "this", "time", "timings", "to", "today", "tomorrow", "what",
+    "when", "where", "which", "who", "will", "with", "year", "you",
+})
+
+
+def _extract_subject_phrase(text: str) -> Optional[str]:
+    """Best-guess subject name from a schedule question (a 2+ token run of
+    non-filler words, e.g. 'Advanced Database Management Systems')."""
+    words = re.findall(r"[A-Za-z0-9&+-]+", text)
+    best: List[str] = []
+    current: List[str] = []
+    for w in words:
+        if w.lower() in _SCHEDULE_FILLER_WORDS:
+            current = []
+        else:
+            current.append(w)
+        if len(current) > len(best):
+            best = current
+    return " ".join(best) if len(best) >= 2 else None
+
+
+def _schedule_enrichment_queries(user_message: str, retrieval_query: str) -> List[str]:
+    """Schedule-specific search queries so timetable rows surface for class
+    timing / faculty / room questions."""
+    joined = f"{user_message} {retrieval_query}".lower()
+    has_day = any(d in joined for d in _DAY_NAMES_FULL)
+    if not any(k in joined for k in _SCHEDULE_KEYWORDS) and not has_day:
+        return []
+
+    queries: List[str] = [
+        "timetable schedule Day Time Subject Course Faculty Room",
+        "Day: Time: Subject / Course: Faculty: Room: timetable",
+        "Code: Course Title: Type: Credits: Faculty: Room: timetable",
+        "Master Academic Timetable Course Title Faculty Room Credits Day",
+    ]
+
+    day = next((d for d in _DAY_NAMES_FULL if d in joined), None)
+    if day:
+        queries.append(f"Day: {day.capitalize()} Time: Subject / Course: Faculty: Room:")
+        queries.append(f"Day: {day.capitalize()} timetable subjects classes")
+
+    subject = _extract_subject_phrase(user_message)
+    if subject:
+        queries.append(f"Course Title: {subject} Faculty: Room: Day: Time:")
+        queries.append(f"Subject / Course: {subject} Faculty: Room: Day: Time:")
+        queries.append(f"timetable {subject} class schedule day faculty room")
     return queries
 
 
@@ -233,8 +327,22 @@ def retrieve_context_node(state: AgentState) -> AgentState:
     # Step 2: Semantic search (multi-query)
     # -----------------------------------------------------------------------
     user_message = state.get("user_message") or ""
+    schedule_queries = _schedule_enrichment_queries(user_message, query)
+    # Subject of a schedule question (e.g. "Advanced Database Management
+    # Systems"); the table-row bonus applies only to row chunks that actually
+    # mention it, so unrelated timetable rows cannot crowd them out.
+    subject_tokens = (
+        _content_tokens(subject_phrase)
+        if (subject_phrase := _extract_subject_phrase(user_message))
+        else set()
+    )
     search_queries: List[str] = []
-    for q in (query, user_message, *_curriculum_enrichment_queries(user_message, query)):
+    for q in (
+        query,
+        user_message,
+        *_curriculum_enrichment_queries(user_message, query),
+        *schedule_queries,
+    ):
         q = (q or "").strip()
         if q and q not in search_queries:
             search_queries.append(q)
@@ -335,26 +443,35 @@ def retrieve_context_node(state: AgentState) -> AgentState:
         )
 
     def _hybrid_for(idx: int) -> float:
+        content = candidates[idx].content
+        bonus = 0.0
+        if schedule_queries and _looks_like_table_row(content):
+            if not subject_tokens:
+                bonus = _TABLE_ROW_BONUS
+            else:
+                frac = len(_content_tokens(content) & subject_tokens) / len(subject_tokens)
+                if frac >= 0.5:
+                    bonus = _TABLE_ROW_BONUS * frac
         if fast_mode:
             return _hybrid_score(
                 sim_rank=idx,
                 rerank_rank=None,
                 total=total,
                 query=query,
-                content=candidates[idx].content,
+                content=content,
                 w_sim=0.7,
                 w_rer=0.0,
                 w_lex=0.3,
-                lex_overlap=_lex_overlap_for(candidates[idx].content),
-            )
+                lex_overlap=_lex_overlap_for(content),
+            ) + bonus
         return _hybrid_score(
             sim_rank=idx,
             rerank_rank=rerank_order.get(idx, total),   # type: ignore[union-attr]
             total=total,
             query=query,
-            content=candidates[idx].content,
-            lex_overlap=_lex_overlap_for(candidates[idx].content),
-        )
+            content=content,
+            lex_overlap=_lex_overlap_for(content),
+        ) + bonus
 
     score_by_idx = {idx: _hybrid_for(idx) for idx in range(total)}
     ordered = sorted(range(total), key=lambda idx: score_by_idx[idx], reverse=True)

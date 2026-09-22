@@ -127,6 +127,12 @@ class AIEngineConfig(BaseSettings):
     )
     CHUNK_SIZE: int = Field(default=768, description="Token chunk size for text splitting")
     CHUNK_OVERLAP: int = Field(default=100, description="Token overlap between consecutive chunks")
+    TABLE_ROWS_PER_CHUNK: int = Field(
+        default=3,
+        ge=1,
+        le=100,
+        description="Rows per chunk when splitting docx tables into row-groups",
+    )
 
     # -----------------------------------------------------------------------
     # Memory

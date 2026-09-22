@@ -123,7 +123,10 @@ class EmbeddingModel:
 
     def encode_query(self, query: str) -> np.ndarray:
         """Convenience method for encoding a single query (returns 1D array)."""
-        return self.encode(query, show_progress_bar=False)[0]
+        arr = self.encode(query, show_progress_bar=False)
+        if arr.ndim == 1:
+            return arr
+        return arr[0]
 
     def encode_documents(self, documents: List[str], show_progress: bool = False) -> np.ndarray:
         """Convenience method for encoding a batch of documents."""

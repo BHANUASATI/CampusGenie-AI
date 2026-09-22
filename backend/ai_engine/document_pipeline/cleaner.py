@@ -17,6 +17,7 @@ import unicodedata
 from typing import List
 
 from ai_engine.core.logging import get_logger
+from ai_engine.document_pipeline.table_markers import TABLE_END_MARKER, TABLE_START_MARKER
 
 logger = get_logger(__name__)
 
@@ -55,8 +56,16 @@ def clean_text(text: str) -> str:
     # 3. Remove form feeds, vertical tabs, etc. (keep \n and \t)
     text = re.sub(r"[\x0b\x0c\r]+", "", text)
 
-    # 4. Remove non-printable characters (except newline, tab)
-    text = "".join(ch for ch in text if ch in ("\n", "\t") or ch.isprintable())
+    # 4. Remove non-printable characters (except newline, tab, and the
+    # table-block sentinel control chars the chunker relies on:
+    # TABLE_START_MARKER = "\u0001TABLE" -> keep the leading \u0001;
+    # TABLE_END_MARKER   = "\u0002"       -> keep it whole.)
+    text = "".join(
+        ch for ch in text
+        if ch in ("\n", "\t")
+        or ch in (TABLE_START_MARKER[0], TABLE_END_MARKER)
+        or ch.isprintable()
+    )
 
     # 5. Collapse multiple spaces/tabs into one
     text = re.sub(r"[ \t]+", " ", text)
@@ -68,10 +77,15 @@ def clean_text(text: str) -> str:
     lines = [line.strip() for line in text.split("\n")]
 
     # 8. Remove very short lines (likely OCR noise, page numbers, etc.)
-    # Keep lines that are at least 10 chars or end with punctuation
+    # Keep lines that are at least 10 chars or end with punctuation, plus the
+    # table-block sentinel lines the chunker depends on.
     filtered_lines = []
     for line in lines:
-        if len(line) >= 10 or (line and line[-1] in ".!?:"):
+        if (
+            len(line) >= 10
+            or (line and line[-1] in ".!?:")
+            or line in (TABLE_START_MARKER, TABLE_END_MARKER)
+        ):
             filtered_lines.append(line)
         elif line:
             # Log short line for debugging

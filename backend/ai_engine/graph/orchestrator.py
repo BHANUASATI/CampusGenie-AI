@@ -175,7 +175,20 @@ def _run_fast_agent(initial_state: AgentState, db: "Session") -> AgentState:
 
     # Live student data is already complete and is formatted directly by the
     # fast answer node.  Do not spend time retrieving unrelated handbook text.
-    tool_succeeded = bool(state.get("tool_result") and state["tool_result"].success)
+    # A "successful" tool call with a stub/empty payload (e.g. get_timetable's
+    # "Timetable feature not yet implemented") carries no usable facts, so in
+    # that case we still retrieve.
+    def _is_informative(result) -> bool:
+        data = result.data or {}
+        # Placeholder responses consisting solely of a "message" key, or empty
+        # collections, are not informative.
+        if set(data.keys()) <= {"message"}:
+            return False
+        informative = [v for v in data.values() if not (isinstance(v, list) and not v)]
+        return bool(informative)
+
+    tool = state.get("tool_result")
+    tool_succeeded = bool(tool and tool.success and _is_informative(tool))
     if state.get("needs_retrieval") and not tool_succeeded:
         state = retrieve_context_node(state)
 

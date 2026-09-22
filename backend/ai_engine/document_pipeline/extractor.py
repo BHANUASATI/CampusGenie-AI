@@ -17,11 +17,13 @@ from __future__ import annotations
 import csv
 import io
 import os
+import re
 from pathlib import Path
 from typing import List, Tuple
 
 from ai_engine.core.exceptions import DocumentProcessingError
 from ai_engine.core.logging import get_logger
+from ai_engine.document_pipeline.table_markers import TABLE_END_MARKER, TABLE_START_MARKER
 
 logger = get_logger(__name__)
 
@@ -77,6 +79,71 @@ def extract_pdf(file_path: str) -> PagedText:
 # ---------------------------------------------------------------------------
 # DOCX Extractor
 # ---------------------------------------------------------------------------
+_DAY_NAMES = {"monday", "tuesday", "wednesday", "thursday", "friday",
+              "saturday", "sunday"}
+_TIME_RE = re.compile(r"^\s*\d{1,2}:\d{2}", re.IGNORECASE)
+_ROOM_RE = re.compile(r"^\s*[A-Za-z]+-\d{2,4}\s*$")
+
+
+def _looks_like_header_row(cells: List[str]) -> bool:
+    """Heuristic: a table row is column labels (vs a data row) when it has no
+    time values, no day-of-week values and no room codes."""
+    vals = [c.strip() for c in cells if c.strip()]
+    if len(vals) < 2:
+        return True
+    for v in vals:
+        if _TIME_RE.match(v) or v.lower() in _DAY_NAMES or _ROOM_RE.match(v):
+            return False
+    return True
+
+
+def _extract_table_rows(table) -> List[List[str]]:
+    """Return per-row cell text with merged-cell duplicates collapsed once."""
+    rows: List[List[str]] = []
+    for row in table.rows:
+        cells: List[str] = []
+        prev = None
+        for cell in row.cells:
+            text = " ".join(cell.text.strip().split())  # collapse newlines/ws
+            if text == prev:  # merged cell repeated across columns
+                continue
+            cells.append(text)
+            prev = text
+        rows.append(cells)
+    return rows
+
+
+def _render_table_with_headers(rows: List[List[str]], index: int) -> str:
+    """Render a table so every row is self-describing.  This is what makes
+    timetable/fee/room tables retrievable: a row becomes
+    ``Day: Wednesday, Time: 09:00-10:00, Subject: Research Methodology, ...``
+    instead of an ambiguous ``Wednesday | 09:00-10:00 | ...`` pipe line."""
+    # Locate the header row: the first row that is not a data row.
+    header_row = 0
+    for i, r in enumerate(rows):
+        if _looks_like_header_row(r):
+            header_row = i
+            break
+
+    max_cols = max(len(r) for r in rows)
+    header = [c.strip() for c in rows[header_row]]
+    col_labels = header if len(header) >= 2 and _looks_like_header_row(header) \
+        else [f"Column {j}" for j in range(1, max_cols + 1)]
+
+    lines = [f"TABLE {index} (Columns: {' | '.join(col_labels)}):"]
+    for r in rows:
+        if r == rows[header_row]:
+            continue  # header consumed as labels
+        pairs = []
+        for j, cell in enumerate(r):
+            label = col_labels[j] if j < len(col_labels) else f"Column {j + 1}"
+            if cell.strip():
+                pairs.append(f"{label}: {cell.strip()}")
+        if pairs:
+            lines.append(", ".join(pairs))
+    return "\n".join(lines)
+
+
 def extract_docx(file_path: str) -> PagedText:
     """
     Extract text from a .docx file.
@@ -99,14 +166,19 @@ def extract_docx(file_path: str) -> PagedText:
             if text:
                 paragraphs.append(text)
 
-        # Extract table cell text
-        for table in doc.tables:
-            for row in table.rows:
-                row_text = " | ".join(
-                    cell.text.strip() for cell in row.cells if cell.text.strip()
-                )
-                if row_text:
-                    paragraphs.append(row_text)
+        # Extract tables as structured, self-describing blocks.
+        # Tables flattened to bare pipe-rows are not retrievable — a model
+        # cannot tell which column is the room, time, subject, etc.
+        # Each table is wrapped in sentinel markers so the chunker can split
+        # it into small row-groups instead of diluting row embeddings in one
+        # giant 3000-char paragraph.
+        for i, table in enumerate(doc.tables, start=1):
+            rows = _extract_table_rows(table)
+            if not rows:
+                continue
+            rendered = _render_table_with_headers(rows, i)
+            if rendered.strip():
+                paragraphs.append(f"{TABLE_START_MARKER}\n{rendered}\n{TABLE_END_MARKER}")
 
         if not paragraphs:
             raise DocumentProcessingError(f"DOCX appears empty: {Path(file_path).name}")
