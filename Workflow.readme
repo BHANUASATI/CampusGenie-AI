@@ -26,7 +26,7 @@
 11. [Workflow H — LLM Call & Model Fallback](#h-llm-call--model-fallback)
 12. [Workflow I — Memory Persistence](#i-memory-persistence)
 13. [Workflow J — Conversation Lifecycle](#j-conversation-lifecycle)
-14. [Workflow K — Document Management (Upload / Delete / Reindex)](#k-document-management)
+14. [Workflow K — Document Management](#k-document-management)
 15. [Workflow L — Auth & Authorization](#l-auth--authorization)
 16. [Workflow M — Download / Export](#m-download--export)
 17. [Parallel-Branch State Merge (the Timetable fix)](#parallel-branch-state-merge)
@@ -41,11 +41,11 @@ CampusGenie is a university management platform with an **agentic AI assistant**
 Students chat with the assistant inside a React dashboard; the backend runs a
 **LangGraph state machine** that:
 
-1. Loads conversation memory (last 6 turns),
-2. Classifies the student's intent (local keyword rules **or** Gemini),
-3. Fetches in **parallel** both RAG documents (ChromaDB) and live DB data (tools),
-4. Generates a grounded, cited answer with confidence + follow-up questions,
-5. Persists both messages back to MySQL.
+1. Loads conversation memory (last 6 turns)
+2. Classifies the student's intent (local keyword rules **or** Gemini)
+3. Fetches in **parallel** both RAG documents (ChromaDB) and live DB data (tools)
+4. Generates a grounded, cited answer with confidence + follow-up questions
+5. Persists both messages back to MySQL
 
 Knowledge lives in a local **ChromaDB** vector store (currently **677 chunks**)
 built from admin-uploaded PDF/DOCX/TXT/CSV/MD documents. **DOCX tables**
@@ -70,44 +70,44 @@ they are actually retrievable.
 
 ```mermaid
 flowchart TB
-    subgraph FE["Frontend (React · :3000)"]
+    subgraph FE["Frontend React on port 3000"]
         UI["StudentDashboard / FacultyDashboard / AdminDashboard"]
         AIW["AIAssistant chat widget"]
-        API["services/api.ts (ApiClient, JWT from localStorage)"]
+        API["services/api.ts - ApiClient, JWT from localStorage"]
         UI --> AIW --> API
     end
 
-    subgraph BE["Backend (FastAPI · :8002)"]
-        ROUTES["src/main.py — routers"]
-        AUTH["/api/auth (login/register/me) · JWT"]
-        AIROUTES["/api/ai/* — conversations, chat, documents, health, download"]
-        DOCROUTES["/api/documents (legacy app docs)"]
-        OTHERROUTES["students · faculty · admin · tasks · calendar · registrar · schools · oauth · personal-tasks"]
+    subgraph BE["Backend FastAPI on port 8002"]
+        ROUTES["src/main.py - routers"]
+        AUTH["/api/auth - login, register, me - JWT"]
+        AIROUTES["/api/ai/* - conversations, chat, documents, health, download"]
+        DOCROUTES["/api/documents - legacy app docs"]
+        OTHERROUTES["students, faculty, admin, tasks, calendar, registrar, schools, oauth"]
         ROUTES --> AUTH
         ROUTES --> AIROUTES
         ROUTES --> DOCROUTES
         ROUTES --> OTHERROUTES
 
-        subgraph AIE["ai_engine (the agentic system)"]
-            CS["services/chat_service.py — security gate + initial state"]
-            ORCH["graph/orchestrator.py — LangGraph"]
-            NODES["load_memory → classify_intent → (retrieve_context ∥ tool_call) → generate_answer → save_memory"]
-            CP["prompts/rag_prompt.py — RAG prompt (12 rules)"]
-            LLM["llm/client.py — Gemini rotation + OpenRouter fallback"]
+        subgraph AIE["ai_engine - the agentic system"]
+            CS["services/chat_service.py - security gate + initial state"]
+            ORCH["graph/orchestrator.py - LangGraph"]
+            NODES["load_memory to classify_intent to retrieve_context/tool_call to generate_answer to save_memory"]
+            CP["prompts/rag_prompt.py - RAG prompt, 12 rules"]
+            LLM["llm/client.py - Gemini rotation + OpenRouter fallback"]
             CS --> ORCH --> NODES --> CP --> LLM
         end
         AIROUTES --> CS
     end
 
     subgraph DATA["Data stores"]
-        CHROMA[("ChromaDB\n677 chunks")]
-        KB_UPLOADS[("backend/uploads/ai_documents\nadmin knowledge docs")]
-        MYSQL[("MySQL\nusers · conversations · messages · students · faculty · tasks")]
+        CHROMA[("ChromaDB<br/>677 chunks")]
+        KB_UPLOADS[("backend/uploads/ai_documents<br/>admin knowledge docs")]
+        MYSQL[("MySQL<br/>users, conversations, messages, students, faculty, tasks")]
     end
 
     API -- "HTTP + Bearer JWT" --> ROUTES
     NODES -- "semantic search / upsert" --> CHROMA
-    LLM -- "HTTPS (Gemini / OpenRouter)" --> GEM["Google Gemini / OpenRouter"]
+    LLM -- "HTTPS - Gemini / OpenRouter" --> GEM["Google Gemini / OpenRouter"]
     NODES -- "SQLAlchemy" --> MYSQL
     KB_UPLOADS -- "reindex / upload" --> CHROMA
 ```
@@ -123,40 +123,40 @@ sources, follow-ups, download suggestions).
 ```mermaid
 sequenceDiagram
     autonumber
-    participant U as Student (React frontend)
-    participant F as services/api.ts (ApiClient)
-    participant R as FastAPI POST /api/ai/conversations/{id}/messages
+    participant U as Student React frontend
+    participant F as services/api.ts ApiClient
+    participant R as FastAPI POST endpoint
     participant S as ChatService.send_message
     participant G as LangGraph run_agent
-    participant L as Gemini (via llm/client.py)
+    participant L as Gemini via llm/client.py
     participant D as MySQL
     participant C as ChromaDB
 
-    U->>F: type message + Enter (or voice input)
-    F->>R: POST {content} with Authorization: Bearer <JWT>
-    R->>R: dep: get_current_user (JWT) → user must be STUDENT
-    R->>R: verify conversation belongs to user (404 otherwise)
+    U->>F: type message + Enter, or voice input
+    F->>R: POST content, Authorization Bearer JWT
+    R->>R: dep get_current_user JWT, user must be STUDENT
+    R->>R: verify conversation belongs to user, 404 otherwise
     R->>S: send_message(conversation_id, message, current_user)
 
-    S->>S: rate_limiter.check_and_consume (429 if exceeded)
-    S->>S: validate_and_clean_input (prompt-injection scan → 400)
-    S->>S: mask_pii (masks emails/phones before LLM call)
-    S->>G: build initial AgentState (user_context, trace_id, empty history)
+    S->>S: rate_limiter.check_and_consume, 429 if exceeded
+    S->>S: validate_and_clean_input, prompt-injection scan, 400 if flagged
+    S->>S: mask_pii, masks emails/phones before LLM call
+    S->>G: build initial AgentState
 
-    G->>G: load_memory_node → last 6 turns from MySQL
-    G->>G: classify_intent_node → intent, needs_retrieval, needs_tool, retrieval_query
+    G->>G: load_memory_node, last 6 turns from MySQL
+    G->>G: classify_intent_node, intent + needs_retrieval + needs_tool + retrieval_query
     par Parallel superstep
-        G->>C: retrieve_context (multi-query search + rerank)
-        G->>D: tool_call (attendance / courses / deadlines / faculty)
+        G->>C: retrieve_context, multi-query search + rerank
+        G->>D: tool_call, attendance / courses / deadlines / faculty
     end
-    G->>L: generate_answer (RAG prompt: context + tool results + history)
-    L-->>G: structured JSON {answer, confidence, sources, follow_up_questions}
-    G->>D: save_memory_node (persist user + AI messages, bump updated_at)
+    G->>L: generate_answer, RAG prompt with context + tool results + history
+    L-->>G: structured JSON answer, confidence, sources, follow_up_questions
+    G->>D: save_memory_node, persist user + AI messages, bump updated_at
 
-    S-->>R: (user_msg, ai_msg, agent_response)
+    S-->>R: user_msg, ai_msg, agent_response
     R->>R: auto-title conversation from first message, build rich ai_message dict
-    R-->>F: {user_message, ai_message{answer,confidence,sources,follow_up_questions,...}}
-    F-->>U: render Markdown answer + confidence bar + cited sources + follow-up chips + download button
+    R-->>F: user_message + ai_message with answer, confidence, sources, follow_up_questions
+    F-->>U: render Markdown answer, confidence bar, cited sources, follow-up chips, download button
 ```
 
 > **Failure handling:** `RateLimitExceeded` → HTTP 429, `PromptInjectionDetected`
@@ -185,7 +185,7 @@ flowchart LR
 
     CI -- "route_after_classification" --> RC
     CI -- "route_after_classification" --> TC
-    CI -- "GREETING / no retrieval, no tool" --> GA
+    CI -- "GREETING - no retrieval, no tool" --> GA
 
     RC --> GA
     TC --> GA
@@ -205,7 +205,7 @@ flowchart TD
     D --> F
     F --> G{Any branch selected?}
     G -- no --> GA
-    G -- yes --> H[run selected branches in PARALLEL] --> GA
+    G -- yes --> H["run selected branches in parallel"] --> GA
 ```
 
 **Node responsibilities:**
@@ -237,18 +237,18 @@ flowchart TD
     A[user_message] --> B{FAST_INTENT_ROUTING = True?}
     B -- yes --> C[fast_intent.py keyword scan]
     C --> D{Matching rules?}
-    D -- greeting regex --> E[GREETING]
-    D -- keyword set *1 --> F[IntentType from keyword table]
-    D -- no match --> G[Gemini LLM classification]
+    D -- "greeting regex" --> E[GREETING]
+    D -- "keyword set" --> F[IntentType from keyword table]
+    D -- "no match" --> G[Gemini LLM classification]
     B -- no --> G
-    G --> H[build_intent_prompt → call_llm → JSON parse / repair]
+    G --> H[build_intent_prompt, call_llm, JSON parse/repair]
     F --> I[ClassificationResult]
     E --> I
     H --> I
     I --> J{Map to flags}
-    J --> K[needs_retrieval = INTENT_NEEDS_RETRIEVAL[intent]]
-    J --> L[needs_tool = INTENT_NEEDS_TOOL[intent]]
-    J --> M[suggested_tool = INTENT_TOOL_MAP[intent]]
+    J --> K["needs_retrieval = INTENT_NEEDS_RETRIEVAL[intent]"]
+    J --> L["needs_tool = INTENT_NEEDS_TOOL[intent]"]
+    J --> M["suggested_tool = INTENT_TOOL_MAP[intent]"]
 ```
 
 - **Intent types:** `course_query`, `attendance_query`, `placement_query`,
@@ -256,9 +256,9 @@ flowchart TD
   `policy_query`, `timetable_query`, `general_academic`, `greeting`, `unknown`.
 - **Retrieval** is enabled for all factual intents (incl. `unknown`), disabled for
   `greeting`/`general_academic`.
-- **Tools** are enabled for `course_query`, `attendance_query`, `placements`
-  (no), etc. via `INTENT_TOOL_MAP` (e.g. `attendance_query` →
-  `get_student_attendance`, `course_query` → `get_student_courses`).
+- **Tools** are enabled for `course_query`, `attendance_query`, etc. via
+  `INTENT_TOOL_MAP` (e.g. `attendance_query` → `get_student_attendance`,
+  `course_query` → `get_student_courses`).
 - The LLM output is parsed defensively: markdown fences stripped, trailing commas
   removed, first `{...}` object extracted, unterminated JSON closed gracefully.
 
@@ -271,35 +271,35 @@ This is the heart of the timetable fix and the richest workflow in the system.
 ```mermaid
 flowchart TD
     A["retrieve_context_node(state)"] --> B["Query = retrieval_query or user_message"]
-    B --> C[build metadata filter: department ∈ {all, dept} AND semester ∈ {0, sem}]
+    B --> C["build metadata filter: department in all/dept AND semester in 0/sem"]
 
     C --> D[Assemble query list]
     D --> D1["1. refined retrieval query"]
     D --> D2["2. raw user message"]
     D --> D3["3. curriculum enrichment queries"]
     D --> D4["4. schedule enrichment queries"]
-    D3 --> E["_curriculum_enrichment_queries: syllabus/scheme → SEMESTER I ... templates"]
+    D3 --> E["_curriculum_enrichment_queries: syllabus/scheme to SEMESTER I templates"]
     D4 --> E
 
-    E --> F["_multi_query_search: run each query on ChromaDB (top_k=15), merge by chunk_id, keep best similarity score"]
+    E --> F["_multi_query_search: run each query on ChromaDB top_k=15, merge by chunk_id, keep best similarity score"]
 
     F --> G{Any candidates?}
     G -- no --> H[empty RetrievalResult + empty docs]
 
-    G -- yes + quality mode --> I["rerank all candidates with cross-encoder (full ordering)"]
-    G -- yes + fast mode --> J["no rerank (similarity order used)"]
+    G -- "yes, quality mode" --> I["rerank all candidates with cross-encoder, full ordering"]
+    G -- "yes, fast mode" --> J["no rerank, similarity order used"]
 
     I --> K["hybrid score per candidate"]
     J --> K
-    K --> K1["similarity rank component (w_sim)"]
-    K --> K2["rerank rank component (w_rer)"]
-    K --> K3["lexical overlap component (w_lex)"]
-    K --> K4["+ TABLE-ROW BONUS for timetable rows"]
+    K --> K1["similarity rank component w_sim"]
+    K --> K2["rerank rank component w_rer"]
+    K --> K3["lexical overlap component w_lex"]
+    K --> K4["+ table-row bonus for timetable rows"]
 
     K --> L["sort by hybrid score, take top RERANK_TOP_N=8"]
 
-    L --> M["sibling expansion: pull chunks ±2 around top-6 anchors"]
-    M --> N["final dedupe + order → retrieved_documents (RankedDocument) + RetrievalResult"]
+    L --> M["sibling expansion: pull chunks +/-2 around top-6 anchors"]
+    M --> N["final dedupe + order to retrieved_documents (RankedDocument) + RetrievalResult"]
 ```
 
 **Multi-query assembly** — the reason simple questions still find table data:
@@ -307,26 +307,26 @@ flowchart TD
 ```mermaid
 flowchart TD
     A[user_message + retrieval_query]
-    A --> B{schedule question?<br/>contains day / timetable keywords}
+    A --> B{"schedule question? contains day/timetable keywords"}
     B -- yes --> C[timetable templates]
-    C --> C1["'Day: Time: Subject/Course: Faculty: Room: timetable'"]
-    C --> C2["'Code: Course Title: Type: Credits: Faculty: Room:'"]
-    C --> C3["if day → 'Day: <Day> ...' + '<Day> timetable subjects classes'"]
-    C --> C4["if subject phrase → 'Course Title: <Subject> Faculty: Room: Day: Time:'"]
+    C --> C1["Day: Time: Subject/Course: Faculty: Room: timetable"]
+    C --> C2["Code: Course Title: Type: Credits: Faculty: Room:"]
+    C --> C3["if day: Day plus day-name templates"]
+    C --> C4["if subject phrase: Course Title/Faculty/Room/Day/Time template"]
     B -- no --> D[no schedule queries]
-    A --> E{curriculum question?<br/>syllabus/scheme/semester}
-    E -- yes --> F["'SEMESTER I Course Code ...' style templates"] --> G[merge all unique queries]
-    D --> G
-    C --> G
+    A --> E{"curriculum question? syllabus/scheme/semester"}
+    E -- yes --> F["SEMESTER I Course Code style templates"] --> Gmerge[merge all unique queries]
+    D --> Gmerge
+    C --> Gmerge
 ```
 
 **Hybrid relevance score** (`_hybrid_score` in `retriever.py`):
 
 ```
-score = 0.5·(1 − sim_rank/total)   # similarity order
-      + 0.3·(1 − rerank_rank/total)  # cross-encoder order (0.0 in fast mode)
-      + 0.2·lexical_overlap          # best token overlap across ALL queries
-      + table_row_bonus              # see below
+score = 0.5 * (1 - sim_rank/total)     # similarity order
+      + 0.3 * (1 - rerank_rank/total)  # cross-encoder order (0.0 in fast mode)
+      + 0.2 * lexical_overlap          # best token overlap across ALL queries
+      + table_row_bonus                # see below
 ```
 
 **Table-row bonus (timetable fix):** when the question is a schedule question,
@@ -352,31 +352,31 @@ upserted into ChromaDB, ready for retrieval.
 
 ```mermaid
 flowchart LR
-    SUB[Admin upload]<-->U["POST /api/ai/documents/upload (admin/registrar only)"]
-    U --> V["validate ext .pdf/.docx/.txt/.csv/.md + ≤ 50 MB"]
+    SUB[Admin upload] <--> U["POST /api/ai/documents/upload - admin/registrar only"]
+    U --> V["validate ext: pdf/docx/txt/csv/md, less than or equal 50 MB"]
     V --> T["save to temp file"]
     T --> E[extract_text]
     E --> CL[clean_pages]
     CL --> CH[chunk_pages]
-    CH --> EM[embed chunks<br/>all-MiniLM-L6-v2 · 384-dim]
-    EM --> VS[upsert_chunks → ChromaDB]
+    CH --> EM["embed chunks<br/>all-MiniLM-L6-v2, 384-dim"]
+    EM --> VS[upsert_chunks to ChromaDB]
     VS --> R[Result: chunk count, doc id]
 
-    subgraph E_[Extractor dispatch]
-        E --> P[PyMuPDF: page texts<br/>multi-column reading order]
-        E --> D[python-docx: paragraphs + TABLE-rendered rows]
+    subgraph E_["Extractor dispatch"]
+        E --> P["PyMuPDF: page texts, multi-column reading order"]
+        E --> Dx["python-docx: paragraphs + table-rendered rows"]
         E --> X[TXT / CSV / MD parsers]
     end
 
-    subgraph CL_[Cleaner]
-        CL --> C1[10-step cleaning: bullets, whitespace, urls, utf fixes...]
-        C1 --> C2[KEEPS table sentinel markers \u0001TABLE / \u0002]
+    subgraph CL_["Cleaner"]
+        CL --> C1["10-step cleaning: bullets, whitespace, urls, utf fixes"]
+        C1 --> C2["keeps table sentinel markers TABLE_START/TABLE_END"]
     end
 
-    subgraph CH_[Chunker]
-        CH --> H1[table blocks → row-groups of TABLE_ROWS_PER_CHUNK=3]
-        H1 --> H2["header line repeated per group<br/>'TABLE n (Columns: ...)'"]
-        CH --> H3[prose blocks → RecursiveCharacterTextSplitter<br/>chunk_size=768 · overlap=100]
+    subgraph CH_["Chunker"]
+        CH --> H1["table blocks to row-groups of TABLE_ROWS_PER_CHUNK=3"]
+        H1 --> H2["header line repeated per group: TABLE n Columns"]
+        CH --> H3["prose blocks to RecursiveCharacterTextSplitter<br/>chunk_size=768, overlap=100"]
     end
 ```
 
@@ -389,10 +389,10 @@ flowchart LR
 flowchart TD
     A[clear collection campus_genie_docs]
     B[scan uploads/ai_documents for unique files]
-    C[skip-list filter: synthetic RAG-test docs + stray reports]
-    D[infer doc_type from filename rules: timetable/attendance/policy/notice/admission/faculty/scholarship/placement/handbook]
-    E[dedupe upload suffixes _1/_2]
-    F[index each doc → 677 chunks total]
+    C["skip-list filter: synthetic RAG-test docs + stray reports"]
+    D["infer doc_type from filename rules: timetable/attendance/policy/notice/admission/faculty/scholarship/placement/handbook"]
+    E["dedupe upload suffixes _1/_2"]
+    F[index each doc, 677 chunks total]
     A --> B --> C --> D --> E --> F
 ```
 
@@ -407,19 +407,19 @@ the chunker can group them.
 
 ```mermaid
 flowchart TD
-    A["DOCX table (python-docx)"] --> B["_extract_table_rows: collapse merged-cell duplicates"]
+    A["DOCX table via python-docx"] --> B["_extract_table_rows: collapse merged-cell duplicates"]
     B --> C["_looks_like_header_row: detect header via TIME regex, day names, room regex"]
     C --> D["_render_table_with_headers: pick header row as column labels"]
-    D --> E["emit per-row text:<br/>Day: Wednesday, Time: 09:00-10:00, Subject: Research Methodology, Faculty: Dr. ... , Room: C-302"]
-    E --> F["wrap in TABLE_START_MARKER (\u0001TABLE) / TABLE_END_MARKER (\u0002)"]
-    F --> G[chunker._chunk_table_block: split into 3-row groups, repeat header line per group]
+    D --> E["emit per-row text:<br/>Day: Wednesday, Time: 09:00-10:00,<br/>Subject: Research Methodology,<br/>Faculty: Dr. X, Room: C-302"]
+    E --> F["wrap in TABLE_START_MARKER / TABLE_END_MARKER sentinel"]
+    F --> G["chunker._chunk_table_block: split into 3-row groups, repeat header line per group"]
     G --> H[each row-group = one searchable, labeled chunk]
 ```
 
 ```mermaid
 sequenceDiagram
     autonumber
-    participant D as Document (docx)
+    participant D as Document docx
     participant X as extractor.extract_docx
     participant C as cleaner.clean_pages
     participant K as chunker.chunk_pages
@@ -427,13 +427,13 @@ sequenceDiagram
     participant V as ChromaDB
 
     D->>X: python-docx open
-    X->>X: paragraphs (non-table) appended as-is
-    X->>X: tables → labeled rows + sentinel markers
+    X->>X: paragraphs, non-table, appended as-is
+    X->>X: tables to labeled rows + sentinel markers
     X-->>C: paged text with TABLE markers preserved
-    C-->>K: cleaned pages (markers survive steps 4/8)
-    K->>K: block scan — on TABLE_START_MARKER … TABLE_END_MARKER → row-groups
-    K-->>E: chunks (3-row table groups + prose chunks)
-    E-->>V: embed + upsert (metadata: source_file, doc_type, chunk_index...)
+    C-->>K: cleaned pages, markers survive cleaning steps
+    K->>K: block scan on TABLE_START_MARKER to TABLE_END_MARKER, into row-groups
+    K-->>E: chunks, 3-row table groups + prose chunks
+    E-->>V: embed + upsert, metadata source_file/doc_type/chunk_index
 ```
 
 > **Why this fixes timetable RAG:** a row like
@@ -455,16 +455,16 @@ flowchart TD
     A[generate_answer_node] --> B{intent == GREETING?}
     B -- yes --> C[canned greeting response]
     B -- no --> D[gather inputs]
-    D --> D1[retrieved_documents (RankedDocument list)]
-    D --> D2[tool_result data]
-    D --> D3[conversation_history last 6 turns]
+    D --> D1["retrieved_documents (RankedDocument list)"]
+    D --> D2["tool_result data"]
+    D --> D3["conversation_history, last 6 turns"]
     D --> D4[user_context]
     D1 --> E{no docs AND no tool result?}
     D2 --> E
-    E -- yes --> F["'I don't have that specific information in my knowledge base...'"<br/>rule-12 guarded — last resort only]
-    E -- no --> G[build_rag_prompt: 12 strict rules + confidence guide + citation requirements]
-    G --> H[call_llm → structured JSON]
-    H --> I[parse + repair JSON: answer, confidence, sources, follow_up_questions]
+    E -- yes --> F["fallback: I don't have that specific information<br/>rule-12 guarded, last resort only"]
+    E -- no --> G["build_rag_prompt: 12 strict rules + confidence guide + citation requirements"]
+    G --> H[call_llm to structured JSON]
+    H --> I["parse + repair JSON: answer, confidence, sources, follow_up_questions"]
     I --> J{confidence < 0.6?}
     J -- yes --> K[prepend low-confidence warning]
     J -- no --> L[assemble AgentResponse]
@@ -505,17 +505,17 @@ Every LLM interaction goes through `llm/client.py`. Resilience chain:
 ```mermaid
 flowchart TD
     A["call_llm(prompt, model_override, ...)"] --> B{Gemini key configured?}
-    B -- no --> H[log skip → OpenRouter]
-    B -- yes --> C["_call_gemini(prompt, <primary> <fallbacks>…)"]
-    C --> D["candidates = [gemini-3.5-flash or intended model] + [gemini-flash-latest, gemini-flash-lite-latest, gemini-3.1-flash-lite]"]
-    D --> E{"per-candidate attempt:<br/>RPC timeout 60s (RPC + hard thread timeout)"}
-    E -- "429 / RESOURCE_EXHAUSTED" --> R["sleep(retry_delay ≤ 25s) → retry SAME model once"]
-    R -- fail again --> N
-    E -- "timeout / error" --> N["log + rotate to next candidate"]
-    N --> E2{next candidate}
-    E2 -- exhausted --> O["raise → OpenRouter attempt via openai SDK @ LLM_BASE_URL"]
-    E -- success --> P[LLMResult: text, provider, model, tokens, latency_ms]
-    O --> Q[LLMResult or RuntimeError if both fail]
+    B -- no --> H[log skip, go to OpenRouter]
+    B -- yes --> C["_call_gemini(prompt, primary + fallbacks)"]
+    C --> D["candidates = [primary model] + [gemini-flash-latest, gemini-flash-lite-latest, gemini-3.1-flash-lite]"]
+    D --> E{"per-candidate attempt:<br/>RPC timeout 60s"}
+    E -- "429 / RESOURCE_EXHAUSTED" --> Rt["sleep retry_delay up to 25s, retry SAME model once"]
+    Rt -- fail again --> N
+    E -- "timeout / error" --> N[log + rotate to next candidate]
+    N --> E2{next candidate?}
+    E2 -- exhausted --> O["raise, OpenRouter attempt via openai SDK at LLM_BASE_URL"]
+    E -- success --> P["LLMResult: text, provider, model, tokens, latency_ms"]
+    O --> Q["LLMResult or RuntimeError if both fail"]
 ```
 
 > Each free-tier Gemini model caps at ~20 requests/day. Rotation keeps the bot
@@ -532,15 +532,15 @@ sequenceDiagram
     participant G as LangGraph
     participant DB as MySQL
 
-    Note over G,DB: load_memory_node (before classification)
-    G->>DB: SELECT last MEMORY_WINDOW_SIZE*2 messages for conversation
-    DB-->>G: conversation_history [user/ai turns]
+    Note over G,DB: load_memory_node, before classification
+    G->>DB: SELECT last MEMORY_WINDOW_SIZE times 2 messages for conversation
+    DB-->>G: conversation_history, user/ai turns
     G->>G: inject into RAG prompt as history
 
-    Note over G,DB: save_memory_node (after generation)
-    G->>DB: INSERT AIMessage(user, content, created_at=now)
-    G->>DB: flush → get user_msg.id
-    G->>DB: INSERT AIMessage(ai, answer, created_at=now+1ms)  # strict ordering
+    Note over G,DB: save_memory_node, after generation
+    G->>DB: INSERT AIMessage user, content, created_at=now
+    G->>DB: flush, get user_msg.id
+    G->>DB: INSERT AIMessage ai, answer, created_at=now+1ms for strict ordering
     G->>DB: UPDATE AIConversation SET updated_at
     G->>DB: commit
 ```
@@ -569,13 +569,13 @@ API endpoints under `/api/ai` (`ai_engine/api/ai_routes.py`):
 ```mermaid
 flowchart TD
     A["Frontend AIAssistant mount"] --> B["loadConversations()"]
-    B --> C{"empty?"}
-    C -- yes --> D["createConversation() → default title"]
-    C -- no --> E["openConversation(id) → GET detail + messages"]
-    D --> F["user sends first message"]
+    B --> C{empty?}
+    C -- yes --> D["createConversation, default title"]
+    C -- no --> E["openConversation(id): GET detail + messages"]
+    D --> F[user sends first message]
     E --> F
-    F --> G["sendMessage → POST .../messages"]
-    G --> H["response includes conversation_title → sidebar auto-titles from first message"]
+    F --> G["sendMessage: POST messages endpoint"]
+    G --> H["response includes conversation_title, sidebar auto-titles from first message"]
     H --> I["side panel: delete / rename / new chat"]
 ```
 
@@ -589,24 +589,24 @@ Admin/registrar only (role check → 403 otherwise).
 flowchart TD
     subgraph Upload
         P1["POST /api/ai/documents/upload"]
-        P2["doc_service.upload_and_index:<br/>save temp file, validate ext/size,"]
-        P3["background task: index_document_from_path<br/>→ full ingestion pipeline"]
+        P2["doc_service.upload_and_index:<br/>save temp file, validate ext/size"]
+        P3["background task: index_document_from_path,<br/>full ingestion pipeline"]
         P1 --> P2 --> P3
     end
 
     subgraph List
-        L1["GET /api/ai/documents → list indexed docs with metadata"]
-        L2["GET /api/ai/documents/stats → counts"]
+        L1["GET /api/ai/documents: list indexed docs with metadata"]
+        L2["GET /api/ai/documents/stats: counts"]
     end
 
     subgraph Delete
         D1["DELETE /api/ai/documents/{filename}"]
-        D2["delete_by_source_file → remove chunks from ChromaDB"]
+        D2["delete_by_source_file: remove chunks from ChromaDB"]
     end
 
     subgraph Reindex
         R1["python scripts/reindex_knowledge_base.py"]
-        R2["clear collection → re-scan uploads dir → rebuild (677 chunks)"]
+        R2["clear collection, re-scan uploads dir, rebuild - 677 chunks"]
     end
 ```
 
@@ -616,19 +616,19 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-    A["Login form (email + password)"] --> B["POST /api/auth/login"]
+    A["Login form: email + password"] --> B["POST /api/auth/login"]
     B --> B1{"email ends with @university.edu.in?"}
     B1 -- no --> E400[400]
-    B1 -- yes --> C["verify_password bcrypt → user.is_active check"]
-    C --> D[create JWT access token<br/>sub = user.email, expires = ACCESS_TOKEN_EXPIRE_MINUTES]
-    D --> E["{access_token, token_type: bearer, user}"]
-    E --> F["frontend stores token in localStorage"]
-    F --> G["every API call: Authorization: Bearer <token>"]
-    G --> H["get_current_user dependency → user object"]
+    B1 -- yes --> C["verify_password bcrypt, user.is_active check"]
+    C --> D["create JWT access token<br/>sub=user.email, expires=ACCESS_TOKEN_EXPIRE_MINUTES"]
+    D --> E["access_token, token_type bearer, user"]
+    E --> F[frontend stores token in localStorage]
+    F --> G["every API call: Authorization Bearer token"]
+    G --> H["get_current_user dependency to user object"]
     H --> I[role-based gates]
     I --> I1["chat messages: STUDENT only"]
     I --> I2["document upload/delete: ADMIN or REGISTRAR"]
-    I --> I3["dashboards: admin/faculty/registrar/student routes (AppRoutes)"]
+    I --> I3["dashboards: admin/faculty/registrar/student routes"]
 ```
 
 Registration (`POST /api/auth/register`) hashes the password via bcrypt and stores
@@ -642,13 +642,13 @@ RegistrarDashboard, staff → FacultyDashboardNew, else StudentDashboard.
 
 ```mermaid
 flowchart TD
-    A["generate_answer produces content"] --> B["DownloadService.detect_download_need(content, intent)"]
-    B --> C{"timetable keywords ≥ 3 or timetable intent?"}
+    A[generate_answer produces content] --> B["DownloadService.detect_download_need(content, intent)"]
+    B --> C{"timetable keywords >= 3 or timetable intent?"}
     C -- yes --> D["suggest pdf + csv + text<br/>filename timetable_YYYYMMDD_HHMMSS"]
-    C -- no --> E{"table keywords ≥ 2?"}
+    C -- no --> E{"table keywords >= 2?"}
     E -- yes --> F["suggest csv + text<br/>filename data_YYYYMMDD_HHMMSS"]
     E -- no --> G[no download suggestion]
-    D --> H["POST /api/ai/download → generate file"]
+    D --> H["POST /api/ai/download: generate file"]
     F --> H
     H --> I[response as downloadable attachment]
 ```
@@ -670,11 +670,11 @@ generator with **zero documents** → "I don't have that information".
 
 ```mermaid
 flowchart TD
-    A["Parallel superstep: retrieve_context ∥ tool_call"] --> B["branch A writes retrieved_documents=[...real docs...]"]
-    A --> C["branch B re-emits retrieved_documents=None (didn't produce it)"]
-    B --> M["LangGraph merge with _keep_first_real:<br/>'new is not None else old'"]
+    A["Parallel superstep: retrieve_context and tool_call"] --> B["branch A writes retrieved_documents = real docs"]
+    A --> C["branch B re-emits retrieved_documents = None, didn't produce it"]
+    B --> M["LangGraph merge with _keep_first_real:<br/>keep new value unless it's None, else keep old"]
     C --> M
-    M --> D["answer generator now sees 16 real docs → docs_count=16, has_tool_result=true"]
+    M --> D["answer generator now sees 16 real docs: docs_count=16, has_tool_result=true"]
 ```
 
 | Reducer | Applies to | Behaviour |
@@ -751,7 +751,7 @@ Key knobs (`backend/ai_engine/core/config.py`, overridable via `backend/.env`):
 | Backend (FastAPI) | `cd backend && PYTHONPATH=src nohup /opt/homebrew/bin/python3.11 -m uvicorn src.main:app --host 0.0.0.0 --port 8002` | http://localhost:8002 |
 | API docs (Swagger) | — | http://localhost:8002/docs |
 | AI health | — | http://localhost:8002/api/ai/health |
-| Frontend (React) | `cd frontend && npm start` (Vite/CRA dev server) | http://localhost:3000 |
+| Frontend (React) | `cd frontend && npm start` | http://localhost:3000 |
 | KB reindex | `cd backend && PYTHONPATH=.. python3.11 scripts/reindex_knowledge_base.py` | → 677 chunks |
 
 **Demo login:** `student@university.edu.in` / `student123`
