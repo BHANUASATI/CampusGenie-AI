@@ -1,0 +1,496 @@
+# 🧠 RAG_WORKFLOW — How CampusGenie Finds Answers (In Depth)
+
+> This document explains **exactly** how the CampusGenie RAG (Retrieval-Augmented
+> Generation) pipeline works — end to end, with **real worked examples** using
+> actual code paths, constants, and data from the live project.
+>
+> Two questions are answered in depth:
+> 1. **"How does the AI chatbot find an answer?"** — from the moment a student
+>    types a message to the moment a cited answer appears.
+> 2. **"What happens internally when an admin uploads a document?"** — the full
+>    ingestion pipeline from file bytes to searchable vector chunks.
+>
+> All numbers (chunk sizes, weights, thresholds, model names) are the real values
+> in `backend/ai_engine/core/config.py` and the agent code.
+
+---
+
+## Table of Contents
+
+- [1. RAG in One Picture](#1-rag-in-one-picture)
+- [2. The Two Halves of the Pipeline](#2-the-two-halves-of-the-pipeline)
+- [3. PART 1 — Admin Upload: "How does knowledge get INTO the bot?"](#3-part-1--admin-upload-how-does-knowledge-get-into-the-bot)
+  - [3.1 API entry point](#31-api-entry-point)
+  - [3.2 Step-by-step ingestion](#32-step-by-step-ingestion)
+  - [3.3 WORKED EXAMPLE — uploading a timetable DOCX](#33-worked-example--uploading-a-timetable-docx)
+  - [3.4 Where the chunks live](#34-where-the-chunks-live)
+  - [3.5 Managing / reindexing the knowledge base](#35-managing--reindexing-the-knowledge-base)
+- [4. PART 2 — Chat Query: "How does the bot find an ANSWER?"](#4-part-2--chat-query-how-does-the-bot-find-an-answer)
+  - [4.1 The full request path](#41-the-full-request-path)
+  - [4.2 WORKED EXAMPLE — "When is the Advanced Database Management Systems class?"](#42-worked-example--when-is-the-advanced-database-management-systems-class)
+  - [4.3 The hybrid score, decoded](#43-the-hybrid-score-decoded)
+  - [4.4 Why tables used to fail (and the fix)](#44-why-tables-used-to-fail-and-the-fix)
+  - [4.5 Answer generation & the 12 rules](#45-answer-generation--the-12-rules)
+- [5. Glossary](#5-glossary)
+
+---
+
+## 1. RAG in One Picture
+
+RAG = **Retrieve** relevant knowledge first, then let the LLM **Generate** an
+answer *grounded* in what was retrieved. The LLM is never asked to "know"
+anything — it is handed evidence (document chunks + live DB data) and told to
+answer **only from that evidence**, citing exact source filenames.
+
+```mermaid
+flowchart LR
+    KB[(Knowledge Base\nChromaDB · 384-dim vectors)] --> R[RETRIEVE\nfind most relevant chunks]
+    DB[(MySQL\nlive student/faculty data)] --> T[TOOL CALLS\nlive data for the user]
+    R --> C[CONTEXT\nchunks + tool results + history]
+    T --> C
+    C --> G[GENERATE\nLLM answers from context only]
+    G --> A["Answer + confidence\n+ citations + follow-ups"]
+```
+
+The contract: **no hallucination**. Rule 3 of the RAG prompt forbids inventing
+dates, marks, percentages, deadlines, names, phone numbers, room numbers, or fee
+amounts. If nothing relevant is retrieved, the bot says it doesn't know — but
+only as a **last resort** (rule 12) — *any* partial grounding must be answered
+from.
+
+---
+
+## 2. The Two Halves of the Pipeline
+
+| | PART 1 — Ingest (write path) | PART 2 — Chat (read path) |
+|---|---|---|
+| Who | **Admin / Registrar** | **Student** |
+| Action | upload a PDF/DOCX/TXT/CSV/MD | type a message in the chat widget |
+| Destination | ChromaDB (knowledge chunks) | ChromaDB (retrieve) + MySQL (tools/memory) |
+| Cloud LLM | no (embeddings are local) | yes (Gemini, with fallback) |
+| Where in code | `document_routes.py` → `document_service.py` → `indexer.py` → `extractor/cleaner/chunker` → `embeddings/model.py` → `vectorstore/manager.py` | `ai_routes.py` → `chat_service.py` → `graph/orchestrator.py` → agents |
+
+```mermaid
+flowchart TB
+    subgraph WRITE["PART 1 · Ingest (admin upload)"]
+        A1[Upload file] --> A2[Extract text]
+        A2 --> A3[Clean text]
+        A3 --> A4[Chunk into small pieces]
+        A4 --> A5[Embed chunks → 384-dim vectors]
+        A5 --> A6[(ChromaDB)]
+    end
+
+    subgraph READ["PART 2 · Chat (student question)"]
+        B1[Question] --> B2[Intent classification]
+        B2 --> B3[Build search queries]
+        B3 --> B4[Embed queries + vector search]
+        B4 --> B5[Rerank + hybrid score]
+        B5 --> B6[Top-8 evidence chunks]
+        B6 --> B7[LLM generates grounded answer]
+    end
+
+    A6 --> B4
+```
+
+---
+
+## 3. PART 1 — Admin Upload: "How does knowledge get INTO the bot?"
+
+### 3.1 API entry point
+
+```
+POST /api/ai/documents/upload
+Authorization: Bearer <admin-or-registrar-JWT>
+multipart/form-data:  file, doc_type, department, semester, academic_year
+```
+
+The endpoint (`backend/ai_engine/api/document_routes.py`) does **3 things**:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant A as Admin UI
+    participant R as POST /api/ai/documents/upload
+    participant S as DocumentService.upload_and_index
+    participant T as FastAPI BackgroundTasks
+    participant P as pipeline (extract→clean→chunk→embed)
+    participant C as ChromaDB
+
+    A->>R: file + doc_type("timetable") + department("cse")
+    R->>R: _require_admin(current_user) → 403 for non-admin
+    R->>R: save bytes to tempfile.NamedTemporaryFile
+    R->>T: background_tasks.add_task(_process_and_cleanup)
+    T->>S: upload_and_index(temp_path, filename, doc_type, dept, sem)
+    S->>S: validate doc_type ∈ DOC_TYPES · validate ext ∈ [.pdf .docx .txt .csv .md]
+    S->>S: copy to uploads/ai_documents/<filename> (dedupe → _1, _2 ...)
+    S->>P: index_document_from_path(...)
+    P->>C: upsert_chunks(chunks, metadatas)
+    T->>T: finally: delete temp file (no disk leak)
+    R-->>A: 200 {message: "Document upload started", status: "processing"}
+```
+
+> **Why so fast?** The API returns immediately with `status: "processing"` and
+> the heavy indexing runs in a **background task** (a large PDF can take
+> 30–60 s). The temp file is deleted in a `finally` block regardless of success.
+
+### 3.2 Step-by-step ingestion
+
+Each step lives in `backend/ai_engine/document_pipeline/`:
+
+| Step | Module | What really happens |
+|---|---|---|
+| **1. Extract** | `extractor.py` | Dispatch on extension: **PDF** → PyMuPDF page text (reading-order, multi-column); **DOCX** → python-docx paragraphs **+ full table rendering**; TXT/CSV/MD → stdlib parsers. Output: `[(page_no, text), ...]` |
+| **2. Clean** | `cleaner.py` | 10-step normalization (bullets, whitespace, URLs, unicode fixes…). **Deliberately keeps the table sentinel markers** `\u0001TABLE…\u0002` so tables are not destroyed |
+| **3. Chunk** | `chunker.py` | Prose → `RecursiveCharacterTextSplitter` (768 tokens, 100 overlap). **Table blocks** → row-groups of `TABLE_ROWS_PER_CHUNK = 3` rows, header line repeated in each group |
+| **4. Embed** | `embeddings/model.py` | `all-MiniLM-L6-v2` → **384-dim vector** per chunk. Runs **locally on CPU** (~5 ms/chunk, no API cost). Singleton, loaded once at startup |
+| **5. Store** | `vectorstore/manager.py` | `upsert_chunks(chunks, metadatas)` into ChromaDB collection `campus_genie_docs` |
+
+Every chunk is stored with **metadata** (this powers the answer's citations and
+the department/semester filter):
+
+```json
+{
+  "source_file": "KRMU_Master_Timetable_RAG_Test_v2.docx",
+  "doc_type": "timetable",
+  "department": "cse",
+  "semester": 1,
+  "academic_year": "2025-26",
+  "chunk_index": 12,
+  "document_id": "…uuid…"
+}
+```
+
+### 3.3 WORKED EXAMPLE — uploading a timetable DOCX
+
+Real transformation inside the extractor. Raw DOCX table rows are semantically
+**useless** for vector search — `Wednesday | 10:00 AM - 11:00 AM | Research
+Methodology | Dr. … | C-104` embeds as a meaningless blob. The extractor rewrites
+every row into a **self-describing labeled sentence**:
+
+```
+BEFORE (raw table cell values):
+------------------------------------------------
+| Wednesday | 10:00–11:00 | Research Methodology | Dr. Anita Sharma | C-104   |
+| Thursday  | 09:00–10:00 | DBMS Lab             | Dr. Neha Bhatia   | C-302   |
+------------------------------------------------
+
+AFTER (what actually gets embedded):
+------------------------------------------------
+TABLE 1 (Columns: Day | Time | Subject / Course | Faculty | Room):
+Day: Wednesday, Time: 10:00–11:00, Subject / Course: Research Methodology, Faculty: Dr. Anita Sharma, Room: C-104
+Day: Thursday, Time: 09:00–10:00, Subject / Course: DBMS Lab, Faculty: Dr. Neha Bhatia, Room: C-302
+------------------------------------------------
+```
+
+**How the extractor builds this** (`_render_table_with_headers`):
+
+1. `_extract_table_rows` → collapse merged-cell duplicates (a cell repeated across
+   columns is skipped).
+2. `_looks_like_header_row` → finds the header row using `_TIME_RE`
+   (`^\d{1,2}:\d{2}`), day-name detection (`monday…sunday`), and `_ROOM_RE`.
+3. The header row becomes **column labels**; every data row is emitted as
+   `Label: value, Label: value, …`.
+4. The rendered table is wrapped in sentinels:
+   `\u0001TABLE … \u0002`.
+
+The chunker then splits the marked block on the sentinels and groups rows
+**3 at a time**, repeating the header line at the top of each group — so a
+38-row timetable becomes 13 searchable row-group chunks (each chunk stays
+semantically focused).
+
+### 3.4 Where the chunks live
+
+```
+backend/chroma_db/          ← persistent ChromaDB (gitignored)
+  └─ campus_genie_docs      ← collection name (config CHROMA_COLLECTION_NAME)
+```
+
+Current live KB: **581 chunks across 12 documents** (health check
+`GET /api/ai/health` reports `chromadb.chunks`). Examples by source:
+
+| Source file | Chunks |
+|---|---|
+| MCA 2025-27 Handbook_Core (23-09-2025).pdf | 219 |
+| MCA 2025-27 Handbook (23-09-25) AI ML.pdf | 188 |
+| KRMU_Hostel_Residential_Life_Policy_RAG_v1.docx | 40 |
+| KRMU_Attendance_Policy_RAG_Knowledge_Base_v3.docx | 37 |
+| KRMU_Master_Timetable_RAG_Test_v2.docx | 17 |
+| … 7 more | … |
+| **Total** | **581** |
+
+> Count changes as admin uploads/deletes documents — it is **not** static.
+
+### 3.5 Managing / reindexing the knowledge base
+
+| Action | Endpoint / command | Internal behaviour |
+|---|---|---|
+| List docs | `GET /api/ai/documents` | returns metadata of every indexed doc |
+| Stats | `GET /api/ai/documents/stats` | chunk counts |
+| Delete | `DELETE /api/ai/documents/{filename}` | `delete_by_source_file` removes all its chunks |
+| **Reindex** | `python scripts/reindex_knowledge_base.py` | clears collection → re-scans `uploads/ai_documents` → skips a **skip-list** (synthetic RAG-test docs + stray reports) → infers `doc_type` from filename keywords (timetable/attendance/policy/notice/admission/faculty/scholarship/placement/handbook) → dedupes `_1`/`_2` suffix duplicates → re-indexes |
+
+---
+
+## 4. PART 2 — Chat Query: "How does the bot find an ANSWER?"
+
+### 4.1 The full request path
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant S as Student (chat widget)
+    participant R as POST /api/ai/conversations/{id}/messages
+    participant CC as ChatService.send_message
+    participant G as LangGraph run_agent
+    participant C as ChromaDB
+    participant M as MySQL
+    participant L as Gemini (llm/client.py)
+
+    S->>R: "When is the Advanced Database Management Systems class?"
+    R->>R: JWT → must be STUDENT · conversation belongs to user
+    R->>CC: send_message(...)
+    CC->>CC: rate limit (60/min · 20 burst · 1000/day)
+    CC->>CC: injection scan + PII masking
+    CC->>G: initial AgentState (user_context, trace_id)
+
+    G->>G: 1 · load_memory  → last 6 turns
+    G->>G: 2 · classify_intent → timetable_query, needs_retrieval=TRUE, needs_tool=?
+    par parallel
+        G->>C: 3a · retrieve_context (multi-query + rerank)
+        G->>M: 3b · tool_call (live DB tools)
+    end
+    G->>L: 4 · generate_answer (RAG prompt = context + tools + history)
+    L-->>G: JSON {answer, confidence, sources, follow_up_questions}
+    G->>M: 5 · save_memory (user + AI messages)
+    G-->>CC: final AgentState
+    CC-->>R: rich ai_message
+    R-->>S: rendered: answer + confidence + citations + follow-ups
+```
+
+### 4.2 WORKED EXAMPLE — "When is the Advanced Database Management Systems class?"
+
+Let's trace this exact real question through the pipeline with the actual
+constants from the code.
+
+**Step 1 — Intent classification**
+
+`classify_intent_node` first tries the fast keyword router
+(`fast_intent.py`). The message contains *"class"* and *"Advanced Database
+Management Systems"* — hits `_SCHEDULE_KEYWORDS`, and because
+`FAST_INTENT_ROUTING=True` it is classified **locally** (no LLM call) as
+`TIMETABLE_QUERY` → `needs_retrieval=True`.
+
+> For harder questions the router falls back to Gemini with a structured JSON
+> prompt, then the result is sanitized into a `ClassificationResult`.
+
+**Step 2 — Build the search query list**
+
+`retrieve_context_node` assembles **up to ~8 queries** by concatenating the
+refined query, the raw user message, curriculum enrichment, and **schedule
+enrichment**:
+
+| # | Query (actually sent to ChromaDB) | Why |
+|---|---|---|
+| 1 | `when is the advanced database management systems class` | refined retrieval query |
+| 2 | `When is the Advanced Database Management Systems class?` | raw user message |
+| 3 | `timetable schedule Day Time Subject Course Faculty Room` | schedule template |
+| 4 | `Day: Time: Subject / Course: Faculty: Room: timetable` | label-vocabulary probe |
+| 5 | `Code: Course Title: Type: Credits: Faculty: Room: timetable` | label-vocabulary probe |
+| 6 | `Master Academic Timetable Course Title Faculty Room Credits Day` | timetable probe |
+| 7 | `Course Title: Advanced Database Management Systems Faculty: Room: Day: Time:` | subject detected via `_extract_subject_phrase` |
+| 8 | `timetable Advanced Database Management Systems class schedule day faculty room` | direct subject probe |
+
+These come from `_schedule_enrichment_queries` — triggered because the message
+contains a schedule keyword (`class`) and/or a weekday. `_extract_subject_phrase`
+strips filler words and returns the longest noun run:
+**`"Advanced Database Management Systems"`**.
+
+**Step 3 — Metadata filter**
+
+ChromaDB search is constrained to `(department == "all" OR department == <user's>)`
+and `(semester == 0 OR semester == <user's>)` when the student context has that
+data. The timetable doc is tagged `department: cse`, so it passes.
+
+**Step 4 — Multi-query vector search**
+
+Each query is embedded (384-dim) and runs `search(top_k=15)` against ChromaDB.
+Results are merged **by chunk_id**, keeping the best similarity score per chunk,
+then sorted by similarity. (If the filtered search returns nothing, it retries
+**without** the filter.)
+
+**Step 5 — Cross-encoder reranking**
+
+All candidates are re-scored by the `cross-encoder/ms-marco-MiniLM-L-6-v2`
+reranker, which reads *query + document pairs together* (much stronger than
+embedding cosine). The full ordering is kept — not a truncated top-N — so the
+hybrid step can use every rank.
+
+**Step 6 — Hybrid score + table-row bonus**
+
+Each candidate gets a blended score (see [4.3](#43-the-hybrid-score-decoded)),
+and timetable rows get the subject-gated bonus:
+
+```python
+if schedule_queries and _looks_like_table_row(content):      # ≥3 label hits
+    if not subject_tokens:                                    # no subject detected
+        bonus = 0.22
+    else:
+        frac = len(content_tokens ∩ subject_tokens) / len(subject_tokens)
+        if frac >= 0.5:                                       # row really is about DBMS
+            bonus = 0.22 * frac
+```
+
+A row containing `Advanced Database Management Systems` with `Dr. Neha Bhatia`,
+`C-302`, `Monday ... 09:00–10:00` gets `frac ≈ 1.0 → bonus ≈ 0.22`, which is
+enough to beat similar-but-wrong rows. Rows about other subjects get **no bonus**
+— they cannot crowd out the answer.
+
+**Step 7 — Sibling expansion**
+
+The top-6 anchors pull their neighbours (±2 chunks) into the final set at a
+small penalty (−0.05), so a "Master Timetable" heading chunk brings every
+neighbouring row-group along. Final cut: **top-8** (`RERANK_TOP_N`).
+
+**Step 8 — Answer generation**
+
+The top-8 `RankedDocument`s become the `RETRIEVED CONTEXT` block of the RAG
+prompt (each bounded to 1200 chars), alongside tool results and history. Gemini
+(`gemini-3.5-flash`, fallback rotation) returns strict JSON, which is parsed and
+returned.
+
+**The real output this question produced:**
+
+> **Advanced Database Management Systems (DBMS)** classes are held:
+> - **Monday** 09:00–10:00 — **Dr. Neha Bhatia** — **C-302**
+> - **Wednesday** 10:00–11:00 — Dr. Neha Bhatia — C-302
+> - **Friday** 09:00–10:00 — Dr. Neha Bhatia — C-302
+>
+> *According to [KRMU_Master_Timetable_RAG_Test_v2.docx]* — confidence: 1.0
+
+And the debug log confirmed the fix is active:
+`answer.generate.start → docs_count: 16, has_tool_result: true`
+(16 real chunks reached the generator — before the state-merge fix it was `0`).
+
+### 4.3 The hybrid score, decoded
+
+From `retriever.py::_hybrid_score` (quality mode):
+
+```
+score = 0.5·(1 − sim_rank/total)     # where the chunk landed in similarity order
+      + 0.3·(1 − rerank_rank/total)  # where it landed in cross-encoder order
+      + 0.2·lexical_overlap          # best overlap of query tokens & content
+      + table_row_bonus              # ≤ 0.22 for subject-matched timetable rows
+```
+
+**Motivation:** nobody alone is reliable.
+
+- Similarity-only: misses tabular/list chunks (tables embed badly).
+- Rerank-only: can drop good semantic matches that read poorly as text.
+- Lexical overlap: catches label-row matches (`Day:`, `Time:`, `Room:`) even when
+  the semantic embedding is mediocre.
+
+In **fast mode** the reranker is skipped and weights become `0.7` similarity,
+`0.0` rerank, `0.3` lexical.
+
+### 4.4 Why tables used to fail (and the fix)
+
+This is the project's central bug story:
+
+```mermaid
+flowchart LR
+    subgraph OLD["BEFORE (broken)"]
+        O1["raw docx table: Wednesday | 10:00 | ..."] --> O2["embedding is a weak blob"]
+        O2 --> O3["vector search can't match 'when is DBMS?'"]
+        O3 --> O4["timetable chunks never retrieved → chats answer 'no information'"]
+    end
+    subgraph NEW["AFTER (fixed)"]
+        N1["labeled rows: Day: Wednesday, Time: ..., Subject: DBMS ..."] --> N2["embedding + lexical overlap match the question"]
+        N2 --> N3["schedule enrichment queries probe the label vocabulary"]
+        N3 --> N4["subject-gated +0.22 row bonus surfaces the exact row"]
+        N4 --> N5["top-8 evidence → grounded cited answer"]
+    end
+```
+
+The fix has **five** parts working together:
+
+1. **`table_markers.py`** — shared sentinel control chars `\u0001TABLE` / `\u0002`.
+2. **`extractor.py`** — docx tables → labeled self-describing rows + header line;
+   merged-cell dedup; header-row heuristics (`_TIME_RE`, `_DAY_NAMES`, `_ROOM_RE`).
+3. **`chunker.py`** — table blocks split into **3-row chunks** (chosen by
+   measurement: 3 rows keeps `≈0.64` embedding similarity to the subject probe,
+   vs `0.50` at 8 rows of dilution).
+4. **`retriever.py`** — `_schedule_enrichment_queries` + `_extract_subject_phrase`
+   + `_SCHEDULE_KEYWORDS`/`_SCHEDULE_FILLER_WORDS` + the `0.22` subject-gated
+   `_TABLE_ROW_BONUS`.
+5. **`agent_state.py`** — `_keep_first_real` reducer so parallel
+   `retrieve_context` ∥ `tool_call` branches can't clobber real documents with a
+   stale `None` (that was the final reason answers arrived with 0 docs).
+
+**Result:** the full timetable battery passes — 16/16 timetable questions return
+the exact rows; non-schedule questions are unchanged.
+
+### 4.5 Answer generation & the 12 rules
+
+`generate_answer_node` special-cases:
+
+| Condition | Behaviour |
+|---|---|
+| `intent == GREETING` | canned welcome, no confidence bar |
+| `no docs AND no tool result` | "I don't have that specific information in my knowledge base. Please contact the relevant department directly." |
+| `confidence < 0.6` | low-confidence warning prepended |
+| otherwise | RAG prompt → Gemini → strict JSON |
+
+The RAG prompt (`prompts/rag_prompt.py`) has **12 strict rules**. Highlights:
+
+| Rule | Content |
+|---|---|
+| 1 | Answer **exclusively** from provided context + tool results |
+| 3 | **Never invent** dates, marks, percentages, deadlines, names, phones, room numbers, fees |
+| 4 | **Always cite** exact filenames — `According to [filename]` |
+| 5 | Tool (live DB) data **beats** document context on conflict |
+| 12 | The "I don't know" response is the **last resort** — any partial grounding must be answered from |
+
+The model must return **one strict JSON object**:
+
+```json
+{
+  "answer": "**Advanced Database Management Systems (DBMS)** classes are held on
+             Monday 09:00–10:00, Wednesday 10:00–11:00 and Friday 09:00–10:00,
+             taught by Dr. Neha Bhatia in room C-302.
+             According to [KRMU_Master_Timetable_RAG_Test_v2.docx].",
+  "confidence": 1.0,
+  "sources": ["KRMU_Master_Timetable_RAG_Test_v2.docx"],
+  "follow_up_questions": ["Does DBMS have a lab session?", "Who teaches Data Structures?"]
+}
+```
+
+The output survives a **defensive JSON parser** (markdown fences stripped,
+trailing commas removed, first `{…}` object extracted, unterminated JSON closed).
+
+> **LLM resilience:** every Gemini call goes through `llm/client.py`, which on
+> `429` retries the same model once (per-minute cap), then **rotates through**
+> `[gemini-flash-latest, gemini-flash-lite-latest, gemini-3.1-flash-lite]`, then
+> falls back to the OpenRouter HTTP endpoint — and every attempt has a 60 s hard
+> timeout. The chatbot **never hangs or fails silently**.
+
+---
+
+## 5. Glossary
+
+| Term | Meaning (in this project) |
+|---|---|
+| Chunk | One searchable unit of text (~3 table rows or ~768 tokens of prose) |
+| Embedding | 384-dim vector from `all-MiniLM-L6-v2`; semantic similarity = cosine |
+| Rerank | Cross-encoder scores query+chunk pairs together — smarter than embeddings |
+| Hybrid score | Weighted blend: similarity 0.5 · rerank 0.3 · lexical 0.2 (+ table bonus) |
+| Table-row bonus | `+0.22` boost for labeled timetable rows matching the question's subject |
+| Sentinel markers | `\u0001TABLE … \u0002` — protect table blocks from the cleaner & mark them for the chunker |
+| `RERANK_TOP_N` | 8 — evidence chunks finally sent to the LLM |
+| `RETRIEVAL_TOP_K` | 15 — candidates pulled out of ChromaDB before reranking |
+| Sibling expansion | top-6 anchors pull in their immediate neighbours (±2 chunks) |
+| `DocumentMetadata` | source_file, doc_type, department, semester, chunk_index, … stored per chunk |
+
+---
+
+*Diagrams and examples reflect the committed code at `main` (`90ee6c5`).
+Run your own live check: `GET /api/ai/health` → `chromadb.chunks`.*
