@@ -25,6 +25,7 @@ from typing import TYPE_CHECKING
 
 from langgraph.graph import END, START, StateGraph
 
+from ai_engine.core.config import ai_config
 from ai_engine.core.logging import get_logger
 from ai_engine.schemas.agent_state import AgentState
 
@@ -112,6 +113,9 @@ def run_agent(initial_state: AgentState, db: "Session") -> AgentState:
     Returns:
         Final AgentState after all nodes have executed
     """
+    if ai_config.FAST_RESPONSE_MODE:
+        return _run_fast_agent(initial_state, db)
+
     graph = _build_graph(db)
 
     logger.info(
@@ -139,3 +143,51 @@ def run_agent(initial_state: AgentState, db: "Session") -> AgentState:
     )
 
     return final_state
+
+
+def _run_fast_agent(initial_state: AgentState, db: "Session") -> AgentState:
+    """Execute only the local nodes needed for the low-latency response mode.
+
+    The standard graph is still used for quality mode.  In fast mode, bypassing
+    graph construction and avoiding a document search after a complete live
+    tool result keeps the entire request on the short path.
+    """
+    from ai_engine.agents.answer_generator import generate_answer_node
+    from ai_engine.agents.intent_classifier import classify_intent_node
+    from ai_engine.agents.memory_manager import load_memory_node, save_memory_node
+    from ai_engine.agents.retriever import retrieve_context_node
+    from ai_engine.agents.tool_caller import tool_call_node
+
+    logger.info(
+        "orchestrator.fast_run.start",
+        extra={
+            "event": "orchestrator.fast_run.start",
+            "conversation_id": initial_state.get("conversation_id"),
+            "trace_id": initial_state.get("trace_id"),
+        },
+    )
+
+    state = load_memory_node(initial_state, db)
+    state = classify_intent_node(state)
+
+    if state.get("needs_tool"):
+        state = tool_call_node(state, db)
+
+    # Live student data is already complete and is formatted directly by the
+    # fast answer node.  Do not spend time retrieving unrelated handbook text.
+    tool_succeeded = bool(state.get("tool_result") and state["tool_result"].success)
+    if state.get("needs_retrieval") and not tool_succeeded:
+        state = retrieve_context_node(state)
+
+    state = generate_answer_node(state)
+    state = save_memory_node(state, db)
+
+    logger.info(
+        "orchestrator.fast_run.done",
+        extra={
+            "event": "orchestrator.fast_run.done",
+            "trace_id": initial_state.get("trace_id"),
+            "execution_trace": state.get("execution_trace", []),
+        },
+    )
+    return state

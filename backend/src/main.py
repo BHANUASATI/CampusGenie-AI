@@ -108,11 +108,12 @@ async def startup_warmup():
     def _warmup():
         try:
             from ai_engine.embeddings.model import get_embedding_model
-            from ai_engine.embeddings.reranker import get_reranker
             from ai_engine.vectorstore.manager import get_vector_store
 
             model = get_embedding_model()
-            reranker = get_reranker()
+            if not _ai_cfg.FAST_RESPONSE_MODE:
+                from ai_engine.embeddings.reranker import get_reranker
+                get_reranker()
             vs = get_vector_store()
             print(
                 f"✅ AI Engine ready | "

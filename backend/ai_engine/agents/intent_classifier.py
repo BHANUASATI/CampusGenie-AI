@@ -39,20 +39,40 @@ logger = get_logger(__name__)
 def _parse_classification_json(raw: str) -> ClassificationResult:
     """
     Parse the LLM's JSON output into a ClassificationResult.
-    Handles common LLM formatting issues (markdown fences, trailing commas).
+    Handles common LLM formatting issues (markdown fences, trailing commas,
+    truncated output from small max_tokens).
     """
     # Strip markdown fences if present
     cleaned = re.sub(r"```(?:json)?", "", raw).strip()
     # Remove trailing commas before } or ]
     cleaned = re.sub(r",\s*([}\]])", r"\1", cleaned)
 
+    # Extract first JSON object even if the response has extra text around it
+    json_match = re.search(r"\{.*\}", cleaned, re.DOTALL)
+    if json_match:
+        cleaned = json_match.group(0)
+
+    # If JSON is truncated (unterminated), attempt to close it gracefully
     try:
         data = json.loads(cleaned)
-    except json.JSONDecodeError as e:
-        raise InvalidIntentError(
-            f"Failed to parse intent JSON: {e}",
-            {"raw_response": raw[:200]},
-        ) from e
+    except json.JSONDecodeError:
+        # Try to extract only the fields we can parse before truncation
+        data = {}
+        for field_name in ("intent", "confidence", "needs_retrieval", "needs_tool",
+                           "suggested_tool", "retrieval_query", "reasoning"):
+            # Match "field": value patterns that are complete
+            pattern = rf'"{field_name}"\s*:\s*("(?:[^"\\]|\\.)*"|true|false|null|-?\d+(?:\.\d+)?)'
+            m = re.search(pattern, cleaned)
+            if m:
+                try:
+                    data[field_name] = json.loads(m.group(1))
+                except (json.JSONDecodeError, ValueError):
+                    pass
+        if not data:
+            raise InvalidIntentError(
+                f"Failed to parse intent JSON (truncated): {cleaned[:200]}",
+                {"raw_response": raw[:200]},
+            )
 
     # Validate and coerce intent
     try:
@@ -71,6 +91,15 @@ def _parse_classification_json(raw: str) -> ClassificationResult:
 
     # If retrieval_query is empty but retrieval is needed, use the user message
     # (will be filled by caller)
+
+    # Ambiguous / general intents should ALWAYS search the knowledge base.
+    # The LLM sometimes answers needs_retrieval=false for unknown questions,
+    # which would skip the RAG lookup and produce the canned "no information"
+    # response even when a document could answer the question.
+    if intent in (IntentType.UNKNOWN, IntentType.GENERAL_ACADEMIC):
+        needs_retrieval = True
+        if not retrieval_query:
+            retrieval_query = data.get("retrieval_query", "") or ""
     
     return ClassificationResult(
         intent=intent,
@@ -108,16 +137,55 @@ def classify_intent_node(state: AgentState) -> AgentState:
         },
     )
 
+    # Most campus requests fit a small, stable taxonomy.  Route those locally
+    # so normal chat no longer waits for a second remote LLM request before
+    # generation can begin.
+    if ai_config.FAST_INTENT_ROUTING:
+        from ai_engine.agents.fast_intent import classify_fast_intent
+
+        result = classify_fast_intent(user_message)
+        logger.info(
+            "intent.classify.fast_done",
+            extra={
+                "event": "intent.classify.fast_done",
+                "intent": result.intent.value,
+                "confidence": result.confidence,
+                "needs_retrieval": result.needs_retrieval,
+                "needs_tool": result.needs_tool,
+                "trace_id": trace_id,
+            },
+        )
+        return {
+            **state,
+            "classification": result,
+            "intent": result.intent,
+            "intent_confidence": result.confidence,
+            "needs_retrieval": result.needs_retrieval,
+            "needs_tool": result.needs_tool,
+            "suggested_tool": result.suggested_tool,
+            "retrieval_query": result.retrieval_query,
+            "execution_trace": state.get("execution_trace", []) + ["classify_intent(fast)"],
+        }
+
     prompt = build_intent_prompt(user_message)
 
     try:
         with Timer() as t:
-            llm_result = call_llm(
-                prompt=prompt,
-                model_override=ai_config.GEMINI_FAST_MODEL,
-                temperature=0.0,    # deterministic for classification
-                max_tokens=512,     # intent JSON is small
-            )
+            # Use the configured LLM provider directly for faster classification
+            if ai_config.LLM_PROVIDER == "openrouter":
+                from ai_engine.llm.client import _call_openrouter
+                llm_result = _call_openrouter(
+                    prompt=prompt,
+                    temperature=0.0,    # deterministic for classification
+                    max_tokens=1024,    # enough for complete JSON output
+                )
+            else:
+                llm_result = call_llm(
+                    prompt=prompt,
+                    model_override=ai_config.GEMINI_FAST_MODEL,
+                    temperature=0.0,    # deterministic for classification
+                    max_tokens=1024,    # enough for complete JSON output
+                )
 
         raw_text = llm_result.text
 

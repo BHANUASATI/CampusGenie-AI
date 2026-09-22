@@ -154,7 +154,7 @@ def mask_pii(text: str) -> Tuple[str, List[str]]:
 @dataclass
 class _UserBucket:
     """Token bucket state for one user."""
-    tokens: float = 0.0
+    tokens: float = field(default_factory=lambda: float(ai_config.RATE_LIMIT_BURST))
     last_refill: float = field(default_factory=time.time)
     daily_count: int = 0
     day_start: float = field(default_factory=time.time)

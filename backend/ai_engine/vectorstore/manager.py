@@ -11,6 +11,7 @@ High-level API for all ChromaDB operations:
 
 from __future__ import annotations
 
+from functools import lru_cache
 from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
@@ -222,6 +223,56 @@ class VectorStoreManager:
         except Exception as e:
             raise VectorStoreError("Failed to delete source file", {"error": str(e)}) from e
 
+    def get_sibling_chunks(self, chunk_id: str, radius: int = 2) -> List[RetrievedDocument]:
+        """
+        Return the neighbouring chunks of ``chunk_id`` from the same source
+        document (adjacent ``chunk_index`` values).
+
+        PDF/scanned documents often break a logical section across chunks —
+        e.g. a "Scheme of Study and Syllabi" heading in one chunk and the
+        SEMESTER I course table in the next.  Pulling the siblings of strong
+        matches gives the LLM the complete section instead of a fragment.
+
+        Args:
+            chunk_id: ChromaDB chunk id, format ``<document_id>::<index>``
+            radius: How many chunks to fetch on each side (default 2)
+
+        Returns:
+            List of RetrievedDocument (similarity_score set to 0.0 — these
+            are context extensions, not query matches).
+        """
+        try:
+            doc_id, _, index_str = chunk_id.rpartition("::")
+            if not doc_id or not index_str.isdigit():
+                return []
+            center = int(index_str)
+            indexes = sorted({max(0, center + d) for d in range(-radius, radius + 1) if d != 0})
+            if not indexes:
+                return []
+
+            results = self.collection.get(
+                where={"$and": [{"document_id": doc_id}, {"chunk_index": {"$in": indexes}}]},
+                include=["documents", "metadatas"],
+            )
+            siblings: List[RetrievedDocument] = []
+            if results and results["ids"]:
+                for i in range(len(results["ids"])):
+                    siblings.append(
+                        RetrievedDocument(
+                            chunk_id=results["ids"][i],
+                            content=results["documents"][i],
+                            metadata=DocumentMetadata(**results["metadatas"][i]),
+                            similarity_score=0.0,
+                        )
+                    )
+            return siblings
+        except Exception as e:
+            logger.warning(
+                "vectorstore.sibling_fetch_failed",
+                extra={"error": str(e), "chunk_id": chunk_id},
+            )
+            return []
+
     # -----------------------------------------------------------------------
     # Metadata
     # -----------------------------------------------------------------------
@@ -264,6 +315,11 @@ class VectorStoreManager:
 # ---------------------------------------------------------------------------
 # Module-level convenience function
 # ---------------------------------------------------------------------------
+@lru_cache(maxsize=1)
 def get_vector_store() -> VectorStoreManager:
-    """Return a VectorStoreManager for the default collection."""
+    """Return the process-wide default collection manager.
+
+    Reusing it avoids an unnecessary ``get_or_create_collection`` call for
+    every chat request while retaining Chroma's persistent-client singleton.
+    """
     return VectorStoreManager()

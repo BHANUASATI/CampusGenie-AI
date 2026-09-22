@@ -33,8 +33,8 @@ logger = get_logger(__name__)
 # Approximate char:token ratio for English academic text
 CHARS_PER_TOKEN = 4
 
-_CHUNK_SIZE_CHARS = ai_config.CHUNK_SIZE * CHARS_PER_TOKEN         # 512 * 4 = 2048
-_CHUNK_OVERLAP_CHARS = ai_config.CHUNK_OVERLAP * CHARS_PER_TOKEN   # 50 * 4 = 200
+_CHUNK_SIZE_CHARS = ai_config.CHUNK_SIZE * CHARS_PER_TOKEN         # 768 * 4 = 3072
+_CHUNK_OVERLAP_CHARS = ai_config.CHUNK_OVERLAP * CHARS_PER_TOKEN   # 100 * 4 = 400
 
 
 def get_splitter() -> RecursiveCharacterTextSplitter:

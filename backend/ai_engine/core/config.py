@@ -40,16 +40,35 @@ class AIEngineConfig(BaseSettings):
     # Gemini
     # -----------------------------------------------------------------------
     GEMINI_API_KEY: str = Field(default="", description="Google Gemini API key")
+    GEMINI_TEMPERATURE: float = Field(default=0.1, ge=0.0, le=2.0)
+    GEMINI_MAX_OUTPUT_TOKENS: int = Field(default=2048)
     GEMINI_CHAT_MODEL: str = Field(
-        default="gemini-2.5-flash",
+        default="gemini-3.5-flash",
         description="Model for answer generation (high quality, streaming)",
     )
     GEMINI_FAST_MODEL: str = Field(
-        default="gemini-2.5-flash",
-        description="Model for intent classification (low latency)",
+        default="gemini-3.1-flash-lite",
+        description="Model for intent classification (low latency, cheap)",
     )
-    GEMINI_TEMPERATURE: float = Field(default=0.1, ge=0.0, le=2.0)
-    GEMINI_MAX_OUTPUT_TOKENS: int = Field(default=2048)
+    # Each free-tier Gemini model caps at 20 requests/day.  On a 429 the
+    # client rotates through these to keep the chatbot online.
+    GEMINI_FALLBACK_MODELS: list[str] = Field(
+        default_factory=lambda: [
+            "gemini-flash-latest",
+            "gemini-flash-lite-latest",
+            "gemini-3.1-flash-lite",
+        ],
+        description="Models to try when the primary Gemini model is rate-limited",
+    )
+    GEMINI_RATE_LIMIT_RETRIES: int = Field(
+        default=0,
+        ge=0,
+        le=5,
+        description="Short backoff retries for transient (per-minute) Gemini 429s",
+    )
+    # Hard total timeout (seconds) for one Gemini request.  The SDK has no
+    # default cap and will otherwise retry a stalled request for minutes.
+    GEMINI_TIMEOUT_SECONDS: float = Field(default=60.0)
 
     # -----------------------------------------------------------------------
     # Embedding model (sentence-transformers, runs locally, no API cost)
@@ -80,14 +99,34 @@ class AIEngineConfig(BaseSettings):
     # -----------------------------------------------------------------------
     # RAG / Retrieval
     # -----------------------------------------------------------------------
-    RETRIEVAL_TOP_K: int = Field(default=10, description="Candidates fetched from ChromaDB")
-    RERANK_TOP_N: int = Field(default=3, description="Documents passed to LLM after reranking")
+    RETRIEVAL_TOP_K: int = Field(default=15, description="Candidates fetched from ChromaDB")
+    RERANK_TOP_N: int = Field(default=8, description="Documents passed to LLM after reranking")
+    FAST_RESPONSE_MODE: bool = Field(
+        default=False,
+        description="Use local, extractive responses instead of a remote LLM for chat",
+    )
+    FAST_INTENT_ROUTING: bool = Field(
+        default=True,
+        description="Classify common academic requests locally before calling an LLM",
+    )
+    FAST_RETRIEVAL_TOP_K: int = Field(
+        default=3,
+        ge=1,
+        le=10,
+        description="Maximum document chunks considered in fast response mode",
+    )
+    MAX_CONTEXT_CHARS_PER_DOCUMENT: int = Field(
+        default=1200,
+        ge=400,
+        le=10000,
+        description="Maximum characters included from one chunk in an LLM prompt",
+    )
     SIMILARITY_THRESHOLD: float = Field(
-        default=0.3,
+        default=0.1,
         description="Minimum cosine similarity to include a document",
     )
-    CHUNK_SIZE: int = Field(default=512, description="Token chunk size for text splitting")
-    CHUNK_OVERLAP: int = Field(default=50, description="Token overlap between consecutive chunks")
+    CHUNK_SIZE: int = Field(default=768, description="Token chunk size for text splitting")
+    CHUNK_OVERLAP: int = Field(default=100, description="Token overlap between consecutive chunks")
 
     # -----------------------------------------------------------------------
     # Memory
@@ -99,9 +138,9 @@ class AIEngineConfig(BaseSettings):
     # -----------------------------------------------------------------------
     # Rate limiting
     # -----------------------------------------------------------------------
-    RATE_LIMIT_PER_MINUTE: int = Field(default=20)
-    RATE_LIMIT_PER_DAY: int = Field(default=200)
-    RATE_LIMIT_BURST: int = Field(default=5)
+    RATE_LIMIT_PER_MINUTE: int = Field(default=60)
+    RATE_LIMIT_PER_DAY: int = Field(default=1000)
+    RATE_LIMIT_BURST: int = Field(default=20)
 
     # -----------------------------------------------------------------------
     # Document uploads
@@ -146,6 +185,12 @@ class AIEngineConfig(BaseSettings):
         ge=0.0,
         le=2.0,
         description="Temperature used for the OpenRouter fallback model",
+    )
+    LLM_REQUEST_TIMEOUT_SECONDS: float = Field(
+        default=12.0,
+        ge=1.0,
+        le=120.0,
+        description="Hard timeout for one remote LLM request",
     )
 
     # -----------------------------------------------------------------------
