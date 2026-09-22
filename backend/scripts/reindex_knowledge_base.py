@@ -32,6 +32,25 @@ from ai_engine.vectorstore.manager import get_vector_store  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
+# 1b. Files that must NOT enter the knowledge base.  These are synthetic
+#     RAG-test documents (and a stray upload) that pollute answers — the
+#     chatbot answers university questions from genuinely official docs only.
+#     Skipping here (instead of post-deleting) keeps the collection clean on
+#     every rebuild.
+# ---------------------------------------------------------------------------
+_SKIP_FILES = {
+    "AI_Lab_and_Project_Guidelines_RAG_Test.pdf",
+    "Sample_Attendance_Directions_55Percent_RAG_Test.pdf",
+    "test_policy.pdf",
+    "test_policy.txt",
+    # Stray student project reports uploaded into the KB dir — not university
+    # knowledge (would pollute course/exam/hostel answers).
+    "68f035944a3d498395acd405bb948d22.docx",
+    "Adobe Scan 17 Aug 2026.pdf",
+}
+
+
+# ---------------------------------------------------------------------------
 # 1. doc_type inference from filename
 # ---------------------------------------------------------------------------
 _DOC_TYPE_RULES = (
@@ -90,10 +109,17 @@ def main() -> None:
     print(f"--- Reindexing knowledge base ---")
     print(f"Docs dir: {docs_dir}")
 
-    files = collect_unique_files(docs_dir)
-    print(f"\nFound {len(files)} unique documents:\n")
+    files = [
+        f for f in collect_unique_files(docs_dir)
+        if f.name not in _SKIP_FILES
+    ]
+    print(f"\nFound {len(files)} unique documents "
+          f"({len(_SKIP_FILES)} skipped as synthetic/test):\n")
     for f in files:
         print(f"  - {f.name}  ->  {infer_doc_type(f.name)}")
+    skipped = {f.name for f in collect_unique_files(docs_dir)} - {f.name for f in files}
+    for name in sorted(skipped):
+        print(f"  SKIP {name}")
 
     # Wipe the old (incomplete / duplicative) collection
     vector_store = get_vector_store()
