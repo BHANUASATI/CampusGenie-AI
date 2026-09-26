@@ -15,7 +15,7 @@
 - Enhanced error messages
 
            
-
+   
 
 **Files**: `backend/src/email_service.py`, `backend/src/notification_scheduler.py`
 
