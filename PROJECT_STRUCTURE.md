@@ -6,7 +6,7 @@ This document describes the organized folder structure of the CampusGenie projec
 
 ```
 NetACAD/
-├── docs/                    # Project-wide documentation
+├── docs/                    # Project-wide documentation. 
 ├── scripts/                 # Shell scripts and utilities
 ├── tests/                   # Root-level test files
 ├── backend/                 # Backend application
