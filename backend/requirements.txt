@@ -52,7 +52,10 @@ reportlab==4.0.7                # PDF generation for downloads
 
 # Observability (optional)
 # opentelemetry-api==1.21.0
-# langsmith==0.0.69
+# LangSmith tracing for the AI engine (ai_engine/core/tracing.py).
+# Required when ENABLE_LANGSMITH_TRACING=true in backend/.env; the app starts
+# fine without it, it just stops shipping traces.
+langsmith>=0.2.0
 
 # Type hints
 typing-extensions==4.8.0

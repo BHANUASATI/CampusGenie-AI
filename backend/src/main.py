@@ -19,6 +19,20 @@ _BACKEND_DIR = os.path.join(os.path.dirname(__file__), "..")
 if _BACKEND_DIR not in sys.path:
     sys.path.insert(0, _BACKEND_DIR)
 
+# ---------------------------------------------------------------------------
+# LangSmith tracing — MUST happen before anything imports langchain/langgraph
+# ---------------------------------------------------------------------------
+# langchain-core, langgraph and langsmith all read their configuration from
+# os.environ (some of it is latched at import time), so this block is kept
+# above every other import on purpose.  Importing the module is enough: the
+# AIEngineConfig singleton is built from backend/.env, and configure_langsmith()
+# exports the resulting settings as real environment variables.  The boolean is
+# kept for anyone importing this module (`from src.main import LANGSMITH_ENABLED`);
+# the startup event below reports the live status.
+from ai_engine.core.tracing import configure_langsmith  # noqa: E402
+
+LANGSMITH_ENABLED = configure_langsmith()
+
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -83,27 +97,32 @@ app.add_middleware(
 # ---------------------------------------------------------------------------
 @app.on_event("startup")
 async def startup_warmup():
-    """Pre-load embedding model, ChromaDB, and configure LangSmith on startup."""
+    """Pre-load embedding model, ChromaDB, and verify LangSmith on startup."""
     import asyncio
     import concurrent.futures
 
-    # ── LangSmith tracing ──────────────────────────────────────────────────
-    # Must be set as real env vars BEFORE any langchain/langgraph import
-    # happens inside worker threads, so we do it here at startup.
     from ai_engine.core.config import ai_config as _ai_cfg
-    if _ai_cfg.ENABLE_LANGSMITH_TRACING and _ai_cfg.LANGSMITH_API_KEY:
-        os.environ["LANGSMITH_TRACING"]   = "true"
-        os.environ["LANGCHAIN_TRACING_V2"] = "true"   # legacy key, still read by older langchain
-        os.environ["LANGSMITH_API_KEY"]    = _ai_cfg.LANGSMITH_API_KEY
-        os.environ["LANGSMITH_ENDPOINT"]   = _ai_cfg.LANGSMITH_ENDPOINT
-        os.environ["LANGSMITH_PROJECT"]    = _ai_cfg.LANGSMITH_PROJECT
-        print(
-            f"✅ LangSmith tracing enabled | "
-            f"project: {_ai_cfg.LANGSMITH_PROJECT} | "
-            f"endpoint: {_ai_cfg.LANGSMITH_ENDPOINT}"
+    from ai_engine.core.tracing import is_enabled, ping
+
+    # ── LangSmith tracing ──────────────────────────────────────────────────
+    # The env vars were exported at import time (see top of this file), before
+    # langchain/langgraph were loaded.  Here we only report status and confirm
+    # the key + endpoint actually accept a run.
+    if is_enabled():
+        result = await asyncio.get_event_loop().run_in_executor(
+            concurrent.futures.ThreadPoolExecutor(max_workers=1), ping
         )
+        if result.get("ok"):
+            print(
+                f"✅ LangSmith tracing enabled | "
+                f"project: {_ai_cfg.LANGSMITH_PROJECT} | "
+                f"endpoint: {_ai_cfg.LANGSMITH_ENDPOINT} | "
+                f"check run: {result.get('run_id')}"
+            )
+        else:
+            print(f"⚠️  LangSmith tracing enabled but not reachable: {result.get('error')}")
     else:
-        print("ℹ️  LangSmith tracing disabled")
+        print("ℹ️  LangSmith tracing disabled (ENABLE_LANGSMITH_TRACING / LANGSMITH_API_KEY)")
 
     def _warmup():
         try:

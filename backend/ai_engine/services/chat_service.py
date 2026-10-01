@@ -27,6 +27,7 @@ from ai_engine.core.exceptions import (
 )
 from ai_engine.core.logging import Timer, get_logger, trace_context
 from ai_engine.core.security import mask_pii, rate_limiter, validate_and_clean_input
+from ai_engine.core.tracing import add_metadata, trace_run
 from ai_engine.graph.orchestrator import run_agent
 from ai_engine.repositories.conversation_repo import ConversationRepository
 from ai_engine.schemas.agent_state import AgentState, UserContext
@@ -41,6 +42,51 @@ if _SRC_DIR not in sys.path:
     sys.path.insert(0, _SRC_DIR)
 
 logger = get_logger(__name__)
+
+
+def _chat_run_inputs(inputs: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Serialise the root run's inputs.
+
+    Drops the SQLAlchemy objects (``service`` / ``current_user``) — they render
+    as an unreadable object repr and contain column values that do not belong
+    in an observability backend.
+    """
+    user = inputs.get("current_user")
+    role = getattr(user, "role", None)
+    return {
+        "conversation_id": inputs.get("conversation_id"),
+        "message": inputs.get("message"),
+        "user_id": getattr(user, "id", None),
+        "role": str(getattr(role, "value", role) or "") or None,
+        "trace_id": inputs.get("trace_id"),
+        "fast_response_mode": ai_config.FAST_RESPONSE_MODE,
+    }
+
+
+@trace_run("campusgenie.chat", run_type="chain", tags=["chat"], process_inputs=_chat_run_inputs)
+def _traced_send_message(
+    service: "ChatService",
+    conversation_id: int,
+    message: str,
+    current_user,
+    trace_id: str,
+) -> Tuple["AIMessage", "AIMessage", AgentResponse]:
+    """
+    Root LangSmith run for one chat turn.
+
+    Keeping it as its own function (rather than decorating the method) means the
+    DB session and the user object never end up in the traced inputs, and the
+    whole graph / retrieval / LLM work below nests as children of this run.
+    """
+    # trace_id is the same value the backend logs carry, so a log line and a
+    # LangSmith run can always be matched to each other.
+    add_metadata(
+        trace_id=trace_id,
+        conversation_id=conversation_id,
+        user_id=getattr(current_user, "id", None),
+    )
+    return service._process_message(conversation_id, message, current_user, trace_id)
 
 
 def _build_user_context(current_user) -> UserContext:
@@ -92,6 +138,10 @@ class ChatService:
         """
         Process a chat message through the full AI pipeline.
 
+        This is the traced entry point: every call becomes one root LangSmith
+        trace (``campusgenie.chat``) with the graph, retrieval and LLM calls
+        nested underneath it.
+
         Args:
             conversation_id: DB conversation ID
             message: Raw user message
@@ -105,10 +155,27 @@ class ChatService:
             PromptInjectionDetected: if injection is detected
             ValueError: if conversation not found
         """
+        with trace_context(user_id=current_user.id) as trace_id:
+            return _traced_send_message(
+                service=self,
+                conversation_id=conversation_id,
+                message=message,
+                current_user=current_user,
+                trace_id=trace_id,
+            )
+
+    def _process_message(
+        self,
+        conversation_id: int,
+        message: str,
+        current_user,
+        trace_id: str,
+    ) -> Tuple["AIMessage", "AIMessage", AgentResponse]:
+        """Actual pipeline for one chat turn (see :meth:`send_message`)."""
         user_id = current_user.id
 
-        with Timer() as total_timer:
-            with trace_context(user_id=user_id) as trace_id:
+        with trace_context(trace_id=trace_id, user_id=user_id):
+            with Timer() as total_timer:
 
                 # -----------------------------------------------------------
                 # 1. Security gate
@@ -237,6 +304,18 @@ class ChatService:
                         sender_type=MessageSenderType.AI,
                         created_at=now,
                     )
+
+        # Attach the outcome to the LangSmith root run so the trace can be
+        # filtered by intent / confidence from the dashboard.
+        add_metadata(
+            total_ms=round(total_timer.elapsed_ms, 2),
+            intent=str(final_state.get("intent") or "unknown"),
+            confidence=getattr(agent_response, "confidence", 0.0),
+            source_count=len(agent_response.sources or []),
+            follow_up_count=len(agent_response.follow_up_questions or []),
+            execution_trace=final_state.get("execution_trace", []),
+            fast_response_mode=ai_config.FAST_RESPONSE_MODE,
+        )
 
         logger.info(
             "chat.service.done",

@@ -391,24 +391,46 @@ Every LLM call goes through `ai_engine/llm/client.py`:
 
 ```
 call_llm(prompt)
-  ├── try: gemini-3.5-flash (or fast model)         ✅ → return result
-  ├── on 429/RESOURCE_EXHAUSTED: retry same model once after a short delay
-  ├── on timeout/error: rotate to next Gemini candidate
-  │     (gemini-flash-latest → gemini-flash-lite-latest → gemini-3.1-flash-lite)
+  ├── try: GEMINI_CHAT_MODEL (or GEMINI_FAST_MODEL)          ✅ → return result
+  ├── on hard 429 ("exceeded your current quota"): rotate immediately (0.5s)
+  ├── on soft 429 ("rate limit" + retry_delay): retry same model after ≤10s
+  ├── on timeout/error: rotate to next candidate in GEMINI_FALLBACK_MODELS
   └── if all Gemini candidates fail:
         └── try: OpenRouter (via openai SDK, LLM_BASE_URL)   ✅ → return result
               └── except: raise RuntimeError (both providers failed)
 ```
+
+The free tier caps **each** Gemini model at a fixed number of requests per day.
+Once exhausted, a model returns `429 exceeded your current quota` in well under
+a second — a hard cap, so retrying it only delays the reply. The client
+distinguishes that from a transient per-minute limit and rotates at once. When
+it does rotate, the `llm.gemini.generate_content` run in LangSmith records a
+`skipped_models` list with each model's failure reason, so a slow reply is
+explainable from the dashboard.
+
+Keep `GEMINI_FALLBACK_MODELS` ordered with the models your key can still reach
+first. To see which those are:
+
+```bash
+cd backend
+python3 scripts/check_gemini_models.py          # probe each model
+python3 scripts/check_gemini_models.py --full   # also time the ~5k-token RAG prompt
+```
+
+It prints a ready-to-paste `.env` snippet. Re-run it when replies get slow —
+a daily quota reset means yesterday's ordering is often stale.
 
 Configure via `.env`:
 
 ```env
 # Primary
 GEMINI_API_KEY=...
-GEMINI_CHAT_MODEL=gemini-3.5-flash
-GEMINI_FAST_MODEL=gemini-3.1-flash-lite
-GEMINI_FALLBACK_MODELS=gemini-flash-latest,gemini-flash-lite-latest,gemini-3.1-flash-lite
-GEMINI_TIMEOUT_SECONDS=60
+GEMINI_CHAT_MODEL=gemini-flash-lite-latest
+GEMINI_FAST_MODEL=gemini-flash-lite-latest
+GEMINI_FALLBACK_MODELS=gemini-2.5-flash,gemini-3.1-flash-lite
+# Healthy latency for this app's ~6k-token RAG prompt is 2-5s, so 25s is a
+# generous hard cap. Lower it if you would rather rotate sooner.
+GEMINI_TIMEOUT_SECONDS=25
 
 # Fallback
 OPENROUTER_API_KEY=sk-or-v1-...
@@ -426,6 +448,39 @@ POST /api/ai/documents/upload
 ```
 
 Supported formats: `.pdf`, `.docx`, `.txt`, `.csv`, `.md` (up to 50 MB). Documents are extracted, cleaned, chunked (prose: 768 chars / 100 overlap; DOCX tables: 3 rows per chunk with repeated headers), embedded locally with `all-MiniLM-L6-v2`, and upserted into ChromaDB.
+
+#### Bulk-ingesting a folder of documents
+
+To index everything in the repo's `Documents/` folder without going through the
+admin UI:
+
+```bash
+cd backend
+python3 scripts/ingest_documents.py --dry-run   # show the plan first
+python3 scripts/ingest_documents.py
+```
+
+Unlike `reindex_knowledge_base.py` (which rebuilds the collection from scratch),
+this script **adds to** whatever is already indexed and is safe to re-run:
+
+- a document already present is **replaced** by `source_file` rather than
+  duplicated — `document_id` is a fresh uuid4 per call, so a naive re-add would
+  orphan the previous copy and make the retriever rank two copies of one text;
+- byte-identical files are dropped, which catches the `name (1).docx` copy an
+  uploader makes alongside `name.docx`;
+- a file already in the collection under a different name (e.g. the handbook
+  uploaded as `..._1.pdf`) is skipped;
+- synthetic `*_RAG_Test*` fixtures are excluded, matching
+  `reindex_knowledge_base.py`'s policy that the chatbot answers from official
+  documents only. Pass `--include-tests` to index them anyway.
+
+Inspect the result with `GET /api/ai/documents/stats` or the
+`components.chromadb.chunks` field in `GET /api/ai/health`.
+
+> **Scanned PDFs cannot be indexed.** `Academic-Calendar-for-Academic-Session-2025-26.pdf`
+> is 4 image-only pages with no text layer, so extraction refuses it
+> (`PDF appears to be scanned / empty`) rather than storing empty chunks. Making
+> it searchable needs OCR (e.g. `ocrmypdf`) run on the file before upload.
 
 ---
 
@@ -876,11 +931,60 @@ Full interactive docs at **http://localhost:8002/docs**
 
 ## Observability & Health
 
-- **Health endpoint** `GET /api/ai/health` checks embedding model dimension (384), ChromaDB chunk count, and Gemini key presence; returns 503 on degradation
+- **Health endpoint** `GET /api/ai/health` checks embedding model dimension (384), ChromaDB chunk count, Gemini key presence, and the current LangSmith tracing state; returns 503 on degradation
 - **Startup warmup:** embedding model, ChromaDB, and reranker load via a thread pool at startup so the first request is fast
 - **Structured logging:** every node logs typed events (`orchestrator.run.start`, `retriever.done`, `llm.call.gemini.rate_limited`, …) with `trace_id` and latency
-- **LangSmith tracing:** optional, enabled via `ENABLE_LANGSMITH_TRACING` + `LANGSMITH_API_KEY`
+- **LangSmith tracing:** enabled via `ENABLE_LANGSMITH_TRACING=true` + `LANGSMITH_API_KEY`. See [LangSmith tracing](#langsmith-tracing) below
 - **Rate limiting:** 60/min, 20 burst, 1000/day per user
+
+---
+
+## LangSmith tracing
+
+Traces let you replay a single chat turn end to end: which intent was detected,
+which documents were retrieved, which model answered, and what it cost.
+
+### Setup
+
+1. Get an API key from [smith.langchain.com](https://smith.langchain.com) → Settings → API Keys
+2. In `backend/.env`:
+
+   ```bash
+   ENABLE_LANGSMITH_TRACING=true
+   LANGSMITH_API_KEY=lsv2_pt_...
+   LANGSMITH_PROJECT=CampusGenie      # traces land here
+   LANGSMITH_ENDPOINT=https://api.smith.langchain.com
+   ```
+
+3. Restart the backend. The startup banner confirms it, and posts a
+   `campusgenie.startup_check` run so you can verify connectivity:
+
+   ```
+   ✅ LangSmith tracing enabled | project: CampusGenie | endpoint: https://api.smith.langchain.com | check run: <uuid>
+   ```
+
+### What gets traced
+
+`backend/ai_engine/core/tracing.py` is the single place that configures tracing.
+`src/main.py` calls `configure_langsmith()` **before** any `langchain`/`langgraph`
+import, because those packages read their configuration from environment
+variables.
+
+| Run | Type | What it shows |
+|-----|------|---------------|
+| `campusgenie.chat` | chain | One chat turn: user, role, conversation id, intent, confidence, total latency |
+| `LangGraph` | chain | The graph execution (automatic, via langgraph) |
+| `load_memory`, `classify_intent`, `retrieve_context`, `generate_answer`, `save_memory` | chain | Each node, with retrieval queries and reranked sources as metadata |
+| `llm.call` | chain | Provider routing, including the Gemini → OpenRouter fallback |
+| `llm.gemini.generate_content` / `llm.openrouter.chat_completion` | llm | Prompt, answer, model, latency, token counts and estimated cost |
+
+Filter by the `campusgenie` tag to see only this app. Every run also carries
+`trace_id` in its metadata, which matches the `trace_id` in the backend's JSON
+logs, so a log line can be traced back to its run and vice versa.
+
+Traces are only posted when a chat turn or document ingestion runs — an idle
+server produces no runs.
+
 
 ---
 
@@ -910,8 +1014,36 @@ pkill -f "react-scripts"
 PORT=3000 npm start
 ```
 
-**Gemini quota exceeded**
-Rotation and fallback are automatic. Check backend logs for `llm.call.gemini.rate_limited` / `llm.call.gemini.failed` followed by `llm.call.openrouter.success`. Each free-tier Gemini model caps at roughly 20 requests/day.
+**Answers "I don't have that specific information in my knowledge base"**
+The document covering that topic is not in ChromaDB. Check what is actually
+indexed — `GET /api/ai/documents/stats`, or the
+`components.chromadb.chunks` count in `GET /api/ai/health` — then index the
+missing file with `python3 scripts/ingest_documents.py`. Common causes: the
+document was never uploaded; it is a scanned PDF with no text layer; or the
+topic genuinely is not covered by any indexed document (the retriever found
+nothing relevant, which is the correct outcome — ask the LLM run in LangSmith to
+confirm which chunks it was given).
+
+**Replies take a minute or more**
+Almost always a dead model at the front of `GEMINI_FALLBACK_MODELS`. The free
+tier caps each model at a fixed number of requests/day, and an exhausted model
+answers `429 exceeded your current quota` in ~0.5s — but if it sits ahead of a
+working one, every message pays for it. Find the models your key can still
+reach and reorder the list:
+
+```bash
+cd backend && python3 scripts/check_gemini_models.py --full
+```
+
+The script prints a paste-ready `.env` block. In LangSmith, open the
+`llm.gemini.generate_content` run and read its `skipped_models` metadata to see
+which models were passed over and why (`quota_exhausted` / `timeout` / `error`).
+
+**Gemini quota exceeded on every model**
+Rotation and fallback are automatic, and the OpenRouter provider is tried last.
+Check the logs for `llm.call.gemini.quota_exhausted` / `llm.call.gemini.failed`,
+then `llm.call.openrouter.success`. If every Gemini model is capped, wait for the
+daily quota to reset or add `OPENROUTER_API_KEY` for a real fallback.
 
 ---
 

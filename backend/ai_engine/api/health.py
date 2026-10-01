@@ -50,6 +50,11 @@ async def ai_health_check():
         health["components"]["gemini"] = {"status": "missing_api_key"}
         health["status"] = "degraded"
 
+    # Report LangSmith tracing state.  A disabled tracer only costs
+    # observability, so it never flips the engine status to "degraded".
+    from ai_engine.core.tracing import status as tracing_status
+    health["components"]["langsmith"] = tracing_status()
+
     if health["status"] == "degraded":
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,

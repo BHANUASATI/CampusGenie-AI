@@ -17,6 +17,7 @@ from typing import Dict, Any, List, Optional
 
 from ai_engine.core.config import ai_config
 from ai_engine.core.logging import Timer, get_logger
+from ai_engine.core.tracing import add_metadata
 from ai_engine.embeddings.reranker import get_reranker
 from ai_engine.schemas.agent_state import AgentState, UserContext
 from ai_engine.schemas.retrieval import RankedDocument, RetrievedDocument, RetrievalResult, Source
@@ -530,6 +531,25 @@ def retrieve_context_node(state: AgentState) -> AgentState:
             "sources": [d.metadata.source_file for d in ranked_docs],
             "trace_id": trace_id,
         },
+    )
+
+    # Mirror the retrieval summary onto the active LangSmith run so a trace
+    # shows which queries ran and which chunks survived reranking.
+    add_metadata(
+        retrieval_query=query,
+        search_queries=search_queries,
+        candidates=total_retrieved,
+        after_rerank=len(ranked_docs),
+        retrieval_latency_ms=round(retrieval_latency, 2),
+        rerank_latency_ms=round(rerank_latency, 2),
+        sources=[
+            {
+                "file": d.metadata.source_file,
+                "similarity": round(d.similarity_score, 4),
+                "rerank": round(d.rerank_score, 4),
+            }
+            for d in ranked_docs
+        ],
     )
 
     return {

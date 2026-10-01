@@ -35,6 +35,8 @@ from dataclasses import dataclass, field
 from functools import lru_cache
 from typing import Any, Optional
 
+from ai_engine.core.tracing import add_metadata, as_run_outputs, record_usage, trace_run
+
 logger = logging.getLogger(__name__)
 
 
@@ -72,6 +74,12 @@ class LLMResult:
 # Internal helpers
 # ---------------------------------------------------------------------------
 
+@trace_run(
+    "llm.gemini.generate_content",
+    run_type="llm",
+    tags=["gemini"],
+    process_outputs=as_run_outputs,
+)
 def _call_gemini(
     prompt: str,
     model_name: str,
@@ -116,26 +124,50 @@ def _call_gemini(
 
     def _retry_delay(exc: Exception) -> float:
         m = re.search(r"retry_delay\s*\{[^}]*seconds:\s*([0-9.]+)", str(exc))
-        return max(1.0, min(40.0, float(m.group(1)) if m else 30.0))
+        return max(1.0, min(10.0, float(m.group(1)) if m else 5.0))
+
+    # Gemini returns 429 for two very different situations and they must not be
+    # treated the same:
+    #   * "exceeded your current quota" / billing  -> a hard requests-per-day cap
+    #     on the free tier.  Waiting cannot help; the model is out for the day.
+    #   * "rate limit" with a retry_delay           -> a transient per-minute cap
+    #     that is worth one short wait.
+    # Sleeping on the first case used to add ~25s per exhausted model before
+    # rotating, which is most of a student's wait for a chatbot reply.
+    _QUOTA_MARKERS = (
+        "exceeded your current quota",
+        "quota exceeded",
+        "billing",
+        "check your plan",
+    )
+
+    def _is_hard_quota(message: str) -> bool:
+        lowered = message.lower()
+        return any(marker in lowered for marker in _QUOTA_MARKERS)
 
     def _attempt_with_retry(model: Any) -> Any:
-        # A 429 with a short retry delay is usually a transient per-minute cap:
-        # retry the SAME model after the delay.  A second failure bubbles up so
-        # the caller can rotate to the next model.
+        name = getattr(model, "model_name", "?")
         try:
             return _attempt(model)
         except Exception as exc:  # noqa: BLE001 — SDK raises varied error types
             message = str(exc)
-            if "429" in message or "RESOURCE_EXHAUSTED" in message:
-                delay = min(_retry_delay(exc), 25.0)
+            is_429 = "429" in message or "RESOURCE_EXHAUSTED" in message
+            if not is_429:
+                raise
+            if _is_hard_quota(message):
                 logger.warning(
-                    "llm.call.gemini.rate_limited | model=%s retrying after %.0fs",
-                    getattr(model, "model_name", "?"),
-                    delay,
+                    "llm.call.gemini.quota_exhausted | model=%s rotating immediately",
+                    name,
                 )
-                time.sleep(delay)
-                return _attempt(model)
-            raise
+                raise
+            delay = _retry_delay(exc)
+            logger.warning(
+                "llm.call.gemini.rate_limited | model=%s retrying after %.0fs",
+                name,
+                delay,
+            )
+            time.sleep(delay)
+            return _attempt(model)
 
     # Each free-tier Gemini model has a hard requests/day cap.  Rotate through
     # the configured fallbacks so a capped/busy model doesn't take the whole
@@ -150,6 +182,9 @@ def _call_gemini(
     response = None
     last_error: Optional[Exception] = None
     timed_out = False
+    # Why each skipped model was skipped — surfaced in LangSmith so a slow
+    # reply can be explained without reading the server log.
+    skipped: list[dict] = []
     for model_name in candidates:
         model = _make_model(model_name)
         try:
@@ -160,21 +195,32 @@ def _call_gemini(
             last_error = TimeoutError(
                 f"Gemini model {model_name} timed out after {ai_config.GEMINI_TIMEOUT_SECONDS}s"
             )
+            skipped.append(
+                {"model": model_name, "reason": "timeout",
+                 "detail": f">{ai_config.GEMINI_TIMEOUT_SECONDS}s"}
+            )
             logger.warning(
                 "llm.call.gemini.timeout | model=%s trying next", model_name
             )
             continue
         except Exception as exc:  # noqa: BLE001
             last_error = exc
+            message = str(exc)
+            reason = "quota_exhausted" if _is_hard_quota(message) else "error"
+            skipped.append(
+                {"model": model_name, "reason": reason, "detail": message[:160]}
+            )
             logger.warning(
                 "llm.call.gemini.failed | model=%s trying next | %s",
                 model_name,
-                str(exc)[:160],
+                message[:160],
             )
             continue
         break
 
     if response is None:
+        if skipped:
+            add_metadata(skipped_models=skipped, candidates_tried=len(skipped))
         if timed_out:
             raise TimeoutError(str(last_error)) from None
         raise RuntimeError(f"All Gemini models failed: {last_error}") from last_error
@@ -193,6 +239,16 @@ def _call_gemini(
         else 0
     )
 
+    record_usage(
+        model=model_name,
+        provider="gemini",
+        input_tokens=prompt_tokens,
+        output_tokens=completion_tokens,
+        latency_ms=latency_ms,
+        candidates_tried=len(skipped) + 1,
+        skipped_models=skipped or None,
+    )
+
     return LLMResult(
         text=raw_text,
         provider="gemini",
@@ -203,6 +259,12 @@ def _call_gemini(
     )
 
 
+@trace_run(
+    "llm.openrouter.chat_completion",
+    run_type="llm",
+    tags=["openrouter"],
+    process_outputs=as_run_outputs,
+)
 def _call_openrouter(
     prompt: str,
     temperature: float,
@@ -232,6 +294,14 @@ def _call_openrouter(
     prompt_tokens = usage.prompt_tokens if usage else 0
     completion_tokens = usage.completion_tokens if usage else 0
 
+    record_usage(
+        model=ai_config.LLM_MODEL,
+        provider="openrouter",
+        input_tokens=prompt_tokens,
+        output_tokens=completion_tokens,
+        latency_ms=latency_ms,
+    )
+
     return LLMResult(
         text=raw_text,
         provider="openrouter",
@@ -246,6 +316,7 @@ def _call_openrouter(
 # Public API
 # ---------------------------------------------------------------------------
 
+@trace_run("llm.call", run_type="chain", tags=["provider-routing"], process_outputs=as_run_outputs)
 def call_llm(
     prompt: str,
     model_override: Optional[str] = None,
