@@ -1,4 +1,4 @@
-# Future Time Notification Fix
+# Future Time Notification Fix.     
 
 ## Issue Identified
 The notification scheduler was not sending emails for todos with future times because:
