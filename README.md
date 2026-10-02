@@ -846,6 +846,14 @@ ACCESS_TOKEN_EXPIRE_MINUTES=30
 # University domain (only emails from this domain can register)
 UNIVERSITY_EMAIL_DOMAIN=university.edu.in
 
+# Several institutions on one deployment (comma separated). The singular value
+# above is always accepted too, so this only adds institutions.
+# UNIVERSITY_EMAIL_DOMAINS=krmu.ac.in,northbridge.edu.in
+
+# Display names for the institution picker, as "domain=Name" pairs. Domains
+# without an entry fall back to a title-cased guess from the domain.
+# INSTITUTION_NAMES=krmu.ac.in=K.R. Mangalam University
+
 # Email (optional — for notifications)
 SMTP_SERVER=smtp.gmail.com
 SMTP_PORT=587
@@ -898,6 +906,16 @@ LANGSMITH_PROJECT=CampusGenie
 | `POST` | `/api/auth/login` | Login, returns JWT |
 | `POST` | `/api/auth/register` | Register new user |
 | `GET` | `/api/auth/me` | Get current user |
+
+### Institutions
+
+Unauthenticated, so the login and signup screens can populate the institution
+picker from the same configuration the API validates against.
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/institutions` | Institutions this deployment accepts |
+| `GET` | `/api/institutions/resolve` | Check an email or domain |
 
 ### AI Assistant
 

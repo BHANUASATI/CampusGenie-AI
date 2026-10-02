@@ -49,16 +49,31 @@ class ApiClient {
         
         // Try to get error details
         let errorMessage = `API Error: ${response.status} ${response.statusText}`;
+        let detail: any = undefined;
+
         try {
           const errorData = await response.json();
           if (errorData.detail) {
-            errorMessage += ` - ${errorData.detail}`;
+            detail = errorData.detail;
+            // Arrays of validation errors stringify to "[object Object]", which
+            // is useless to a user. Callers that care read `error.detail`
+            // instead; this stays as the last-resort summary.
+            errorMessage += ` - ${
+              Array.isArray(errorData.detail)
+                ? errorData.detail
+                    .map((d: any) => `${(d.loc || []).filter((l: any) => l !== 'body').join('.')}: ${d.msg}`)
+                    .join('; ')
+                : errorData.detail
+            }`;
           }
         } catch (e) {
           // If we can't parse JSON, just use the status text
         }
-        
-        throw new Error(errorMessage);
+
+        const error = new Error(errorMessage) as Error & { detail?: any; status?: number };
+        error.detail = detail;
+        error.status = response.status;
+        throw error;
       }
 
       return await response.json();
@@ -116,8 +131,13 @@ const apiClient = new ApiClient(API_BASE_URL);
 
 // Authentication Service
 export const authService = {
-  login: async (email: string, password: string) => {
-    return apiClient.post('/api/auth/login', { email, password });
+  /**
+   * `rememberMe` asks the API for a long-lived token instead of the default
+   * short session, so the choice is enforced server-side rather than being a
+   * localStorage flag the user could not trust.
+   */
+  login: async (email: string, password: string, rememberMe = false) => {
+    return apiClient.post('/api/auth/login', { email, password, remember_me: rememberMe });
   },
 
   logout: async () => {

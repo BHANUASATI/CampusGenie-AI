@@ -13,7 +13,7 @@ from database import get_db
 from schemas import Token, UserResponse
 from auth import create_access_token
 from dependencies import get_current_active_user
-from config import settings
+from config import settings, is_accepted_email, accepted_domain_error
 from oauth_service import oauth_service
 
 router = APIRouter(prefix="/api/oauth", tags=["oauth"])
@@ -108,10 +108,10 @@ async def microsoft_callback(code: str, state: Optional[str] = None, db: Session
     else:
         # New user - create account
         # Validate university email domain
-        if not email.endswith(f"@{settings.UNIVERSITY_EMAIL_DOMAIN}"):
+        if not is_accepted_email(email):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Email must be from {settings.UNIVERSITY_EMAIL_DOMAIN} domain. Your email: {email}"
+                detail=f"{accepted_domain_error(email)}. Your email: {email}"
             )
         
         # Create new user with temporary password (OAuth users don't need it)

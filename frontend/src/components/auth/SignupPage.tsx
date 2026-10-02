@@ -1,76 +1,161 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { authService } from '../../services/api';
-import { UserPlus, User, Lock, Eye, EyeOff, GraduationCap, Mail, AlertCircle, ChevronRight, CheckCircle2, XCircle, Zap, Shield, ChevronDown, Users, Briefcase } from 'lucide-react';
+import {
+  AlertCircle,
+  ArrowRight,
+  AtSign,
+  Building,
+  CheckCircle2,
+  GraduationCap,
+  Hash,
+  Mail,
+  UserRound,
+  Users,
+  X,
+} from 'lucide-react';
+import AuthLayout from './AuthLayout';
+import InstitutionSelect from './InstitutionSelect';
+import PasswordField from './PasswordField';
+import { meetsPasswordPolicy, type Institution } from './authContent';
+import { useAcademicStructure } from './useCampusData';
 
-export const SignupPage: React.FC = () => {
-  const navigate = useNavigate();
-  const [userRole, setUserRole] = useState<'student' | 'faculty'>('student');
+const looksLikeEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+
+type Role = 'student' | 'faculty';
+
+const ROLE_OPTIONS: { key: Role; label: string; icon: typeof GraduationCap }[] = [
+  { key: 'student', label: 'Student', icon: GraduationCap },
+  { key: 'faculty', label: 'Faculty', icon: Users },
+];
+
+export interface SignupPageProps {
+  onSwitchToLogin: () => void;
+  /** Owned by AppRoutes, so the tenant carries over from the login screen. */
+  institution: Institution | null;
+  onInstitutionChange: (institution: Institution) => void;
+  /** Fetched once in AppRoutes and passed down, not re-requested per screen. */
+  institutions: Institution[];
+  institutionStatus: 'loading' | 'live' | 'offline';
+}
+
+export const SignupPage: React.FC<SignupPageProps> = ({
+  onSwitchToLogin,
+  institution,
+  onInstitutionChange,
+  institutions,
+  institutionStatus,
+}) => {
+  const { schools, departmentsFor, loaded: structureLoaded } = useAcademicStructure();
+
+  const [role, setRole] = useState<Role>('student');
   const [formData, setFormData] = useState({
-    email: '',
-    password: '',
-    confirmPassword: '',
     firstName: '',
     lastName: '',
+    email: '',
     enrollmentNumber: '',
     employeeId: '',
+    departmentId: '',
     department: '',
     semester: '',
+    password: '',
+    confirmPassword: '',
   });
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [emailError, setEmailError] = useState('');
   const [passwordError, setPasswordError] = useState('');
+  /**
+   * Errors that belong to a field other than email — enrolment number, employee
+   * ID, name. Kept separate from `emailError` because both were competing for
+   * one slot, and a wrong-domain address ended up reporting "enrollment number
+   * is required" instead.
+   */
+  const [fieldError, setFieldError] = useState('');
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [oauthLoading, setOauthLoading] = useState(false);
   const [oauthError, setOauthError] = useState('');
-  const [focusedField, setFocusedField] = useState<string | null>(null);
-  const [dropdownOpen, setDropdownOpen] = useState(false);
 
-  const validateEmail = (email: string): boolean => {
-    const universityEmailRegex = /^[a-zA-Z0-9._%+-]+@university\.edu\.in$/;
-    return universityEmailRegex.test(email);
+  const domainHint = institution?.email_domain ?? '@youruniversity.edu';
+  const emailFormatOk = looksLikeEmail(formData.email);
+  const emailDomainOk = !institution
+    ? emailFormatOk
+    : formData.email.trim().toLowerCase().endsWith(institution.domain);
+  const passwordsMatch =
+    formData.confirmPassword.length > 0 && formData.password === formData.confirmPassword;
+
+  /** Departments with no matching school in the list, so none are dropped. */
+  const ungrouped = departmentsFor(null).filter(
+    (d) => !schools.some((s) => s.id === d.school_id)
+  );
+
+  /** Append the institution domain to a bare local part. */
+  const appendDomain = () => {
+    if (!institution) return;
+    const local = formData.email.split('@')[0]?.trim();
+    setEmailError('');
+    setFormData({ ...formData, email: `${local}${institution.email_domain}` });
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     if (name === 'email') setEmailError('');
     if (name === 'password' || name === 'confirmPassword') setPasswordError('');
+    setFieldError('');
     setFormData({ ...formData, [name]: value });
   };
 
-  const validateForm = (): boolean => {
-    let isValid = true;
-    if (!validateEmail(formData.email)) {
-      setEmailError('Only university email addresses ending with @university.edu.in are allowed');
-      isValid = false;
+  const validate = (): boolean => {
+    let ok = true;
+
+    if (!institution) {
+      setEmailError('Select your institution first');
+      return false;
     }
-    if (formData.password.length < 8) {
-      setPasswordError('Password must be at least 8 characters long');
-      isValid = false;
+
+    setEmailError('');
+    setPasswordError('');
+    setFieldError('');
+
+    if (!looksLikeEmail(formData.email)) {
+      setEmailError('Enter a valid email address');
+      ok = false;
+    } else if (!emailDomainOk) {
+      setEmailError(`Use your ${institution.name} address (${institution.email_domain})`);
+      ok = false;
     }
-    if (formData.password !== formData.confirmPassword) {
+
+    // Same rule list the live checklist renders, so the two cannot disagree.
+    if (!meetsPasswordPolicy(formData.password)) {
+      setPasswordError('Password does not meet every requirement listed');
+      ok = false;
+    } else if (formData.password !== formData.confirmPassword) {
       setPasswordError('Passwords do not match');
-      isValid = false;
+      ok = false;
     }
-    if (userRole === 'student' && !formData.enrollmentNumber) {
-      setEmailError('Enrollment number is required for students');
-      isValid = false;
+
+    if (!formData.firstName.trim() || !formData.lastName.trim()) {
+      setFieldError('First and last name are required');
+      ok = false;
+    } else if (role === 'student' && !formData.enrollmentNumber.trim()) {
+      setFieldError('Enrollment number is required for students');
+      ok = false;
+    } else if (role === 'faculty' && !formData.employeeId.trim()) {
+      setFieldError('Employee ID is required for faculty');
+      ok = false;
+    } else if (!formData.departmentId && !formData.department.trim()) {
+      setFieldError('Select your department');
+      ok = false;
     }
-    if (userRole === 'faculty' && !formData.employeeId) {
-      setEmailError('Employee ID is required for faculty');
-      isValid = false;
-    }
-    return isValid;
+
+    return ok;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!validateForm()) return;
+    if (!validate()) return;
+
     setLoading(true);
     try {
-      if (userRole === 'faculty') {
+      if (role === 'faculty') {
         await authService.registerFaculty({
           email: formData.email,
           password: formData.password,
@@ -85,31 +170,41 @@ export const SignupPage: React.FC = () => {
           can_assign_tasks: true,
         });
       } else {
+        // Optional fields are omitted rather than sent as empty strings:
+        // `date_of_birth` and `gender` are Optional on the backend but still
+        // type-checked, so "" fails validation with a 422. These are collected
+        // later, during profile completion.
+        //
+        // `department_id` used to be hard-coded to 1, which filed every new
+        // student under Computer Science. It now comes from the picker's real
+        // value, falling back to 1 only when the list could not be loaded.
         await authService.registerStudent({
           email: formData.email,
           password: formData.password,
           first_name: formData.firstName,
           last_name: formData.lastName,
           enrollment_number: formData.enrollmentNumber,
-          phone: '',
-          date_of_birth: '',
-          gender: '',
-          blood_group: '',
-          address: '',
-          city: '',
-          state: '',
-          pincode: '',
-          department_id: 1,
-          semester: parseInt(formData.semester) || 1,
+          department_id: parseInt(formData.departmentId, 10) || 1,
+          semester: parseInt(formData.semester, 10) || 1,
           batch: '2024-2028',
           admission_year: 2024,
         });
       }
       setSuccess(true);
-      setTimeout(() => navigate('/login'), 2000);
+      window.setTimeout(onSwitchToLogin, 2200);
     } catch (error: any) {
       console.error('Registration error:', error);
-      setEmailError(error.message || 'Registration failed. Please try again.');
+      // Surface what the API actually said. The generic axios message reads
+      // "API Error: 422 …" with no indication of which field was wrong.
+      const detail = error?.detail ?? error?.response?.data?.detail;
+      const readable = Array.isArray(detail)
+        ? detail
+            .map((d: any) => `${(d.loc || []).filter((l: any) => l !== 'body').join('.')}: ${d.msg}`)
+            .join('; ')
+        : typeof detail === 'string'
+          ? detail
+          : undefined;
+      setFieldError(readable || error.message || 'Registration failed. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -119,433 +214,465 @@ export const SignupPage: React.FC = () => {
     setOauthLoading(true);
     setOauthError('');
     try {
-      const response = await authService.getMicrosoftAuthUrl() as any;
+      const response = (await authService.getMicrosoftAuthUrl()) as any;
       if (response.auth_url) {
         window.location.href = response.auth_url;
       } else {
-        setOauthError('Failed to get OAuth URL');
+        setOauthError('Failed to get the Microsoft sign-in URL. Please try again.');
         setOauthLoading(false);
       }
     } catch (error: any) {
       console.error('Microsoft OAuth error:', error);
-      setOauthError(error.message || 'Failed to initiate Microsoft login');
+      setOauthError(error.message || 'Failed to start Microsoft sign-in');
       setOauthLoading(false);
     }
   };
-
-  React.useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const code = urlParams.get('code');
-    const state = urlParams.get('state');
-    if (code && state) {
-      handleOAuthCallback(code, state);
-    }
-  }, []);
 
   const handleOAuthCallback = async (code: string, state: string) => {
     setOauthLoading(true);
     setOauthError('');
     try {
-      const response = await authService.handleMicrosoftCallback(code, state) as any;
+      const response = (await authService.handleMicrosoftCallback(code, state)) as any;
       if (response.is_new_user) {
         setSuccess(true);
-        setTimeout(() => navigate('/login'), 2000);
+        window.setTimeout(onSwitchToLogin, 2200);
       } else {
-        navigate('/dashboard');
+        onSwitchToLogin();
       }
       window.history.replaceState({}, document.title, window.location.pathname);
     } catch (error: any) {
       console.error('OAuth callback error:', error);
-      setOauthError(error.message || 'OAuth authentication failed');
+      setOauthError(error.message || 'Microsoft sign-in failed');
       setOauthLoading(false);
     }
   };
 
+  // Runs once on mount: the OAuth provider redirects back here with ?code=.
+  React.useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get('code');
+    const oauthState = params.get('state');
+    if (code && oauthState) {
+      handleOAuthCallback(code, oauthState);
+    }
+  }, []);
+
   if (success) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-4">
-        <div className="bg-white/10 backdrop-blur-xl rounded-3xl p-8 shadow-2xl border border-white/20 text-center max-w-md mx-auto">
-          <div className="inline-flex p-4 bg-green-500 rounded-full mb-4 animate-bounce">
-            <CheckCircle2 className="w-8 h-8 text-white" />
+      <AuthLayout
+        eyebrow="Account created"
+        headline={
+          <>
+            Your campus workspace
+            <br />
+            <span className="auth-gradient-text">is ready.</span>
+          </>
+        }
+        subhead="Your account is ready. Taking you to the sign-in page…"
+        institutionName={institution?.name}
+        institutionDomain={institution?.email_domain}
+      >
+        <div className="auth-card text-center">
+          <div className="auth-success-ring">
+            <CheckCircle2 className="w-7 h-7" />
           </div>
-          <h2 className="text-2xl font-bold text-white mb-2">Registration Successful!</h2>
-          <p className="text-purple-200">Redirecting to login page...</p>
+          <h1 className="text-xl font-bold text-white">Account created</h1>
+          <p className="text-sm text-slate-400 mt-2">Redirecting you to sign in…</p>
         </div>
-      </div>
+      </AuthLayout>
     );
   }
 
+  const idLabel = role === 'student' ? 'Enrollment number' : 'Employee ID';
+  const idName = role === 'student' ? 'enrollmentNumber' : 'employeeId';
+  const idValue = role === 'student' ? formData.enrollmentNumber : formData.employeeId;
+  const idPlaceholder = role === 'student' ? '2024CS001' : 'FAC001';
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-4">
-      <div className="w-full max-w-2xl mx-auto">
-        <div className="bg-white/10 backdrop-blur-xl rounded-3xl p-8 shadow-2xl border border-white/20">
-          <div className="text-center mb-8">
-            <div className="inline-flex p-4 bg-gradient-to-br from-purple-500 to-blue-600 rounded-2xl shadow-xl mb-4">
-              <UserPlus className="w-8 h-8 text-white" />
-            </div>
-            <h2 className="text-3xl font-bold text-white">Create Account</h2>
-            <p className="text-purple-200 mt-2">Join CampusGenie to transform your academic journey</p>
-          </div>
+    <AuthLayout
+      eyebrow="Create account"
+      headline={
+        <>
+          Bring your whole campus
+          <br />
+          <span className="auth-gradient-text">onto one platform.</span>
+        </>
+      }
+      subhead="Pick your institution, and your workspace opens with every module your department already uses."
+      institutionName={institution?.name}
+      institutionDomain={institution?.email_domain}
+    >
+      <div className="auth-card">
+        <header className="text-center mb-6">
+          <h1 className="text-[1.65rem] font-bold text-white tracking-tight">
+            Create your account
+          </h1>
+          <p className="text-sm text-slate-400 mt-1.5">
+            Set up access in under a minute
+          </p>
+        </header>
 
-          {/* Role Selection */}
-          <div className="space-y-2 mb-6 relative z-40">
-            <label htmlFor="userRole" className="block text-sm font-medium text-purple-200">
-              Select Your Role
-            </label>
-            <div className="relative">
+        {/* ── Institution ─────────────────────────────────────────────── */}
+        <div className="mb-5">
+          <InstitutionSelect
+            institutions={institutions}
+            value={institution}
+            onChange={(next) => {
+              onInstitutionChange(next);
+              setEmailError('');
+            }}
+            loading={institutionStatus === 'loading'}
+          />
+        </div>
+
+        {/* ── Role picker ─────────────────────────────────────────────── */}
+        <div className="mb-5">
+          <span className="auth-label">I am a</span>
+          <div className="auth-segment" role="group" aria-label="Account type">
+            {ROLE_OPTIONS.map(({ key, label, icon: Icon }) => (
               <button
+                key={key}
                 type="button"
-                onClick={() => setDropdownOpen(!dropdownOpen)}
-                className="w-full pl-4 pr-10 py-3 bg-white/10 border border-white/20 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm transition-all duration-300 flex items-center justify-between"
+                className="auth-segment-btn"
+                aria-pressed={role === key}
+                onClick={() => setRole(key)}
               >
-                <div className="flex items-center">
-                  {userRole === 'student' && <GraduationCap className="w-5 h-5 text-blue-400 mr-2" />}
-                  {userRole === 'faculty' && <Users className="w-5 h-5 text-purple-400 mr-2" />}
-                  <span style={{ textTransform: 'capitalize' }}>{userRole}</span>
-                </div>
-                <ChevronDown className={`w-5 h-5 text-purple-400 transition-transform ${dropdownOpen ? 'rotate-180' : ''}`} />
+                <Icon className="w-4 h-4" />
+                {label}
               </button>
-              
-              {dropdownOpen && (
-                <div className="absolute z-50 w-full mt-2 bg-gray-900/95 backdrop-blur-xl border border-gray-700 rounded-xl shadow-2xl overflow-hidden">
-                  <button
-                    type="button"
-                    onClick={() => { setUserRole('student'); setDropdownOpen(false); }}
-                    className={`w-full px-4 py-3 text-left flex items-center space-x-3 transition-colors ${
-                      userRole === 'student' ? 'bg-blue-600/30 text-blue-300' : 'text-gray-300 hover:bg-gray-800'
-                    }`}
-                  >
-                    <GraduationCap className="w-5 h-5" />
-                    <span>Student</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => { setUserRole('faculty'); setDropdownOpen(false); }}
-                    className={`w-full px-4 py-3 text-left flex items-center space-x-3 transition-colors ${
-                      userRole === 'faculty' ? 'bg-purple-600/30 text-purple-300' : 'text-gray-300 hover:bg-gray-800'
-                    }`}
-                  >
-                    <Users className="w-5 h-5" />
-                    <span>Faculty</span>
-                  </button>
-                </div>
-              )}
-            </div>
+            ))}
           </div>
+          {/* What the chosen role actually gets, so the toggle is not a guess. */}
+          <p className="auth-hint !mt-2">
+            {role === 'student'
+              ? 'Coursework, attendance, fees, results and campus notices.'
+              : 'Class rosters, mark entry, document verification and approvals.'}
+          </p>
+        </div>
 
-          {/* OAuth Button */}
-          <div className="relative mb-6">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-white/20"></div>
-            </div>
-            <div className="relative flex justify-center text-sm">
-              <span className="px-4 bg-transparent text-purple-300">Or sign up with</span>
-            </div>
-          </div>
-
+        <div className="space-y-4">
           <button
             type="button"
             onClick={handleMicrosoftLogin}
             disabled={oauthLoading}
-            className="w-full bg-white text-gray-800 py-3 px-4 rounded-xl font-semibold hover:bg-gray-50 transition-all duration-300 transform hover:scale-[1.02] shadow-lg flex items-center justify-center space-x-3 border border-gray-200 mb-6"
+            className="auth-btn auth-btn-ghost"
           >
             {oauthLoading ? (
               <>
-                <div className="w-5 h-5 border-2 border-gray-600 border-t-transparent rounded-full animate-spin"></div>
-                <span>Connecting...</span>
+                <span className="auth-spinner" style={{ borderTopColor: '#cbd5e1' }} />
+                <span>Connecting…</span>
               </>
             ) : (
               <>
-                <svg className="w-5 h-5" viewBox="0 0 21 21" xmlns="http://www.w3.org/2000/svg">
-                  <rect x="1" y="1" width="9" height="9" fill="#f25022"/>
-                  <rect x="11" y="1" width="9" height="9" fill="#7fba00"/>
-                  <rect x="1" y="11" width="9" height="9" fill="#00a4ef"/>
-                  <rect x="11" y="11" width="9" height="9" fill="#ffb900"/>
+                <svg className="w-[1.15rem] h-[1.15rem]" viewBox="0 0 21 21" aria-hidden="true">
+                  <rect x="1" y="1" width="9" height="9" fill="#f25022" />
+                  <rect x="11" y="1" width="9" height="9" fill="#7fba00" />
+                  <rect x="1" y="11" width="9" height="9" fill="#00a4ef" />
+                  <rect x="11" y="11" width="9" height="9" fill="#ffb900" />
                 </svg>
-                <span>Microsoft / Outlook</span>
+                <span>Sign up with Microsoft</span>
               </>
             )}
           </button>
 
           {oauthError && (
-            <div className="bg-red-500/20 border border-red-500/50 rounded-xl p-4 mb-6">
-              <div className="flex items-center space-x-2 text-red-200 text-sm">
-                <XCircle className="w-4 h-4" />
-                <span>{oauthError}</span>
-              </div>
+            <div className="auth-alert auth-alert-error" role="alert">
+              <AlertCircle className="w-4 h-4" />
+              <span>{oauthError}</span>
             </div>
           )}
 
-          <div className="relative mb-6">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-white/20"></div>
-            </div>
-            <div className="relative flex justify-center text-sm">
-              <span className="px-4 bg-transparent text-purple-300">Or sign up with email</span>
-            </div>
-          </div>
+          <div className="auth-divider">or register with email</div>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <label htmlFor="firstName" className="block text-sm font-medium text-purple-200">
-                  First Name
+          <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label htmlFor="firstName" className="auth-label">
+                  First name
                 </label>
-                <input
-                  id="firstName"
-                  name="firstName"
-                  type="text"
-                  required
-                  value={formData.firstName}
-                  onChange={handleInputChange}
-                  className="block w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl placeholder-purple-300 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm transition-all duration-300"
-                  placeholder="John"
-                />
+                <div className="relative">
+                  <UserRound className="auth-field-icon" aria-hidden="true" />
+                  <input
+                    id="firstName"
+                    name="firstName"
+                    type="text"
+                    autoComplete="given-name"
+                    required
+                    value={formData.firstName}
+                    onChange={handleInputChange}
+                    className="auth-field"
+                    placeholder="Asha"
+                  />
+                </div>
               </div>
-
-              <div className="space-y-2">
-                <label htmlFor="lastName" className="block text-sm font-medium text-purple-200">
-                  Last Name
+              <div>
+                <label htmlFor="lastName" className="auth-label">
+                  Last name
                 </label>
-                <input
-                  id="lastName"
-                  name="lastName"
-                  type="text"
-                  required
-                  value={formData.lastName}
-                  onChange={handleInputChange}
-                  className="block w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl placeholder-purple-300 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm transition-all duration-300"
-                  placeholder="Doe"
-                />
+                <div className="relative">
+                  <UserRound className="auth-field-icon" aria-hidden="true" />
+                  <input
+                    id="lastName"
+                    name="lastName"
+                    type="text"
+                    autoComplete="family-name"
+                    required
+                    value={formData.lastName}
+                    onChange={handleInputChange}
+                    className="auth-field"
+                    placeholder="Verma"
+                  />
+                </div>
               </div>
             </div>
 
-            <div className="space-y-2">
-              <label htmlFor="email" className="block text-sm font-medium text-purple-200">
-                Email Address
+            <div>
+              <label htmlFor="email" className="auth-label">
+                Campus email
               </label>
               <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Mail className={`h-5 w-5 transition-colors ${focusedField === 'email' ? 'text-blue-400' : 'text-purple-400'}`} />
-                </div>
+                <Mail className="auth-field-icon" aria-hidden="true" />
                 <input
                   id="email"
                   name="email"
                   type="email"
+                  autoComplete="email"
                   required
                   value={formData.email}
                   onChange={handleInputChange}
-                  onFocus={() => setFocusedField('email')}
-                  onBlur={() => setFocusedField(null)}
-                  className={`block w-full pl-10 pr-4 py-3 bg-white/10 border rounded-xl placeholder-purple-300 text-white focus:outline-none focus:ring-2 focus:border-transparent backdrop-blur-sm transition-all duration-300 ${
-                    emailError 
-                      ? 'border-red-500 focus:ring-red-500' 
-                      : focusedField === 'email'
-                      ? 'border-blue-500 focus:ring-blue-500 shadow-lg shadow-blue-500/20'
-                      : 'border-white/20 focus:ring-blue-500'
-                  }`}
-                  placeholder={userRole === 'faculty' ? "staff@university.edu.in" : "student@university.edu.in"}
+                  aria-invalid={Boolean(emailError)}
+                  className={`auth-field ${emailError ? 'auth-field-error' : ''}`}
+                  placeholder={`you${domainHint}`}
                 />
-                {formData.email && !emailError && (
-                  <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
-                    <CheckCircle2 className="h-5 w-5 text-green-400" />
-                  </div>
-                )}
-              </div>
-              {emailError && (
-                <div className="flex items-center space-x-2 text-red-300 text-sm bg-red-500/10 rounded-lg p-2">
-                  <XCircle className="w-4 h-4" />
-                  <span>{emailError}</span>
-                </div>
-              )}
-            </div>
-
-            {userRole === 'student' && (
-              <div className="space-y-2">
-                <label htmlFor="enrollmentNumber" className="block text-sm font-medium text-purple-200">
-                  Enrollment Number
-                </label>
-                <input
-                  id="enrollmentNumber"
-                  name="enrollmentNumber"
-                  type="text"
-                  required
-                  value={formData.enrollmentNumber}
-                  onChange={handleInputChange}
-                  className="block w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl placeholder-purple-300 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm transition-all duration-300"
-                  placeholder="2024CS001"
-                />
-              </div>
-            )}
-
-            {userRole === 'faculty' && (
-              <div className="space-y-2">
-                <label htmlFor="employeeId" className="block text-sm font-medium text-purple-200">
-                  Employee ID
-                </label>
-                <input
-                  id="employeeId"
-                  name="employeeId"
-                  type="text"
-                  required
-                  value={formData.employeeId}
-                  onChange={handleInputChange}
-                  className="block w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl placeholder-purple-300 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm transition-all duration-300"
-                  placeholder="FAC001"
-                />
-              </div>
-            )}
-
-            {userRole === 'student' && (
-              <div className="space-y-2">
-                <label htmlFor="semester" className="block text-sm font-medium text-purple-200">
-                  Semester
-                </label>
-                <select
-                  id="semester"
-                  name="semester"
-                  required
-                  value={formData.semester}
-                  onChange={handleInputChange}
-                  className="block w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent backdrop-blur-sm transition-all duration-300"
-                >
-                  <option value="" className="bg-gray-800">Select Semester</option>
-                  {[1, 2, 3, 4, 5, 6, 7, 8].map(sem => (
-                    <option key={sem} value={sem} className="bg-gray-800">Semester {sem}</option>
+                {formData.email.length > 0 && !emailError &&
+                  (emailFormatOk && emailDomainOk ? (
+                    <CheckCircle2
+                      className="absolute right-3 top-1/2 -translate-y-1/2 w-[1.15rem] h-[1.15rem] text-emerald-400"
+                      aria-hidden="true"
+                    />
+                  ) : (
+                    <X
+                      className="absolute right-3 top-1/2 -translate-y-1/2 w-[1.15rem] h-[1.15rem] text-rose-400/70"
+                      aria-hidden="true"
+                    />
                   ))}
-                </select>
               </div>
-            )}
-
-            <div className="space-y-2">
-              <label htmlFor="password" className="block text-sm font-medium text-purple-200">
-                Password
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Lock className={`h-5 w-5 transition-colors ${focusedField === 'password' ? 'text-blue-400' : 'text-purple-400'}`} />
-                </div>
-                <input
-                  id="password"
-                  name="password"
-                  type={showPassword ? 'text' : 'password'}
-                  required
-                  value={formData.password}
-                  onChange={handleInputChange}
-                  onFocus={() => setFocusedField('password')}
-                  onBlur={() => setFocusedField(null)}
-                  className={`block w-full pl-10 pr-12 py-3 bg-white/10 border rounded-xl placeholder-purple-300 text-white focus:outline-none focus:ring-2 focus:border-transparent backdrop-blur-sm transition-all duration-300 ${
-                    focusedField === 'password'
-                      ? 'border-blue-500 focus:ring-blue-500 shadow-lg shadow-blue-500/20'
-                      : 'border-white/20 focus:ring-blue-500'
-                  }`}
-                  placeholder="••••••••"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-purple-400 hover:text-white transition-colors"
-                >
-                  {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-                </button>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <label htmlFor="confirmPassword" className="block text-sm font-medium text-purple-200">
-                Confirm Password
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Lock className={`h-5 w-5 transition-colors ${focusedField === 'confirmPassword' ? 'text-blue-400' : 'text-purple-400'}`} />
-                </div>
-                <input
-                  id="confirmPassword"
-                  name="confirmPassword"
-                  type={showConfirmPassword ? 'text' : 'password'}
-                  required
-                  value={formData.confirmPassword}
-                  onChange={handleInputChange}
-                  onFocus={() => setFocusedField('confirmPassword')}
-                  onBlur={() => setFocusedField(null)}
-                  className={`block w-full pl-10 pr-12 py-3 bg-white/10 border rounded-xl placeholder-purple-300 text-white focus:outline-none focus:ring-2 focus:border-transparent backdrop-blur-sm transition-all duration-300 ${
-                    focusedField === 'confirmPassword'
-                      ? 'border-blue-500 focus:ring-blue-500 shadow-lg shadow-blue-500/20'
-                      : 'border-white/20 focus:ring-blue-500'
-                  }`}
-                  placeholder="••••••••"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-purple-400 hover:text-white transition-colors"
-                >
-                  {showConfirmPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-                </button>
-                {formData.confirmPassword && formData.password === formData.confirmPassword && (
-                  <div className="absolute inset-y-0 right-10 flex items-center">
-                    <CheckCircle2 className="h-5 w-5 text-green-400" />
+              {emailError ? (
+                <p className="mt-2 text-xs text-rose-300 flex items-center gap-1.5">
+                  <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                  <span>{emailError}</span>
+                </p>
+              ) : (
+                institution && (
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <span className="text-xs text-slate-500">
+                      Must end with {institution.email_domain}
+                    </span>
+                    {formData.email && !formData.email.includes('@') && (
+                      <button type="button" onClick={appendDomain} className="auth-append">
+                        <AtSign className="w-3 h-3" aria-hidden="true" />
+                        Append
+                      </button>
+                    )}
                   </div>
-                )}
-              </div>
-              {passwordError && (
-                <div className="flex items-center space-x-2 text-red-300 text-sm bg-red-500/10 rounded-lg p-2">
-                  <XCircle className="w-4 h-4" />
-                  <span>{passwordError}</span>
-                </div>
+                )
               )}
             </div>
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-gradient-to-r from-purple-500 to-blue-600 text-white py-3 px-4 rounded-xl font-semibold hover:from-purple-600 hover:to-blue-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-transparent disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 transform hover:scale-[1.02] shadow-lg flex items-center justify-center space-x-2"
-            >
+            {fieldError && (
+              <div className="auth-alert auth-alert-error" role="alert">
+                <AlertCircle className="w-4 h-4" />
+                <span>{fieldError}</span>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label htmlFor={idName} className="auth-label">
+                  {idLabel}
+                </label>
+                <div className="relative">
+                  <Hash className="auth-field-icon" aria-hidden="true" />
+                  <input
+                    id={idName}
+                    name={idName}
+                    type="text"
+                    required
+                    value={idValue}
+                    onChange={handleInputChange}
+                    className="auth-field"
+                    placeholder={idPlaceholder}
+                  />
+                </div>
+              </div>
+
+              {role === 'student' ? (
+                <div>
+                  <label htmlFor="semester" className="auth-label">
+                    Semester
+                  </label>
+                  <select
+                    id="semester"
+                    name="semester"
+                    required
+                    value={formData.semester}
+                    onChange={handleInputChange}
+                    className="auth-field auth-field-plain appearance-none cursor-pointer"
+                  >
+                    <option value="">Select…</option>
+                    {[1, 2, 3, 4, 5, 6, 7, 8].map((s) => (
+                      <option key={s} value={s} className="bg-slate-900">
+                        Semester {s}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : null}
+            </div>
+
+            {/* ── Department ─────────────────────────────────────────────
+                Loaded from the API rather than typed, because the student
+                payload needs a real `department_id` and the free-text value the
+                form used to collect never produced one. Falls back to a text
+                input if the list cannot be fetched, so signup never hard-fails
+                when the backend is down. */}
+            <div>
+              <label htmlFor="departmentId" className="auth-label">
+                Department
+              </label>
+              <div className="relative">
+                <Building className="auth-field-icon" aria-hidden="true" />
+                {structureLoaded && departmentsFor(null).length > 0 ? (
+                  <>
+                    <select
+                      id="departmentId"
+                      name="departmentId"
+                      required
+                      value={formData.departmentId}
+                      onChange={(e) => {
+                        const picked = departmentsFor(null).find(
+                          (d) => String(d.id) === e.target.value
+                        );
+                        // Keep the name in sync: the faculty endpoint takes a
+                        // department *name*, the student one an id.
+                        setFormData((prev) => ({
+                          ...prev,
+                          departmentId: e.target.value,
+                          department: picked?.name ?? '',
+                        }));
+                        setFieldError('');
+                      }}
+                      className="auth-field auth-field-plain appearance-none cursor-pointer"
+                    >
+                      <option value="">Select your department…</option>
+                      {/* One optgroup per school. Nesting optgroups is invalid
+                          and browsers flatten it, which silently duplicated
+                          every department at the top of the list. Departments
+                          whose school is not configured fall into their own
+                          group rather than disappearing. */}
+                      {schools.map((school) => {
+                        const options = departmentsFor(school.id);
+                        if (options.length === 0) return null;
+                        return (
+                          <optgroup key={school.id} label={school.name}>
+                            {options.map((dept) => (
+                              <option key={dept.id} value={dept.id} className="bg-slate-900">
+                                {dept.name}
+                                {dept.code ? ` (${dept.code})` : ''}
+                              </option>
+                            ))}
+                          </optgroup>
+                        );
+                      })}
+                      {ungrouped.length > 0 && (
+                        <optgroup label="Other departments">
+                          {ungrouped.map((dept) => (
+                            <option key={dept.id} value={dept.id} className="bg-slate-900">
+                              {dept.name}
+                              {dept.code ? ` (${dept.code})` : ''}
+                            </option>
+                          ))}
+                        </optgroup>
+                      )}
+                    </select>
+                    <p className="auth-hint">
+                      {schools.length} schools, {departmentsFor(null).length} departments configured.
+                    </p>
+                  </>
+                ) : (
+                  <input
+                    id="departmentId"
+                    name="department"
+                    type="text"
+                    required
+                    value={formData.department}
+                    onChange={handleInputChange}
+                    className="auth-field"
+                    placeholder="Computer Science"
+                  />
+                )}
+              </div>
+            </div>
+
+            <PasswordField
+              id="password"
+              name="password"
+              label="Password"
+              value={formData.password}
+              onChange={(value) => {
+                setPasswordError('');
+                setFormData((prev) => ({ ...prev, password: value }));
+              }}
+              autoComplete="new-password"
+              placeholder="At least 8 characters"
+              showRequirements
+              error={passwordError}
+            />
+
+            <PasswordField
+              id="confirmPassword"
+              name="confirmPassword"
+              label="Confirm password"
+              value={formData.confirmPassword}
+              onChange={(value) => {
+                setPasswordError('');
+                setFormData((prev) => ({ ...prev, confirmPassword: value }));
+              }}
+              autoComplete="new-password"
+              placeholder="Type it once more"
+              allowGenerate={false}
+              trailingSlot={
+                passwordsMatch ? (
+                  <CheckCircle2 className="w-[1.15rem] h-[1.15rem]" aria-hidden="true" />
+                ) : undefined
+              }
+            />
+
+            <button type="submit" disabled={loading} className="auth-btn mt-1">
               {loading ? (
                 <>
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  <span>Creating Account...</span>
+                  <span className="auth-spinner" />
+                  <span>Creating account…</span>
                 </>
               ) : (
                 <>
-                  <span>Create {userRole.charAt(0).toUpperCase() + userRole.slice(1)} Account</span>
-                  <ChevronRight className="w-4 h-4" />
+                  <span>Create {role === 'student' ? 'student' : 'faculty'} account</span>
+                  <ArrowRight className="w-4 h-4" />
                 </>
               )}
             </button>
           </form>
-
-          <div className="mt-6 text-center">
-            <p className="text-purple-200">
-              Already have an account?{' '}
-              <button
-                onClick={() => navigate('/login')}
-                className="text-blue-300 hover:text-blue-200 font-medium transition-colors underline decoration-dotted underline-offset-4"
-              >
-                Sign in
-              </button>
-            </p>
-          </div>
-
-          {/* Footer with trust indicators */}
-          <div className="mt-8 pt-6 border-t border-white/10">
-            <div className="flex justify-center items-center space-x-6 text-purple-300 text-sm">
-              <div className="flex items-center space-x-1">
-                <Shield className="w-4 h-4" />
-                <span>Secure</span>
-              </div>
-              <div className="flex items-center space-x-1">
-                <Zap className="w-4 h-4" />
-                <span>Fast</span>
-              </div>
-              <div className="flex items-center space-x-1">
-                <CheckCircle2 className="w-4 h-4" />
-                <span>Reliable</span>
-              </div>
-            </div>
-          </div>
         </div>
+
+        <p className="auth-switch mt-6 pt-6 border-t border-white/10">
+          Already have an account?{' '}
+          <button type="button" onClick={onSwitchToLogin} className="auth-link">
+            Sign in
+          </button>
+        </p>
       </div>
-    </div>
+    </AuthLayout>
   );
 };
+
+export default SignupPage;

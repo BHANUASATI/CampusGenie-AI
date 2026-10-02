@@ -134,7 +134,7 @@ const appReducer = (state: AppState, action: AppAction): AppState => {
 interface AppContextType {
   state: AppState;
   dispatch: React.Dispatch<AppAction>;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string, rememberMe?: boolean) => Promise<void>;
   logout: () => Promise<void>;
   updateTaskStatus: (taskId: string, status: Task['status']) => void;
 }
@@ -144,14 +144,20 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [state, dispatch] = useReducer(appReducer, initialState);
 
-  const login = async (email: string, password: string) => {
+  const login = async (email: string, password: string, rememberMe = false) => {
     dispatch({ type: 'SET_LOADING', payload: true });
     
     try {
-      const response = await authService.login(email, password) as any;
+      const response = await authService.login(email, password, rememberMe) as any;
       
       // Store token
       localStorage.setItem('authToken', response.access_token);
+      // Remember the session length alongside the token. If the API ever stops
+      // returning it, fall back to "session only" rather than claiming a month.
+      localStorage.setItem(
+        'authSession',
+        rememberMe ? 'persistent' : 'session'
+      );
       
       // Determine user role from response
       const userRole = response.user.role;
@@ -212,6 +218,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     
     // Always remove token and dispatch logout
     localStorage.removeItem('authToken');
+    localStorage.removeItem('authSession');
     dispatch({ type: 'LOGOUT' });
   };
 

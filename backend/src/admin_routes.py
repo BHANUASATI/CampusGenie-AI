@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from models import User, Student, Faculty, Admin, Department, StudentDocument, Task, TaskSubmission
 from database import get_db
 from schemas import DashboardStats
+from config import is_accepted_email, accepted_domain_error
 from dependencies import get_current_active_user, get_current_admin
 from typing import List
 from datetime import datetime
@@ -323,10 +324,10 @@ def create_user(
         )
     
     # Validate email format
-    if not user_data.email.endswith('@university.edu.in'):
+    if not is_accepted_email(user_data.email):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Email must end with @university.edu.in"
+            detail=accepted_domain_error(user_data.email)
         )
     
     # Check if email already exists

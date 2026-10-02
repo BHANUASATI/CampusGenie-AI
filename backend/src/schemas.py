@@ -14,21 +14,24 @@ class UserCreate(UserBase):
     
     @validator('email')
     def validate_university_email(cls, v):
-        from config import settings
-        if not v.endswith(f"@{settings.UNIVERSITY_EMAIL_DOMAIN}"):
-            raise ValueError(f"Email must be from {settings.UNIVERSITY_EMAIL_DOMAIN} domain")
+        from config import is_accepted_email, accepted_domain_error
+        if not is_accepted_email(v):
+            raise ValueError(accepted_domain_error(v))
         return v
 
 class UserLogin(BaseModel):
     email: EmailStr
     password: str
     selected_role: Optional[str] = None
+    # Issues a long-lived token instead of the default short session. Expiry
+    # comes from settings.REMEMBER_ME_EXPIRE_DAYS.
+    remember_me: Optional[bool] = False
     
     @validator('email')
     def validate_university_email(cls, v):
-        from config import settings
-        if not v.endswith(f"@{settings.UNIVERSITY_EMAIL_DOMAIN}"):
-            raise ValueError(f"Email must be from {settings.UNIVERSITY_EMAIL_DOMAIN} domain")
+        from config import is_accepted_email, accepted_domain_error
+        if not is_accepted_email(v):
+            raise ValueError(accepted_domain_error(v))
         return v
 
 class UserResponse(UserBase):
@@ -130,9 +133,9 @@ class StudentCreate(StudentBase):
     
     @validator('email')
     def validate_university_email(cls, v):
-        from config import settings
-        if not v.endswith(f"@{settings.UNIVERSITY_EMAIL_DOMAIN}"):
-            raise ValueError(f"Email must be from {settings.UNIVERSITY_EMAIL_DOMAIN} domain")
+        from config import is_accepted_email, accepted_domain_error
+        if not is_accepted_email(v):
+            raise ValueError(accepted_domain_error(v))
         return v
 
 class StudentUpdate(BaseModel):
@@ -182,9 +185,9 @@ class FacultyCreate(FacultyBase):
     
     @validator('email')
     def validate_university_email(cls, v):
-        from config import settings
-        if not v.endswith(f"@{settings.UNIVERSITY_EMAIL_DOMAIN}"):
-            raise ValueError(f"Email must be from {settings.UNIVERSITY_EMAIL_DOMAIN} domain")
+        from config import is_accepted_email, accepted_domain_error
+        if not is_accepted_email(v):
+            raise ValueError(accepted_domain_error(v))
         return v
 
 class FacultyUpdate(BaseModel):
@@ -220,9 +223,9 @@ class AdminCreate(AdminBase):
     
     @validator('email')
     def validate_university_email(cls, v):
-        from config import settings
-        if not v.endswith(f"@{settings.UNIVERSITY_EMAIL_DOMAIN}"):
-            raise ValueError(f"Email must be from {settings.UNIVERSITY_EMAIL_DOMAIN} domain")
+        from config import is_accepted_email, accepted_domain_error
+        if not is_accepted_email(v):
+            raise ValueError(accepted_domain_error(v))
         return v
 
 class AdminResponse(AdminBase):
@@ -432,6 +435,8 @@ class Token(BaseModel):
     access_token: str
     token_type: str
     user: UserResponse
+    # Lifetime actually granted, so the client can say when the session lapses.
+    expires_in_minutes: Optional[int] = None
 
 class TokenData(BaseModel):
     email: Optional[str] = None

@@ -1,20 +1,63 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { authService } from '../../services/api';
-import { LogIn, User, Lock, Eye, EyeOff, ChevronRight, CheckCircle2, XCircle, Shield, Zap, BookOpen, ArrowRight, X } from 'lucide-react';
+import {
+  AlertCircle,
+  ArrowRight,
+  AtSign,
+  Check,
+  CheckCircle2,
+  CornerDownLeft,
+  Lock,
+  Mail,
+  ShieldCheck,
+  Sparkles,
+  X,
+} from 'lucide-react';
+import AuthLayout from './AuthLayout';
+import InstitutionSelect from './InstitutionSelect';
+import PasswordField from './PasswordField';
+import { meetsPasswordPolicy } from './authContent';
+import type { Institution } from './authContent';
+import { useFocusTrap, useHotkey } from './useAuthUi';
 
-export const AuthPage: React.FC = () => {
+// Seeded by the backend so the app can be reviewed without registering.
+const DEMO_EMAIL = 'student@university.edu.in';
+const DEMO_PASSWORD = 'student123';
+
+/** Loose check; the authoritative domain test is the selected institution. */
+const looksLikeEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+
+export interface AuthPageProps {
+  /** Handed to the "Create an account" link so signup is reachable. */
+  onSwitchToSignup: () => void;
+  /**
+   * Owned by AppRoutes so the chosen tenant survives moving between the two
+   * screens — picking an institution on login and then creating an account
+   * should not silently reset it.
+   */
+  institution: Institution | null;
+  onInstitutionChange: (institution: Institution) => void;
+  /** Fetched once in AppRoutes and passed down, not re-requested per screen. */
+  institutions: Institution[];
+  institutionStatus: 'loading' | 'live' | 'offline';
+}
+
+export const AuthPage: React.FC<AuthPageProps> = ({
+  onSwitchToSignup,
+  institution,
+  onInstitutionChange,
+  institutions,
+  institutionStatus,
+}) => {
   const { login, state } = useApp();
-  const [formData, setFormData] = useState({
-    email: '',
-    password: '',
-  });
-  const [showPassword, setShowPassword] = useState(false);
+
+  const [formData, setFormData] = useState({ email: '', password: '' });
+  const [rememberMe, setRememberMe] = useState(true);
   const [emailError, setEmailError] = useState('');
+  const [passwordError, setPasswordError] = useState('');
   const [oauthLoading, setOauthLoading] = useState(false);
   const [oauthError, setOauthError] = useState('');
-  const [loginSuccess, setLoginSuccess] = useState(false);
-  const [focusedField, setFocusedField] = useState<string | null>(null);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [resetEmail, setResetEmail] = useState('');
   const [resetLoading, setResetLoading] = useState(false);
@@ -24,97 +67,148 @@ export const AuthPage: React.FC = () => {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
-  const validateEmail = (email: string): boolean => {
-    const universityEmailRegex = /^[a-zA-Z0-9._%+-]+@university\.edu\.in$/;
-    return universityEmailRegex.test(email);
+  const emailRef = useRef<HTMLInputElement>(null);
+  const dialogRef = useFocusTrap<HTMLDivElement>(showForgotPassword);
+
+  const emailTouched = formData.email.length > 0;
+  const domainHint = institution?.email_domain ?? '@youruniversity.edu';
+  const emailFormatOk = looksLikeEmail(formData.email);
+  const emailDomainOk = !institution
+    ? emailFormatOk
+    : formData.email.trim().toLowerCase().endsWith(institution.domain);
+
+  // "/" from anywhere on the page focuses the email field. The convention in
+  // most sign-in forms, and the shortest path from a cold load to a submitted
+  // login on a shared machine.
+  useHotkey('/', () => emailRef.current?.focus());
+
+  // Escape closes the dialog, matching every other modal on the platform.
+  React.useEffect(() => {
+    if (!showForgotPassword) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') resetForgotModal();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [showForgotPassword]);
+
+  const resetForgotModal = () => {
+    setShowForgotPassword(false);
+    setShowResetForm(false);
+    setResetMessage('');
+    setResetToken('');
+    setNewPassword('');
+    setConfirmPassword('');
+    setResetEmail('');
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     if (name === 'email') setEmailError('');
+    if (name === 'password') setPasswordError('');
     setFormData({ ...formData, [name]: value });
+  };
+
+  /** Pre-fill the seeded student account; the user still presses Sign in. */
+  const fillDemoAccount = () => {
+    setEmailError('');
+    setPasswordError('');
+    setFormData({ email: DEMO_EMAIL, password: DEMO_PASSWORD });
+  };
+
+  /**
+   * Append the institution's domain to whatever local part has been typed.
+   * Nobody types their own domain correctly from memory, and getting it wrong
+   * produces a server-side 400 rather than a field-level message.
+   */
+  const appendDomain = () => {
+    if (!institution) return;
+    const local = formData.email.split('@')[0]?.trim();
+    setEmailError('');
+    setFormData({ ...formData, email: `${local}${institution.email_domain}` });
+    emailRef.current?.focus();
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!validateEmail(formData.email)) {
-      setEmailError('Only university email addresses ending with @university.edu.in are allowed');
+
+    if (!looksLikeEmail(formData.email)) {
+      setEmailError('Enter a valid email address');
       return;
     }
-    await login(formData.email, formData.password);
+    if (institution && !emailDomainOk) {
+      setEmailError(`Use your ${institution.name} address (${institution.email_domain})`);
+      return;
+    }
+    await login(formData.email, formData.password, rememberMe);
   };
 
   const handleMicrosoftLogin = async () => {
     setOauthLoading(true);
     setOauthError('');
     try {
-      const response = await authService.getMicrosoftAuthUrl() as any;
+      const response = (await authService.getMicrosoftAuthUrl()) as any;
       if (response.auth_url) {
         window.location.href = response.auth_url;
       } else {
-        setOauthError('Failed to get OAuth URL');
+        setOauthError('Failed to get the Microsoft sign-in URL. Please try again.');
         setOauthLoading(false);
       }
     } catch (error: any) {
       console.error('Microsoft OAuth error:', error);
-      setOauthError(error.message || 'Failed to initiate Microsoft login');
+      setOauthError(error.message || 'Failed to start Microsoft sign-in');
       setOauthLoading(false);
     }
   };
-
-  React.useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const code = urlParams.get('code');
-    const state = urlParams.get('state');
-    if (code && state) {
-      handleOAuthCallback(code, state);
-    }
-  }, []);
 
   const handleOAuthCallback = async (code: string, state: string) => {
     setOauthLoading(true);
     setOauthError('');
     try {
-      const response = await authService.handleMicrosoftCallback(code, state) as any;
+      const response = (await authService.handleMicrosoftCallback(code, state)) as any;
       localStorage.setItem('authToken', response.access_token);
       if (response.is_new_user) {
-        setOauthError(response.message || 'Please complete your profile');
+        setOauthError(response.message || 'Please complete your profile.');
       } else {
         await login(response.user.email, '');
       }
       window.history.replaceState({}, document.title, window.location.pathname);
     } catch (error: any) {
       console.error('OAuth callback error:', error);
-      setOauthError(error.message || 'OAuth authentication failed');
+      setOauthError(error.message || 'Microsoft sign-in failed');
       setOauthLoading(false);
     }
   };
 
+  // Runs once on mount: the OAuth provider redirects back here with ?code=.
+  React.useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get('code');
+    const oauthState = params.get('state');
+    if (code && oauthState) {
+      handleOAuthCallback(code, oauthState);
+    }
+  }, []);
+
   const handleForgotPassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('handleForgotPassword called with email:', resetEmail);
-    
     if (!resetEmail) {
       setResetMessage('Please enter your email address');
       return;
     }
-    
+
     setResetLoading(true);
     setResetMessage('');
-    
     try {
-      console.log('Calling forgotPassword API with email:', resetEmail);
-      const response = await authService.forgotPassword(resetEmail) as any;
-      console.log('Forgot password response:', response);
-      setResetMessage(response.message || 'If the email exists, a reset link has been sent');
+      const response = (await authService.forgotPassword(resetEmail)) as any;
+      setResetMessage(response.message || 'If that address exists, a reset link is on its way');
       if (response.reset_token) {
         setResetToken(response.reset_token);
         setShowResetForm(true);
       }
     } catch (error: any) {
       console.error('Forgot password error:', error);
-      setResetMessage(error.message || 'Failed to send reset link');
+      setResetMessage(error.message || 'Failed to send the reset link');
     } finally {
       setResetLoading(false);
     }
@@ -122,29 +216,23 @@ export const AuthPage: React.FC = () => {
 
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (newPassword !== confirmPassword) {
       setResetMessage('Passwords do not match');
       return;
     }
-    
-    if (newPassword.length < 6) {
-      setResetMessage('Password must be at least 6 characters');
+    // Same policy as signup, from the same list.
+    if (!meetsPasswordPolicy(newPassword)) {
+      setResetMessage('Password does not meet the requirements listed above');
       return;
     }
-    
+
     setResetLoading(true);
     setResetMessage('');
-    
     try {
-      const response = await authService.resetPassword(resetToken, newPassword) as any;
-      setResetMessage(response.message || 'Password reset successfully');
-      setShowResetForm(false);
-      setShowForgotPassword(false);
-      setResetToken('');
-      setNewPassword('');
-      setConfirmPassword('');
-      setResetEmail('');
+      const response = (await authService.resetPassword(resetToken, newPassword)) as any;
+      setResetMessage(response.message || 'Password reset. Sign in with your new password.');
+      resetForgotModal();
     } catch (error: any) {
       setResetMessage(error.message || 'Failed to reset password');
     } finally {
@@ -152,400 +240,391 @@ export const AuthPage: React.FC = () => {
     }
   };
 
+  const MicrosoftButton: React.FC<{ label: string }> = ({ label }) => (
+    <button
+      type="button"
+      onClick={handleMicrosoftLogin}
+      disabled={oauthLoading}
+      className="auth-btn auth-btn-ghost"
+    >
+      {oauthLoading ? (
+        <>
+          <span className="auth-spinner" style={{ borderTopColor: '#cbd5e1' }} />
+          <span>Connecting…</span>
+        </>
+      ) : (
+        <>
+          <svg className="w-[1.15rem] h-[1.15rem]" viewBox="0 0 21 21" aria-hidden="true">
+            <rect x="1" y="1" width="9" height="9" fill="#f25022" />
+            <rect x="11" y="1" width="9" height="9" fill="#7fba00" />
+            <rect x="1" y="11" width="9" height="9" fill="#00a4ef" />
+            <rect x="11" y="11" width="9" height="9" fill="#ffb900" />
+          </svg>
+          <span>{label}</span>
+        </>
+      )}
+    </button>
+  );
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-4">
-      <div className="w-full max-w-6xl mx-auto">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
-          
-          {/* Left side - Branding */}
-          <div className="hidden lg:block space-y-8">
-            <div className="space-y-6">
-              <div className="flex items-center space-x-4">
-                <div className="p-4 bg-gradient-to-br from-purple-500 to-blue-600 rounded-2xl shadow-2xl">
-                  <BookOpen className="w-10 h-10 text-white" />
-                </div>
-                <div>
-                  <h1 className="text-4xl font-bold text-white">CampusGenie</h1>
-                  <p className="text-purple-300 text-lg">AI for Smarter Learning</p>
-                </div>
-              </div>
-              
-              <h2 className="text-5xl font-bold text-white leading-tight">
-                Transform Your<br />
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-blue-400">
-                  Academic Journey
-                </span>
-              </h2>
-              
-              <p className="text-xl text-purple-200 leading-relaxed max-w-lg">
-                Experience the future of education with intelligent task management, personalized learning paths, and AI-driven insights.
-              </p>
-            </div>
-
-            <div className="space-y-4">
-              <div className="flex items-center space-x-4 p-4 bg-white/5 rounded-xl border border-white/10">
-                <div className="p-3 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl">
-                  <Zap className="w-6 h-6 text-white" />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-white">AI-Powered Insights</h3>
-                  <p className="text-sm text-purple-300">Personalized recommendations</p>
-                </div>
-              </div>
-
-              <div className="flex items-center space-x-4 p-4 bg-white/5 rounded-xl border border-white/10">
-                <div className="p-3 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl">
-                  <BookOpen className="w-6 h-6 text-white" />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-white">Smart Learning Paths</h3>
-                  <p className="text-sm text-purple-300">AI-generated curriculum</p>
-                </div>
-              </div>
-
-              <div className="flex items-center space-x-4 p-4 bg-white/5 rounded-xl border border-white/10">
-                <div className="p-3 bg-gradient-to-br from-pink-500 to-pink-600 rounded-xl">
-                  <Shield className="w-6 h-6 text-white" />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-white">Enterprise Security</h3>
-                  <p className="text-sm text-purple-300">Bank-grade data protection</p>
-                </div>
-              </div>
-            </div>
+    <AuthLayout
+      eyebrow="Sign in"
+      headline={
+        <>
+          One platform for
+          <br />
+          <span className="auth-gradient-text">your entire campus.</span>
+        </>
+      }
+      subhead="Admissions, academics, finance, attendance and records in one place — with an assistant that answers from your institution's own documents."
+      institutionName={institution?.name}
+      institutionDomain={institution?.email_domain}
+    >
+      <div className="auth-card">
+        <header className="text-center mb-6">
+          <div className="auth-logo auth-logo-sm mx-auto mb-4">
+            <Lock className="w-5 h-5 text-white" strokeWidth={2.1} />
           </div>
+          <h1 className="text-[1.65rem] font-bold text-white tracking-tight">
+            Sign in
+          </h1>
+          <p className="text-sm text-slate-400 mt-1.5">
+            Continue to your campus workspace
+          </p>
+        </header>
 
-          {/* Right side - Login Form */}
-          <div className="w-full max-w-md mx-auto">
-            {loginSuccess ? (
-              <div className="bg-white/10 backdrop-blur-xl rounded-3xl p-8 shadow-2xl border border-white/20 text-center">
-                <div className="inline-flex p-4 bg-green-500 rounded-full mb-4 animate-bounce">
-                  <CheckCircle2 className="w-8 h-8 text-white" />
-                </div>
-                <h2 className="text-2xl font-bold text-white mb-2">Login Successful!</h2>
-                <p className="text-purple-200">Redirecting to your dashboard...</p>
-              </div>
+        <div className="space-y-4">
+          <button
+            type="button"
+            onClick={handleMicrosoftLogin}
+            disabled={oauthLoading}
+            className="auth-btn auth-btn-ghost"
+          >
+            {oauthLoading ? (
+              <>
+                <span className="auth-spinner" style={{ borderTopColor: '#cbd5e1' }} />
+                <span>Connecting…</span>
+              </>
             ) : (
-              <div className="bg-white/10 backdrop-blur-xl rounded-3xl p-8 shadow-2xl border border-white/20">
-                <div className="text-center mb-8">
-                  <div className="inline-flex p-4 bg-gradient-to-br from-purple-500 to-blue-600 rounded-2xl shadow-xl mb-4">
-                    <LogIn className="w-8 h-8 text-white" />
-                  </div>
-                  <h2 className="text-3xl font-bold text-white">Welcome Back</h2>
-                  <p className="text-purple-200 mt-2">Sign in to continue your learning journey</p>
-                </div>
+              <>
+                <svg className="w-[1.15rem] h-[1.15rem]" viewBox="0 0 21 21" aria-hidden="true">
+                  <rect x="1" y="1" width="9" height="9" fill="#f25022" />
+                  <rect x="11" y="1" width="9" height="9" fill="#7fba00" />
+                  <rect x="1" y="11" width="9" height="9" fill="#00a4ef" />
+                  <rect x="11" y="11" width="9" height="9" fill="#ffb900" />
+                </svg>
+                <span>Continue with Microsoft</span>
+              </>
+            )}
+          </button>
 
-                {/* OAuth Button */}
-                <div className="relative mb-6">
-                  <div className="absolute inset-0 flex items-center">
-                    <div className="w-full border-t border-white/20"></div>
-                  </div>
-                  <div className="relative flex justify-center text-sm">
-                    <span className="px-4 bg-transparent text-purple-300">Or continue with</span>
-                  </div>
-                </div>
+          {oauthError && (
+            <div className="auth-alert auth-alert-error" role="alert">
+              <AlertCircle className="w-4 h-4" />
+              <span>{oauthError}</span>
+            </div>
+          )}
 
+          <div className="auth-divider">or use your campus email</div>
+
+          <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+            <InstitutionSelect
+              institutions={institutions}
+              value={institution}
+              onChange={(next) => {
+                onInstitutionChange(next);
+                setEmailError('');
+              }}
+              loading={institutionStatus === 'loading'}
+            />
+
+            <div>
+              <label htmlFor="email" className="auth-label">
+                Campus email
+              </label>
+              <div className="relative">
+                <Mail className="auth-field-icon" aria-hidden="true" />
+                <input
+                  ref={emailRef}
+                  id="email"
+                  name="email"
+                  type="email"
+                  autoComplete="email"
+                  required
+                  value={formData.email}
+                  onChange={handleInputChange}
+                  aria-invalid={Boolean(emailError)}
+                  aria-describedby={emailError ? 'email-error' : undefined}
+                  className={`auth-field ${emailError ? 'auth-field-error' : ''}`}
+                  placeholder={`you${domainHint}`}
+                />
+                {emailTouched && !emailError &&
+                  (emailFormatOk && emailDomainOk ? (
+                    <CheckCircle2
+                      className="absolute right-3 top-1/2 -translate-y-1/2 w-[1.15rem] h-[1.15rem] text-emerald-400"
+                      aria-hidden="true"
+                    />
+                  ) : (
+                    <X
+                      className="absolute right-3 top-1/2 -translate-y-1/2 w-[1.15rem] h-[1.15rem] text-rose-400/70"
+                      aria-hidden="true"
+                    />
+                  ))}
+              </div>
+
+              {emailError ? (
+                <p
+                  id="email-error"
+                  className="mt-2 text-xs text-rose-300 flex items-center gap-1.5"
+                >
+                  <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                  <span>{emailError}</span>
+                </p>
+              ) : (
+                /* Two ways in: type the whole address, or type your name and
+                   let the institution's domain be filled in. */
+                <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                  <span className="text-xs text-slate-500">
+                    Issued at {domainHint}
+                  </span>
+                  {institution && formData.email && !formData.email.includes('@') && (
+                    <button type="button" onClick={appendDomain} className="auth-append">
+                      <AtSign className="w-3 h-3" aria-hidden="true" />
+                      Append {institution.email_domain}
+                    </button>
+                  )}
+                  <span className="auth-hint !mt-0 ml-auto">
+                    <span className="auth-kbd">/</span>
+                    <span>to jump here</span>
+                  </span>
+                </div>
+              )}
+            </div>
+
+            <div>
+              <div className="flex items-baseline justify-between mb-1.5">
+                <span className="auth-label !mb-0">Password</span>
                 <button
                   type="button"
-                  onClick={handleMicrosoftLogin}
-                  disabled={oauthLoading}
-                  className="w-full bg-white text-gray-800 py-3 px-4 rounded-xl font-semibold hover:bg-gray-50 transition-all duration-300 transform hover:scale-[1.02] shadow-lg flex items-center justify-center space-x-3 border border-gray-200 mb-6"
+                  onClick={() => setShowForgotPassword(true)}
+                  className="auth-link text-xs"
                 >
-                  {oauthLoading ? (
-                    <>
-                      <div className="w-5 h-5 border-2 border-gray-600 border-t-transparent rounded-full animate-spin"></div>
-                      <span>Connecting...</span>
-                    </>
-                  ) : (
-                    <>
-                      <svg className="w-5 h-5" viewBox="0 0 21 21" xmlns="http://www.w3.org/2000/svg">
-                        <rect x="1" y="1" width="9" height="9" fill="#f25022"/>
-                        <rect x="11" y="1" width="9" height="9" fill="#7fba00"/>
-                        <rect x="1" y="11" width="9" height="9" fill="#00a4ef"/>
-                        <rect x="11" y="11" width="9" height="9" fill="#ffb900"/>
-                      </svg>
-                      <span>Microsoft / Outlook</span>
-                    </>
-                  )}
+                  Forgot password?
                 </button>
+              </div>
+              <PasswordField
+                id="password"
+                name="password"
+                label=""
+                value={formData.password}
+                onChange={(value) => {
+                  setPasswordError('');
+                  setFormData((prev) => ({ ...prev, password: value }));
+                }}
+                placeholder="••••••••"
+                error={passwordError}
+                allowGenerate={false}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleSubmit(e as unknown as React.FormEvent);
+                  }
+                }}
+              />
+            </div>
 
-                {oauthError && (
-                  <div className="bg-red-500/20 border border-red-500/50 rounded-xl p-4 mb-6">
-                    <div className="flex items-center space-x-2 text-red-200 text-sm">
-                      <XCircle className="w-4 h-4" />
-                      <span>{oauthError}</span>
-                    </div>
-                  </div>
-                )}
+            <label className="auth-check">
+              <input
+                type="checkbox"
+                checked={rememberMe}
+                onChange={(e) => setRememberMe(e.target.checked)}
+              />
+              <span className="auth-check-box" aria-hidden="true">
+                <Check className="w-3 h-3" strokeWidth={3} />
+              </span>
+              <span>Keep me signed in on this device</span>
+            </label>
 
-                <div className="relative mb-6">
-                  <div className="absolute inset-0 flex items-center">
-                    <div className="w-full border-t border-white/20"></div>
-                  </div>
-                  <div className="relative flex justify-center text-sm">
-                    <span className="px-4 bg-transparent text-purple-300">Or sign in with email</span>
-                  </div>
-                </div>
-
-                <form onSubmit={handleSubmit} className="space-y-5">
-                  <div className="space-y-2">
-                    <label htmlFor="email" className="block text-sm font-medium text-purple-200">
-                      Email Address
-                    </label>
-                    <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        <User className={`h-5 w-5 transition-colors ${focusedField === 'email' ? 'text-blue-400' : 'text-purple-400'}`} />
-                      </div>
-                      <input
-                        id="email"
-                        name="email"
-                        type="email"
-                        required
-                        value={formData.email}
-                        onChange={handleInputChange}
-                        onFocus={() => setFocusedField('email')}
-                        onBlur={() => setFocusedField(null)}
-                        className={`block w-full pl-10 pr-4 py-3 bg-white/10 border rounded-xl placeholder-purple-300 text-white focus:outline-none focus:ring-2 focus:border-transparent backdrop-blur-sm transition-all duration-300 ${
-                          emailError 
-                            ? 'border-red-500 focus:ring-red-500' 
-                            : focusedField === 'email'
-                            ? 'border-blue-500 focus:ring-blue-500 shadow-lg shadow-blue-500/20'
-                            : 'border-white/20 focus:ring-blue-500'
-                        }`}
-                        placeholder="your.email@university.edu.in"
-                      />
-                      {formData.email && !emailError && (
-                        <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
-                          <CheckCircle2 className="h-5 w-5 text-green-400" />
-                        </div>
-                      )}
-                    </div>
-                    {emailError && (
-                      <div className="flex items-center space-x-2 text-red-300 text-sm bg-red-500/10 rounded-lg p-2">
-                        <XCircle className="w-4 h-4" />
-                        <span>{emailError}</span>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="space-y-2">
-                    <label htmlFor="password" className="block text-sm font-medium text-purple-200">
-                      Password
-                    </label>
-                    <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        <Lock className={`h-5 w-5 transition-colors ${focusedField === 'password' ? 'text-blue-400' : 'text-purple-400'}`} />
-                      </div>
-                      <input
-                        id="password"
-                        name="password"
-                        type={showPassword ? 'text' : 'password'}
-                        required
-                        value={formData.password}
-                        onChange={handleInputChange}
-                        onFocus={() => setFocusedField('password')}
-                        onBlur={() => setFocusedField(null)}
-                        className={`block w-full pl-10 pr-12 py-3 bg-white/10 border rounded-xl placeholder-purple-300 text-white focus:outline-none focus:ring-2 focus:border-transparent backdrop-blur-sm transition-all duration-300 ${
-                          focusedField === 'password'
-                            ? 'border-blue-500 focus:ring-blue-500 shadow-lg shadow-blue-500/20'
-                            : 'border-white/20 focus:ring-blue-500'
-                        }`}
-                        placeholder="••••••••"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword(!showPassword)}
-                        className="absolute inset-y-0 right-0 pr-3 flex items-center text-purple-400 hover:text-white transition-colors"
-                      >
-                        {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-                      </button>
-                    </div>
-                  </div>
-
-                  {state.error && (
-                    <div className="bg-red-500/20 border border-red-500/50 rounded-xl p-4">
-                      <div className="flex items-center space-x-2">
-                        <XCircle className="w-5 h-5 text-red-300" />
-                        <p className="text-sm text-red-200">{state.error}</p>
-                      </div>
-                    </div>
-                  )}
-
-                  <button
-                    type="submit"
-                    disabled={state.loading}
-                    className="w-full bg-gradient-to-r from-purple-500 to-blue-600 text-white py-3 px-4 rounded-xl font-semibold hover:from-purple-600 hover:to-blue-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-transparent disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 transform hover:scale-[1.02] shadow-lg flex items-center justify-center space-x-2"
-                  >
-                    {state.loading ? (
-                      <>
-                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                        <span>Signing in...</span>
-                      </>
-                    ) : (
-                      <>
-                        <span>Sign In</span>
-                        <ChevronRight className="w-4 h-4" />
-                      </>
-                    )}
-                  </button>
-
-                  <div className="text-center">
-                    <button 
-                      type="button" 
-                      onClick={(e) => {
-                        e.preventDefault();
-                        console.log('Forgot password button clicked');
-                        setShowForgotPassword(true);
-                      }}
-                      className="text-sm text-purple-200 hover:text-white transition-colors cursor-pointer underline p-2 rounded hover:bg-white/10"
-                    >
-                      Forgot your password?
-                    </button>
-                  </div>
-                </form>
+            {state.error && (
+              <div className="auth-alert auth-alert-error" role="alert">
+                <AlertCircle className="w-4 h-4" />
+                <span>{state.error}</span>
               </div>
             )}
-          </div>
+
+            <button
+              type="submit"
+              disabled={state.loading}
+              className="auth-btn mt-1"
+            >
+              {state.loading ? (
+                <>
+                  <span className="auth-spinner" />
+                  <span>Signing in…</span>
+                </>
+              ) : (
+                <>
+                  <span>Sign in</span>
+                  <ArrowRight className="w-4 h-4" />
+                </>
+              )}
+            </button>
+
+            {/* Seeded student account, so a reviewer can get in without
+                registering. Fills the fields rather than submitting. */}
+            <button type="button" onClick={fillDemoAccount} className="auth-demo">
+              <Sparkles
+                className="w-3.5 h-3.5 text-sky-300 flex-shrink-0"
+                aria-hidden="true"
+              />
+              <span>
+                Use the demo student account —{' '}
+                <span className="auth-demo-cred">{DEMO_EMAIL}</span>
+              </span>
+            </button>
+          </form>
         </div>
+
+        <p className="auth-switch mt-6 pt-6 border-t border-white/10">
+          New to CampusGenie?{' '}
+          <button type="button" onClick={onSwitchToSignup} className="auth-link">
+            Create an account
+          </button>
+        </p>
       </div>
 
-      {/* Forgot Password Modal */}
+      {/* ── Forgot / reset password ────────────────────────────────────── */}
       {showForgotPassword && (
-        <div 
-          className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[100] p-4"
+        <div
+          className="auth-modal-scrim"
           onClick={(e) => {
-            if (e.target === e.currentTarget) {
-              setShowForgotPassword(false);
-              setShowResetForm(false);
-              setResetMessage('');
-              setResetToken('');
-              setNewPassword('');
-              setConfirmPassword('');
-              setResetEmail('');
-            }
+            if (e.target === e.currentTarget) resetForgotModal();
           }}
         >
-          <div className="bg-white/10 backdrop-blur-xl rounded-3xl p-8 shadow-2xl border border-white/20 w-full max-w-md relative">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold text-white">
-                {showResetForm ? 'Reset Password' : 'Forgot Password'}
-              </h2>
+          <div
+            ref={dialogRef}
+            className="auth-card auth-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="reset-heading"
+          >
+            <div className="flex items-start justify-between mb-6">
+              <div>
+                <h2 id="reset-heading" className="text-xl font-bold text-white">
+                  {showResetForm ? 'Set a new password' : 'Reset your password'}
+                </h2>
+                <p className="text-sm text-slate-400 mt-1">
+                  {showResetForm
+                    ? 'Choose something you have not used before.'
+                    : `We'll email a reset link to your ${institution?.name || 'institution'} address.`}
+                </p>
+              </div>
               <button
-                onClick={() => {
-                  setShowForgotPassword(false);
-                  setShowResetForm(false);
-                  setResetMessage('');
-                  setResetToken('');
-                  setNewPassword('');
-                  setConfirmPassword('');
-                  setResetEmail('');
-                }}
-                className="text-purple-300 hover:text-white transition-colors bg-white/10 rounded-full p-2 hover:bg-white/20"
+                onClick={resetForgotModal}
+                className="auth-icon-btn shrink-0 -mt-1 -mr-1"
+                aria-label="Close"
               >
-                <X className="w-6 h-6" />
+                <X className="w-5 h-5" />
               </button>
             </div>
 
-            {!showResetForm ? (
-              <form onSubmit={handleForgotPassword} className="space-y-5">
-                <div>
-                  <label htmlFor="reset-email" className="block text-sm font-medium text-purple-200 mb-2">
-                    Email Address
-                  </label>
-                  <input
-                    id="reset-email"
-                    type="email"
-                    required
-                    value={resetEmail}
-                    onChange={(e) => setResetEmail(e.target.value)}
-                    className="block w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl placeholder-purple-300 text-white focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent backdrop-blur-sm transition-all duration-300"
-                    placeholder="your.email@university.edu.in"
-                  />
-                </div>
+            {showResetForm ? (
+              <form onSubmit={handleResetPassword} className="space-y-4" noValidate>
+                <PasswordField
+                  id="new-password"
+                  name="newPassword"
+                  label="New password"
+                  value={newPassword}
+                  onChange={setNewPassword}
+                  autoComplete="new-password"
+                  placeholder="At least 8 characters"
+                  showRequirements
+                />
+                <PasswordField
+                  id="confirm-password"
+                  name="confirmPassword"
+                  label="Confirm new password"
+                  value={confirmPassword}
+                  onChange={setConfirmPassword}
+                  autoComplete="new-password"
+                  placeholder="Type it once more"
+                  trailingSlot={
+                    newPassword && newPassword === confirmPassword ? (
+                      <CheckCircle2 className="w-[1.15rem] h-[1.15rem]" aria-hidden="true" />
+                    ) : undefined
+                  }
+                />
+                {/* The reset path and the signup path must agree on the policy,
+                    or a user who satisfies one is rejected by the other. */}
+                {newPassword && !meetsPasswordPolicy(newPassword) && (
+                  <p className="auth-hint auth-hint-error">
+                    <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" aria-hidden="true" />
+                    <span>Clear the items above before saving.</span>
+                  </p>
+                )}
 
                 {resetMessage && (
-                  <div className={`p-4 rounded-xl ${
-                    resetMessage.includes('success') || resetMessage.includes('sent') 
-                      ? 'bg-green-500/20 border border-green-500/50' 
-                      : 'bg-red-500/20 border border-red-500/50'
-                  }`}>
-                    <p className="text-sm text-white">{resetMessage}</p>
+                  <div className="auth-alert auth-alert-error" role="alert">
+                    <AlertCircle className="w-4 h-4" />
+                    <span>{resetMessage}</span>
                   </div>
                 )}
 
-                <button
-                  type="submit"
-                  disabled={resetLoading}
-                  className="w-full bg-gradient-to-r from-purple-500 to-blue-600 text-white py-3 px-4 rounded-xl font-semibold hover:from-purple-600 hover:to-blue-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-transparent disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 transform hover:scale-[1.02] shadow-lg flex items-center justify-center space-x-2"
-                >
+                <button type="submit" disabled={resetLoading} className="auth-btn">
                   {resetLoading ? (
                     <>
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                      <span>Sending...</span>
+                      <span className="auth-spinner" />
+                      <span>Updating…</span>
                     </>
                   ) : (
                     <>
-                      <span>Send Reset Link</span>
-                      <ArrowRight className="w-4 h-4" />
+                      <ShieldCheck className="w-4 h-4" />
+                      <span>Update password</span>
                     </>
                   )}
                 </button>
               </form>
             ) : (
-              <form onSubmit={handleResetPassword} className="space-y-5">
+              <form onSubmit={handleForgotPassword} className="space-y-4" noValidate>
                 <div>
-                  <label htmlFor="new-password" className="block text-sm font-medium text-purple-200 mb-2">
-                    New Password
+                  <label htmlFor="reset-email" className="auth-label">
+                    Campus email
                   </label>
                   <input
-                    id="new-password"
-                    type="password"
+                    id="reset-email"
+                    type="email"
+                    autoComplete="email"
                     required
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    className="block w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl placeholder-purple-300 text-white focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent backdrop-blur-sm transition-all duration-300"
-                    placeholder="••••••••"
-                  />
-                </div>
-
-                <div>
-                  <label htmlFor="confirm-password" className="block text-sm font-medium text-purple-200 mb-2">
-                    Confirm New Password
-                  </label>
-                  <input
-                    id="confirm-password"
-                    type="password"
-                    required
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    className="block w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl placeholder-purple-300 text-white focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent backdrop-blur-sm transition-all duration-300"
-                    placeholder="••••••••"
+                    value={resetEmail}
+                    onChange={(e) => setResetEmail(e.target.value)}
+                    className="auth-field auth-field-plain"
+                    placeholder={`you${domainHint}`}
                   />
                 </div>
 
                 {resetMessage && (
-                  <div className={`p-4 rounded-xl ${
-                    resetMessage.includes('success') 
-                      ? 'bg-green-500/20 border border-green-500/50' 
-                      : 'bg-red-500/20 border border-red-500/50'
-                  }`}>
-                    <p className="text-sm text-white">{resetMessage}</p>
+                  <div
+                    className={`auth-alert ${
+                      /success|sent|on its way/i.test(resetMessage)
+                        ? 'auth-alert-ok'
+                        : 'auth-alert-error'
+                    }`}
+                    role="status"
+                  >
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>{resetMessage}</span>
                   </div>
                 )}
 
-                <button
-                  type="submit"
-                  disabled={resetLoading}
-                  className="w-full bg-gradient-to-r from-purple-500 to-blue-600 text-white py-3 px-4 rounded-xl font-semibold hover:from-purple-600 hover:to-blue-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-transparent disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 transform hover:scale-[1.02] shadow-lg flex items-center justify-center space-x-2"
-                >
+                <button type="submit" disabled={resetLoading} className="auth-btn">
                   {resetLoading ? (
                     <>
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                      <span>Resetting...</span>
+                      <span className="auth-spinner" />
+                      <span>Sending…</span>
                     </>
                   ) : (
                     <>
-                      <span>Reset Password</span>
+                      <span>Send reset link</span>
                       <ArrowRight className="w-4 h-4" />
                     </>
                   )}
@@ -555,6 +634,8 @@ export const AuthPage: React.FC = () => {
           </div>
         </div>
       )}
-    </div>
+    </AuthLayout>
   );
 };
+
+export default AuthPage;

@@ -42,7 +42,7 @@ from typing import List
 
 import models, schemas, auth
 from database import get_db, engine
-from config import settings
+from config import settings, is_accepted_email, accepted_domain_error
 from dependencies import get_current_user
 from registrar_routes import router as registrar_router
 from auth_routes import router as auth_router
@@ -63,6 +63,7 @@ from personal_task_routes import router as personal_task_router
 from ai_engine.api.ai_routes import router as ai_assistant_router
 from ai_engine.api.document_routes import router as ai_document_router
 from ai_engine.api.health import router as ai_health_router
+from ai_engine.api.institutions_routes import router as institutions_router
 from notification_scheduler import start_notification_scheduler, stop_notification_scheduler
 
 # Create all database tables
@@ -170,10 +171,10 @@ async def shutdown_cleanup():
 
 @app.post("/api/auth/login", response_model=schemas.Token)
 async def login(user_credentials: schemas.UserLogin, db: Session = Depends(get_db)):
-    if not user_credentials.email.endswith(f"@{settings.UNIVERSITY_EMAIL_DOMAIN}"):
+    if not is_accepted_email(user_credentials.email):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Email must be from {settings.UNIVERSITY_EMAIL_DOMAIN} domain",
+            detail=accepted_domain_error(user_credentials.email),
         )
 
     user = db.query(models.User).filter(models.User.email == user_credentials.email).first()
@@ -190,12 +191,23 @@ async def login(user_credentials: schemas.UserLogin, db: Session = Depends(get_d
             detail="Inactive user",
         )
 
-    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    if user_credentials.remember_me:
+        access_token_expires = timedelta(days=settings.REMEMBER_ME_EXPIRE_DAYS)
+    else:
+        access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+
     access_token = auth.create_access_token(
         data={"sub": user.email}, expires_delta=access_token_expires
     )
 
-    return {"access_token": access_token, "token_type": "bearer", "user": user}
+    # Returned so the client can show an accurate session length, and so a
+    # mismatch between what was asked for and what was issued is visible.
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "user": user,
+        "expires_in_minutes": int(access_token_expires.total_seconds() // 60),
+    }
 
 
 @app.post("/api/auth/register", response_model=schemas.UserResponse)
@@ -245,6 +257,7 @@ app.include_router(registrar_router, tags=["registrar"])
 app.include_router(school_router, tags=["schools"])
 app.include_router(oauth_router, tags=["oauth"])
 app.include_router(personal_task_router, tags=["personal-tasks"])
+app.include_router(institutions_router, tags=["institutions"])
 
 # AI Engine routers (new enterprise system)
 app.include_router(ai_assistant_router, prefix="/api/ai", tags=["ai-assistant"])
