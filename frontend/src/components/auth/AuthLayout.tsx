@@ -9,14 +9,13 @@ import {
   Landmark,
   Moon,
   Quote,
-  School,
   Sparkles,
   Sun,
 } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import { ANSWER_SAMPLES, ASSURANCES, MODULES, ROLES } from './authContent';
 import {
-  useAcademicStructure,
+  useInstitutions,
   useKnowledgeBaseStats,
   usePrefersReducedMotion,
   useRotatingSample,
@@ -32,9 +31,9 @@ import '../../styles/auth.css';
 
    The left column is doing the selling for a campus ERP, not for a chatbot: an
    institution badge, a live view of what this deployment actually holds, the
-   module surface, who signs in, and one rotating answer drawn from the live
-   knowledge base. Every number on this side is read from the running backend —
-   nothing here is a mock, and the retrieval machinery is never named.
+   module surface, who signs in, and one rotating sample answer. Every figure on
+   this side is read from the running backend, and the retrieval machinery is
+   never named.
    ------------------------------------------------------------------------- */
 
 export interface AuthLayoutProps {
@@ -59,7 +58,6 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({
 }) => {
   const reduced = usePrefersReducedMotion();
   const stats = useKnowledgeBaseStats();
-  const { schools, departments } = useAcademicStructure();
   const { sample, index, visible } = useRotatingSample(reduced);
   const { theme, toggleTheme } = useTheme();
   const isDark = theme === 'dark';
@@ -99,17 +97,35 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({
     }, 150);
   };
 
-  // Live counts from the API, shown only once they land — a "0 schools" reading
-  // while the request is in flight would be worse than showing nothing.
-  const structure: { label: string; value: string; icon: React.ReactNode }[] = [
+  // What this deployment covers, read from the running backend where it can be.
+  //
+  // Deliberately *not* the academic structure — schools and departments describe
+  // one campus, so on a multi-tenant login page they read as a single-university
+  // product and contradict the tenant badge above them. Universities is the live
+  // accepted-domain count and grows with the operator's configuration; roles and
+  // modules are the platform surface, which is the same for every tenant.
+  //
+  // Held back until the request lands: "0 universities" mid-flight is worse than
+  // an empty panel, and unlike the other two it can legitimately be zero.
+  const { institutions, status: institutionStatus } = useInstitutions();
+  const footprint: { label: string; value: string; icon: React.ReactNode }[] = [
     {
-      label: 'schools',
-      value: String(schools.length),
-      icon: <School className="w-3.5 h-3.5" aria-hidden="true" />,
+      label: institutions.length === 1 ? 'university' : 'universities',
+      // Em dash rather than "0": the directory can legitimately come back empty,
+      // and that is a different message from "still asking".
+      value: institutionStatus === 'loading' ? '—' : String(institutions.length),
+      icon: <Landmark className="w-3.5 h-3.5" aria-hidden="true" />,
     },
     {
-      label: 'departments',
-      value: String(departments.length),
+      // "Role types", not "staff roles": the list is one entry per workspace, and
+      // Students is one of them.
+      label: 'role types',
+      value: String(ROLES.length),
+      icon: <BadgeCheck className="w-3.5 h-3.5" aria-hidden="true" />,
+    },
+    {
+      label: 'modules',
+      value: String(MODULES.length),
       icon: <Blocks className="w-3.5 h-3.5" aria-hidden="true" />,
     },
   ];
@@ -225,18 +241,13 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({
                 </span>
               </div>
               <div className="auth-console-body">
-                {structure.map(({ label, value, icon }) => (
+                {footprint.map(({ label, value, icon }) => (
                   <div key={label} className="auth-console-cell">
                     {icon}
                     <span className="auth-console-value">{value}</span>
                     <span className="auth-console-label">{label}</span>
                   </div>
                 ))}
-                <div className="auth-console-cell">
-                  <Landmark className="w-3.5 h-3.5" aria-hidden="true" />
-                  <span className="auth-console-value">{ROLES.length}</span>
-                  <span className="auth-console-label">staff roles</span>
-                </div>
               </div>
             </div>
           </div>

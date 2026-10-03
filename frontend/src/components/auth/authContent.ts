@@ -6,9 +6,10 @@
    machinery behind the answers — the framing is modules, roles and outcomes,
    which is what an institution administrator is actually buying.
 
-   The `ANSWER_SAMPLES` below are the exception: they are real question/answer
-   pairs retrieved from the live knowledge base, each attributed to the document
-   it came from. They are the one thing worth showing verbatim.
+   The `ANSWER_SAMPLES` below are the exception: they show the shape of a real
+   answer — the reply first, the document behind it second — for one module
+   each. They are illustrative and name no institution, so the page reads the
+   same to every campus rather than to whichever one seeded the knowledge base.
    ========================================================================== */
 
 export interface Institution {
@@ -120,58 +121,72 @@ export const PASSWORD_RULES: PasswordRule[] = [
 export const meetsPasswordPolicy = (value: string) =>
   PASSWORD_RULES.every((rule) => rule.test(value));
 
-/* ── Real answers, retrieved from the live knowledge base ───────────────── */
+/* ── Sample answers ─────────────────────────────────────────────────────── */
 
 export interface AnswerSample {
   question: string;
   answer: string;
-  /** Filename of the document this was retrieved from. */
+  /** Document the answer is drawn from, named the way it is cited in-product. */
   source: string;
   /** Short label for the module it belongs to. */
   category: string;
 }
 
+/**
+ * Illustrative answers, one per module — not retrieved pairs.
+ *
+ * These used to be real question/answer pairs pulled from the live knowledge
+ * base, which made the block honest but also named the deployment it came from:
+ * every citation read `KRMU_…docx`, so the page presented itself as a
+ * single-campus system no matter how much multi-tenant copy sat above it. An
+ * administrator at any other university saw a competitor's handbook and left.
+ *
+ * So the content is illustrative and institution-neutral, and each one is still
+ * written to the shape the real pipeline returns — a direct answer first, then
+ * the document behind it. The attribution row stays, because citing the source
+ * is the behaviour the page is selling.
+ */
 export const ANSWER_SAMPLES: AnswerSample[] = [
   {
-    question: "What's the minimum attendance requirement?",
+    question: 'What are the eligibility criteria for the programme I applied to?',
     answer:
-      '45% for applicable courses, with 80% as the normal academic target. Below 45% is a critical shortage.',
-    source: 'KRMU_Attendance_Policy_RAG_Knowledge_Base_v3.docx',
-    category: 'Attendance',
+      'A bachelor’s degree with at least 50% aggregate, or 45% for reserved-category candidates, from a recognised university.',
+    source: 'Admission Guidelines',
+    category: 'Admissions',
+  },
+  {
+    question: 'Which courses am I registered for this semester?',
+    answer:
+      'Cloud Computing (C-302), Web Engineering with Django (LAB-4), Advanced DBMS (C-401) and AI & Machine Learning (C-305).',
+    source: 'Semester Timetable',
+    category: 'Academics',
   },
   {
     question: 'Last date to pay the semester fee without a late fee?',
     answer:
-      '10 October 2026. The window opens 22 September; a late fee applies 11–17 October 2026.',
-    source: 'KRMU_Semester_Fee_Submission_Notice_2026_27.docx',
+      '10 October 2026. The window opens 22 September; a late fee applies from 11 to 17 October.',
+    source: 'Fee Circular',
     category: 'Finance',
   },
   {
-    question: "My attendance dropped below 45%. What do I do?",
+    question: 'What is the minimum attendance for a course?',
     answer:
-      'Report to the programme coordinator within 3 working days of the notice, or academic restrictions may apply.',
-    source: 'KRMU_Attendance_Policy_RAG_Knowledge_Base_v3.docx',
+      '75% overall, and 80% for practicals. Dropping below it raises a shortage notice and a meeting with the programme coordinator.',
+    source: 'Academic Regulations',
     category: 'Attendance',
   },
   {
-    question: 'What is in my MCA Semester III timetable?',
+    question: 'How do I apply for revaluation of an answer script?',
     answer:
-      'AI & Machine Learning (C-305), Cloud Computing (C-302), Web Engineering with Django (LAB-4), Advanced DBMS.',
-    source: 'KRMU_Master_Timetable_RAG_Test_v2.docx',
-    category: 'Academics',
+      'Apply within 7 days of the result declaration and pay the prescribed fee. Revised results are published within 30 working days.',
+    source: 'Examination Ordinances',
+    category: 'Examinations',
   },
   {
-    question: 'When is EDM Fest 2026?',
+    question: 'When is the annual college festival, and what is on?',
     answer:
-      'Saturday, 26 September 2026, on campus — DJ night and live performances alongside the opening ceremony.',
-    source: 'KR_Mangalam_University_EDM_Fest_2026_Event_Document.docx',
-    category: 'Records',
-  },
-  {
-    question: 'What are the hostel mess rules?',
-    answer:
-      'Meals follow timings posted by the Hostel Administration. Use your own token or counting mechanism, and complaints go through the hostel channel.',
-    source: 'KRMU_Hostel_Residential_Life_Policy_RAG_v1.docx',
+      'Saturday 26 September 2026, on campus — opening ceremony in the morning, department competitions through the day, closing concert at night.',
+    source: 'Events & Circulars',
     category: 'Records',
   },
 ];
