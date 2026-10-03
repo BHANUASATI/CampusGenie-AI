@@ -6,6 +6,23 @@
 @import './styles/animations.css';
 
 /* ─── Base ─────────────────────────────────────────────────────────────────── */
+html {
+  /* The auth screens paint their own gradient, but any scrollable area past
+     that box falls through to the canvas, which is white by default. Painting
+     it the same deep tone means an overflow can never show as a bright band.
+     AuthLayout mirrors its theme onto <html> as data-auth-theme; the attribute
+     is removed on unmount so the rest of the app keeps its own backgrounds. */
+  background: #0a0f1d;
+  color-scheme: dark;
+}
+
+html[data-auth-theme='light'] {
+  background: #e8edf7;
+  /* Scrollbars, native select popups and form-control defaults all follow this,
+     so the light theme doesn't get a dark scrollbar down the right edge. */
+  color-scheme: light;
+}
+
 body {
   margin: 0;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',

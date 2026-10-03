@@ -276,8 +276,8 @@ export const SignupPage: React.FC<SignupPageProps> = ({
           <div className="auth-success-ring">
             <CheckCircle2 className="w-7 h-7" />
           </div>
-          <h1 className="text-xl font-bold text-white">Account created</h1>
-          <p className="text-sm text-slate-400 mt-2">Redirecting you to sign in…</p>
+          <h1 className="auth-ink-text text-xl font-bold">Account created</h1>
+          <p className="auth-text-muted text-sm mt-2">Redirecting you to sign in…</p>
         </div>
       </AuthLayout>
     );
@@ -304,10 +304,10 @@ export const SignupPage: React.FC<SignupPageProps> = ({
     >
       <div className="auth-card">
         <header className="text-center mb-6">
-          <h1 className="text-[1.65rem] font-bold text-white tracking-tight">
+          <h1 className="auth-ink-text text-[1.65rem] font-bold tracking-tight">
             Create your account
           </h1>
-          <p className="text-sm text-slate-400 mt-1.5">
+          <p className="auth-text-muted text-sm mt-1.5">
             Set up access in under a minute
           </p>
         </header>
@@ -447,25 +447,25 @@ export const SignupPage: React.FC<SignupPageProps> = ({
                 {formData.email.length > 0 && !emailError &&
                   (emailFormatOk && emailDomainOk ? (
                     <CheckCircle2
-                      className="absolute right-3 top-1/2 -translate-y-1/2 w-[1.15rem] h-[1.15rem] text-emerald-400"
+                      className="auth-ok absolute right-3 top-1/2 -translate-y-1/2 w-[1.15rem] h-[1.15rem] opacity-80"
                       aria-hidden="true"
                     />
                   ) : (
                     <X
-                      className="absolute right-3 top-1/2 -translate-y-1/2 w-[1.15rem] h-[1.15rem] text-rose-400/70"
+                      className="auth-err absolute right-3 top-1/2 -translate-y-1/2 w-[1.15rem] h-[1.15rem] opacity-75"
                       aria-hidden="true"
                     />
                   ))}
               </div>
               {emailError ? (
-                <p className="mt-2 text-xs text-rose-300 flex items-center gap-1.5">
+                <p className="auth-err-soft mt-2 text-xs flex items-center gap-1.5">
                   <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
                   <span>{emailError}</span>
                 </p>
               ) : (
                 institution && (
                   <div className="mt-2 flex flex-wrap items-center gap-2">
-                    <span className="text-xs text-slate-500">
+                    <span className="auth-text-faint text-xs">
                       Must end with {institution.email_domain}
                     </span>
                     {formData.email && !formData.email.includes('@') && (
@@ -521,7 +521,7 @@ export const SignupPage: React.FC<SignupPageProps> = ({
                   >
                     <option value="">Select…</option>
                     {[1, 2, 3, 4, 5, 6, 7, 8].map((s) => (
-                      <option key={s} value={s} className="bg-slate-900">
+                      <option key={s} value={s} className="auth-option">
                         Semester {s}
                       </option>
                     ))}
@@ -576,7 +576,7 @@ export const SignupPage: React.FC<SignupPageProps> = ({
                         return (
                           <optgroup key={school.id} label={school.name}>
                             {options.map((dept) => (
-                              <option key={dept.id} value={dept.id} className="bg-slate-900">
+                              <option key={dept.id} value={dept.id} className="auth-option">
                                 {dept.name}
                                 {dept.code ? ` (${dept.code})` : ''}
                               </option>
@@ -587,7 +587,7 @@ export const SignupPage: React.FC<SignupPageProps> = ({
                       {ungrouped.length > 0 && (
                         <optgroup label="Other departments">
                           {ungrouped.map((dept) => (
-                            <option key={dept.id} value={dept.id} className="bg-slate-900">
+                            <option key={dept.id} value={dept.id} className="auth-option">
                               {dept.name}
                               {dept.code ? ` (${dept.code})` : ''}
                             </option>
@@ -664,7 +664,7 @@ export const SignupPage: React.FC<SignupPageProps> = ({
           </form>
         </div>
 
-        <p className="auth-switch mt-6 pt-6 border-t border-white/10">
+        <p className="auth-switch auth-rule mt-6 pt-6 border-t">
           Already have an account?{' '}
           <button type="button" onClick={onSwitchToLogin} className="auth-link">
             Sign in

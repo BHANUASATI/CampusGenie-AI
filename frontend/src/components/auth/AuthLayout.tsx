@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Activity,
   BadgeCheck,
@@ -7,10 +7,13 @@ import {
   FileText,
   GraduationCap,
   Landmark,
+  Moon,
   Quote,
   School,
   Sparkles,
+  Sun,
 } from 'lucide-react';
+import { useTheme } from '../../context/ThemeContext';
 import { ANSWER_SAMPLES, ASSURANCES, MODULES, ROLES } from './authContent';
 import {
   useAcademicStructure,
@@ -58,6 +61,43 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({
   const stats = useKnowledgeBaseStats();
   const { schools, departments } = useAcademicStructure();
   const { sample, index, visible } = useRotatingSample(reduced);
+  const { theme, toggleTheme } = useTheme();
+  const isDark = theme === 'dark';
+  const [switching, setSwitching] = useState(false);
+
+  // The auth shell themes itself through `data-auth-theme`, but the page canvas
+  // lives on <html> and lives outside the shell. Mirror the value up there so
+  // any scrollable overflow past the shell is painted to match, then take it
+  // back off on unmount so the rest of the app is unaffected.
+  useEffect(() => {
+    document.documentElement.dataset.authTheme = theme;
+    return () => {
+      delete document.documentElement.dataset.authTheme;
+    };
+  }, [theme]);
+
+  // Suppress transitions for the paint in which the new theme is first
+  // resolved. Without it the theme change lands on the text but not the
+  // surfaces: a `transition` on `background-color` starts a tween when
+  // `--auth-ink` flips and never reaches its end value, so inputs keep the
+  // previous theme's background.
+  //
+  // The ordering that matters is that the browser paints once with transitions
+  // off before they come back, and only an animation frame can guarantee that.
+  // A timeout backs it up because a backgrounded tab runs no frames at all —
+  // otherwise the suppression would stick and kill every hover transition until
+  // the tab was focused again.
+  const handleThemeToggle = () => {
+    setSwitching(true);
+    toggleTheme();
+    let frame = requestAnimationFrame(() => {
+      frame = requestAnimationFrame(() => setSwitching(false));
+    });
+    setTimeout(() => {
+      cancelAnimationFrame(frame);
+      setSwitching(false);
+    }, 150);
+  };
 
   // Live counts from the API, shown only once they land — a "0 schools" reading
   // while the request is in flight would be worse than showing nothing.
@@ -75,7 +115,7 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({
   ];
 
   return (
-    <div className="auth-root">
+    <div className="auth-root" data-auth-theme={theme} data-theme-switching={switching || undefined}>
       <div className="auth-orb auth-orb-1" />
       <div className="auth-orb auth-orb-2" />
       <div className="auth-orb auth-orb-3" />
@@ -83,6 +123,23 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({
       {/* Film grain. Flat gradients band badly on wide dark panels; this is one
           tiled SVG, so it costs nothing and kills the banding. */}
       <div className="auth-grain" aria-hidden="true" />
+
+      {/* Theme switch. Sits above everything and follows the shell's edge, so
+          it stays reachable no matter how tall the brand column grows. */}
+      <button
+        type="button"
+        onClick={handleThemeToggle}
+        className="auth-theme-toggle"
+        aria-pressed={isDark}
+        aria-label={isDark ? 'Switch to light theme' : 'Switch to dark theme'}
+        title={isDark ? 'Switch to light theme' : 'Switch to dark theme'}
+      >
+        {isDark ? (
+          <Sun className="w-[1.05rem] h-[1.05rem]" aria-hidden="true" />
+        ) : (
+          <Moon className="w-[1.05rem] h-[1.05rem]" aria-hidden="true" />
+        )}
+      </button>
 
       <div className="auth-shell">
         {/* ── Brand column ─────────────────────────────────────────────── */}
@@ -97,11 +154,11 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({
                 <GraduationCap className="w-6 h-6 text-white" strokeWidth={2.1} aria-hidden="true" />
               </div>
               <div>
-                <p className="text-lg font-bold text-white leading-tight tracking-tight">
+                <p className="auth-ink-text text-lg font-bold leading-tight tracking-tight">
                   CampusGenie
                   <span className="auth-logo-suffix">ERP</span>
                 </p>
-                <p className="text-xs text-slate-400 font-medium tracking-wide">
+                <p className="auth-text-muted text-xs font-medium tracking-wide">
                   Campus operations platform
                 </p>
               </div>
@@ -109,7 +166,7 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({
 
             {/* Tenant badge — makes the multi-institution deployment visible. */}
             <div className="auth-tenant mt-6">
-              <Landmark className="w-4 h-4 text-indigo-300 flex-shrink-0" aria-hidden="true" />
+              <Landmark className="w-4 h-4 auth-accent-soft flex-shrink-0" aria-hidden="true" />
               <span className="min-w-0">
                 <span className="auth-tenant-label">Signed in to</span>
                 <span className="auth-tenant-name">{institutionName || 'Your institution'}</span>
@@ -121,7 +178,7 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({
 
             <p className="auth-eyebrow">{eyebrow}</p>
 
-            <h2 className="auth-display text-white">{headline}</h2>
+            <h2 className="auth-display auth-ink-text">{headline}</h2>
 
             <p className="auth-subhead">{subhead}</p>
 
@@ -231,7 +288,7 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({
                   <Sparkles className="w-3 h-3" aria-hidden="true" />
                   Ask CampusGenie
                 </span>
-                <span className="text-[0.7rem] text-slate-500 tabular-nums">
+                <span className="auth-text-faint text-[0.7rem] tabular-nums">
                   {index + 1}/{ANSWER_SAMPLE_COUNT}
                 </span>
               </div>
@@ -242,7 +299,7 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({
                 aria-live="polite"
               >
                 <p className="auth-question">
-                  <Quote className="w-3 h-3 mt-1 flex-shrink-0 text-sky-300/70" aria-hidden="true" />
+                  <Quote className="w-3 h-3 mt-1 flex-shrink-0 auth-accent-sky" aria-hidden="true" />
                   <span>{sample.question}</span>
                 </p>
                 <p className="auth-answer-text">{sample.answer}</p>
@@ -269,7 +326,7 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({
               {ASSURANCES.map((item) => (
                 <li key={item} className="auth-assurance">
                   <BadgeCheck
-                    className="w-3.5 h-3.5 flex-shrink-0 text-emerald-400/80"
+                    className="w-3.5 h-3.5 flex-shrink-0 auth-ok"
                     aria-hidden="true"
                   />
                   <span>{item}</span>

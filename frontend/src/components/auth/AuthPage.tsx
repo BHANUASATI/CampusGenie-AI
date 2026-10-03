@@ -285,10 +285,10 @@ export const AuthPage: React.FC<AuthPageProps> = ({
           <div className="auth-logo auth-logo-sm mx-auto mb-4">
             <Lock className="w-5 h-5 text-white" strokeWidth={2.1} />
           </div>
-          <h1 className="text-[1.65rem] font-bold text-white tracking-tight">
+          <h1 className="auth-ink-text text-[1.65rem] font-bold tracking-tight">
             Sign in
           </h1>
-          <p className="text-sm text-slate-400 mt-1.5">
+          <p className="auth-text-muted text-sm mt-1.5">
             Continue to your campus workspace
           </p>
         </header>
@@ -361,12 +361,12 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                 {emailTouched && !emailError &&
                   (emailFormatOk && emailDomainOk ? (
                     <CheckCircle2
-                      className="absolute right-3 top-1/2 -translate-y-1/2 w-[1.15rem] h-[1.15rem] text-emerald-400"
+                      className="auth-ok absolute right-3 top-1/2 -translate-y-1/2 w-[1.15rem] h-[1.15rem] opacity-80"
                       aria-hidden="true"
                     />
                   ) : (
                     <X
-                      className="absolute right-3 top-1/2 -translate-y-1/2 w-[1.15rem] h-[1.15rem] text-rose-400/70"
+                      className="auth-err absolute right-3 top-1/2 -translate-y-1/2 w-[1.15rem] h-[1.15rem] opacity-75"
                       aria-hidden="true"
                     />
                   ))}
@@ -375,7 +375,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
               {emailError ? (
                 <p
                   id="email-error"
-                  className="mt-2 text-xs text-rose-300 flex items-center gap-1.5"
+                  className="auth-err-soft mt-2 text-xs flex items-center gap-1.5"
                 >
                   <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
                   <span>{emailError}</span>
@@ -384,7 +384,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                 /* Two ways in: type the whole address, or type your name and
                    let the institution's domain be filled in. */
                 <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5">
-                  <span className="text-xs text-slate-500">
+                  <span className="auth-text-faint text-xs">
                     Issued at {domainHint}
                   </span>
                   {institution && formData.email && !formData.email.includes('@') && (
@@ -403,7 +403,12 @@ export const AuthPage: React.FC<AuthPageProps> = ({
 
             <div>
               <div className="flex items-baseline justify-between mb-1.5">
-                <span className="auth-label !mb-0">Password</span>
+                {/* A real label, not a span: PasswordField renders no label of
+                    its own here (label=""), so this is the only thing giving the
+                    field an accessible name. A placeholder does not count. */}
+                <label htmlFor="password" className="auth-label !mb-0">
+                  Password
+                </label>
                 <button
                   type="button"
                   onClick={() => setShowForgotPassword(true)}
@@ -474,7 +479,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                 registering. Fills the fields rather than submitting. */}
             <button type="button" onClick={fillDemoAccount} className="auth-demo">
               <Sparkles
-                className="w-3.5 h-3.5 text-sky-300 flex-shrink-0"
+                className="w-3.5 h-3.5 auth-accent-sky flex-shrink-0"
                 aria-hidden="true"
               />
               <span>
@@ -485,7 +490,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
           </form>
         </div>
 
-        <p className="auth-switch mt-6 pt-6 border-t border-white/10">
+        <p className="auth-switch auth-rule mt-6 pt-6 border-t">
           New to CampusGenie?{' '}
           <button type="button" onClick={onSwitchToSignup} className="auth-link">
             Create an account
@@ -510,10 +515,10 @@ export const AuthPage: React.FC<AuthPageProps> = ({
           >
             <div className="flex items-start justify-between mb-6">
               <div>
-                <h2 id="reset-heading" className="text-xl font-bold text-white">
+                <h2 id="reset-heading" className="auth-ink-text text-xl font-bold">
                   {showResetForm ? 'Set a new password' : 'Reset your password'}
                 </h2>
-                <p className="text-sm text-slate-400 mt-1">
+                <p className="auth-text-muted text-sm mt-1">
                   {showResetForm
                     ? 'Choose something you have not used before.'
                     : `We'll email a reset link to your ${institution?.name || 'institution'} address.`}

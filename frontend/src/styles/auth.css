@@ -6,6 +6,175 @@
    components readable and lets the effects be tuned in one place.
    ========================================================================== */
 
+/* ───────────────────────────────────────────────────────────────────────────
+   Theme-aware text utilities
+   ───────────────────────────────────────────────────────────────────────────
+   The auth JSX reaches for Tailwind colour utilities (text-slate-400,
+   text-white, text-indigo-300) because they read naturally inline, but those
+   are fixed values: on the light theme a `text-white` heading would be
+   invisible and a `text-slate-500` label would vanish into the card. These
+   stand in for them and resolve through the tokens above.
+
+   Accent and status colours are deliberately not themed — indigo, sky,
+   emerald and rose have to read the same on both, they only shift a step in
+   lightness so they keep enough contrast on a pale card.
+   ─────────────────────────────────────────────────────────────────────────── */
+.auth-ink-text { color: var(--auth-text); }
+.auth-text-muted { color: var(--auth-text-muted); }
+.auth-text-faint { color: var(--auth-text-faint); }
+.auth-rule { border-color: rgb(var(--auth-ink) / 0.1); }
+.auth-accent-soft { color: var(--auth-accent-soft); }
+.auth-accent-sky { color: var(--auth-accent-sky); }
+.auth-ok { color: var(--auth-ok); }
+.auth-err { color: var(--auth-err); }
+.auth-err-soft { color: var(--auth-err-soft); }
+
+/* Theme switch. `fixed` so it tracks the viewport rather than the shell — on a
+   short window the brand column scrolls well past the fold and a shell-anchored
+   control would go with it. */
+.auth-theme-toggle {
+  position: fixed;
+  top: clamp(0.85rem, 2vh, 1.25rem);
+  right: clamp(0.85rem, 2vw, 1.5rem);
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  width: 2.35rem;
+  height: 2.35rem;
+  border-radius: 0.75rem;
+  color: var(--auth-text-muted);
+  background: rgb(var(--auth-ink) / 0.07);
+  border: 1px solid rgb(var(--auth-ink) / 0.12);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  cursor: pointer;
+  transition: color 0.2s ease, background-color 0.2s ease, border-color 0.2s ease,
+    transform 0.2s ease;
+}
+
+.auth-theme-toggle:hover {
+  color: var(--auth-text);
+  background: rgb(var(--auth-ink) / 0.12);
+  border-color: rgb(var(--auth-ink) / 0.2);
+}
+
+.auth-theme-toggle:active {
+  transform: scale(0.94);
+}
+
+.auth-theme-toggle:focus-visible {
+  outline: 2px solid var(--auth-accent-soft);
+  outline-offset: 2px;
+}
+
+/* ── Theme swap ─────────────────────────────────────────────────────────────
+   Applied for exactly one frame while the toggle changes the theme.
+
+   Without it the swap silently half-fails. Every themed background here is
+   `rgb(var(--auth-ink) / a)`, and when --auth-ink changes, a rule such as
+   `.auth-field { transition: ... background-color 0.2s ... }` starts a
+   transition it never finishes: the inherited custom property updates, but the
+   dependent background keeps the value from the previous theme. Inputs then sit
+   on a near-white field in the dark theme and a near-black one in the light
+   theme, with nothing in the DOM to explain it. Suppressing transitions for the
+   frame makes the whole theme swap land at once, which is also what it should
+   look like — cross-fading an entire page between two colour schemes is noise,
+   not motion. */
+/* Animations are deliberately left alone — the drifting orbs run on long
+   infinite cycles, and shortening them would snap them to their end state. */
+.auth-root[data-theme-switching] *,
+.auth-root[data-theme-switching] *::before,
+.auth-root[data-theme-switching] *::after {
+  transition: none !important;
+}
+
+/* Native <option> backgrounds ignore the select's own styling, so they need a
+   real colour rather than a token-backed overlay. */
+.auth-option { background: var(--auth-panel); color: var(--auth-text); }
+
+/* ───────────────────────────────────────────────────────────────────────────
+   Theme tokens
+   ───────────────────────────────────────────────────────────────────────────
+   Everything below reads from this set, so a theme is one block of overrides
+   rather than a parallel stylesheet. Two ideas carry most of the weight:
+
+   --auth-ink is a bare "R G B" triple, not a colour. The ~45 translucent
+   overlays in this file are all white-at-some-alpha on a dark surface, so
+   they become rgb(var(--auth-ink) / a). On the light theme the same triple
+   points at a dark navy and every one of those overlays becomes a subtle
+   tint instead — one redefinition flips all of them.
+
+   The page gradient, orbs and modal surfaces get their own tokens because
+   they are opaque-ish compositions rather than overlays.
+   ─────────────────────────────────────────────────────────────────────────── */
+.auth-root {
+  --auth-ink: 255 255 255;
+  --auth-text: #e2e8f0;
+  --auth-text-soft: #cbd5e1;
+  --auth-text-muted: #94a3b8;
+  /* 4.0:1 against the darkest point of the page gradient — short of AA for the
+     11px metadata it is used on. One step up clears it. */
+  --auth-text-faint: #78879e;
+  --auth-page-glow: #1e1b4b;
+  --auth-page-from: #0b1020;
+  --auth-page-mid: #131029;
+  --auth-page-to: #0a0f1d;
+  --auth-orb-a: #7c3aed;
+  --auth-orb-b: #0ea5e9;
+  --auth-orb-c: #ec4899;
+  --auth-orb-opacity: 1;
+  --auth-panel: rgba(15, 18, 32, 0.97);
+  --auth-panel-soft: rgba(9, 12, 24, 0.55);
+  --auth-dialog: rgba(15, 18, 32, 0.97);
+  --auth-scrim: rgba(3, 5, 12, 0.82);
+  --auth-grain-opacity: 0.035;
+  --auth-shadow: rgba(0, 0, 0, 0.75);
+  --auth-accent-soft: #a5b4fc;
+  --auth-accent-sky: #7dd3fc;
+  --auth-ok: #34d399;
+  --auth-ok-soft: #6ee7b7;
+  --auth-err: #f87171;
+  --auth-err-soft: #fda4af;
+  --auth-warn: #fbbf24;
+}
+
+.auth-root[data-auth-theme='light'] {
+  --auth-ink: 15 23 42;
+  --auth-text: #0f172a;
+  --auth-text-soft: #334155;
+  /* The ramp runs the other way in light: each step down is *darker* than the
+     last, so faint must still be darker than muted or the hierarchy inverts and
+     the smallest text ends up the palest thing on the card. */
+  --auth-text-muted: #475569;
+  --auth-text-faint: #64748b;
+  --auth-page-glow: #c7d2fe;
+  --auth-page-from: #f8fafc;
+  --auth-page-mid: #eef2ff;
+  --auth-page-to: #e8edf7;
+  --auth-orb-a: #818cf8;
+  --auth-orb-b: #38bdf8;
+  --auth-orb-c: #f0abfc;
+  /* Lighter than the dark theme's, or the glows muddy the page. */
+  --auth-orb-opacity: 0.45;
+  --auth-panel: rgba(255, 255, 255, 0.98);
+  --auth-panel-soft: rgba(255, 255, 255, 0.72);
+  /* Opaque, unlike --auth-panel-soft: a dialog has to read as a lifted surface
+     over its scrim rather than a tint of it. */
+  --auth-dialog: rgba(255, 255, 255, 0.98);
+  --auth-scrim: rgba(15, 23, 42, 0.45);
+  --auth-grain-opacity: 0.02;
+  --auth-shadow: rgba(15, 23, 42, 0.18);
+  /* One step darker each: the dark-theme values are too pale to hold contrast
+     against a near-white card. */
+  --auth-accent-soft: #4f46e5;
+  --auth-accent-sky: #0369a1;
+  --auth-ok: #059669;
+  --auth-ok-soft: #047857;
+  --auth-err: #dc2626;
+  --auth-err-soft: #e11d48;
+  --auth-warn: #b45309;
+}
+
 .auth-root {
   position: relative;
   min-height: 100vh;
@@ -19,17 +188,30 @@
   overflow-x: clip;
   isolation: isolate;
   background:
-    radial-gradient(120% 90% at 50% -10%, #1e1b4b 0%, transparent 55%),
-    linear-gradient(165deg, #0b1020 0%, #131029 45%, #0a0f1d 100%);
-  color: #e2e8f0;
+    radial-gradient(120% 90% at 50% -10%, var(--auth-page-glow) 0%, transparent 55%),
+    linear-gradient(
+      165deg,
+      var(--auth-page-from) 0%,
+      var(--auth-page-mid) 45%,
+      var(--auth-page-to) 100%
+    );
+  color: var(--auth-text);
 }
 
 /* ── Drifting colour fields ────────────────────────────────────────────────
    Three oversized, heavily blurred blobs.  They move on long, offset cycles
    so the composition never visibly repeats, and they sit behind everything
-   (z-index -1) so no animation can ever intercept a click. */
+   (z-index -1) so no animation can ever intercept a click.
+
+   `fixed`, not `absolute`. As an absolutely-positioned child the bottom blob
+   hung 16rem below the root's box, and since the root's vertical overflow is
+   visible that extended the document's scrollable area by exactly 256px past
+   the painted background — scrolling to the end showed a blank band, because
+   html and body have no background of their own and the canvas underneath is
+   white. Fixed against the viewport the orbs stay ambient and contribute
+   nothing to the page's height. */
 .auth-orb {
-  position: absolute;
+  position: fixed;
   border-radius: 9999px;
   pointer-events: none;
   z-index: -2;
@@ -42,8 +224,10 @@
   height: 46rem;
   top: -18rem;
   left: -12rem;
-  background: radial-gradient(circle at 30% 30%, #7c3aed 0%, transparent 68%);
-  opacity: 0.5;
+  background: radial-gradient(circle at 30% 30%, var(--auth-orb-a) 0%, transparent 68%);
+  /* Per-orb strength, scaled by the theme factor rather than replaced, so the
+     light theme keeps the same balance of the three. */
+  opacity: calc(0.5 * var(--auth-orb-opacity));
   animation: auth-drift-a 26s ease-in-out infinite;
 }
 
@@ -52,8 +236,8 @@
   height: 38rem;
   bottom: -16rem;
   right: -10rem;
-  background: radial-gradient(circle at 60% 40%, #0ea5e9 0%, transparent 68%);
-  opacity: 0.34;
+  background: radial-gradient(circle at 60% 40%, var(--auth-orb-b) 0%, transparent 68%);
+  opacity: calc(0.34 * var(--auth-orb-opacity));
   animation: auth-drift-b 31s ease-in-out infinite;
 }
 
@@ -62,8 +246,8 @@
   height: 30rem;
   top: 32%;
   right: 18%;
-  background: radial-gradient(circle at 50% 50%, #ec4899 0%, transparent 70%);
-  opacity: 0.22;
+  background: radial-gradient(circle at 50% 50%, var(--auth-orb-c) 0%, transparent 70%);
+  opacity: calc(0.22 * var(--auth-orb-opacity));
   animation: auth-drift-c 37s ease-in-out infinite;
 }
 
@@ -90,7 +274,7 @@
   inset: 0;
   z-index: -1;
   pointer-events: none;
-  background-image: radial-gradient(rgba(255, 255, 255, 0.13) 1px, transparent 1px);
+  background-image: radial-gradient(rgb(var(--auth-ink) / 0.13) 1px, transparent 1px);
   background-size: 26px 26px;
   -webkit-mask-image: radial-gradient(ellipse 75% 65% at 50% 42%, #000 25%, transparent 100%);
   mask-image: radial-gradient(ellipse 75% 65% at 50% 42%, #000 25%, transparent 100%);
@@ -198,12 +382,12 @@
 .auth-card {
   position: relative;
   border-radius: 1.75rem;
-  background: linear-gradient(158deg, rgba(255, 255, 255, 0.11), rgba(255, 255, 255, 0.035));
+  background: linear-gradient(158deg, rgb(var(--auth-ink) / 0.11), rgb(var(--auth-ink) / 0.035));
   backdrop-filter: blur(26px) saturate(140%);
   -webkit-backdrop-filter: blur(26px) saturate(140%);
   box-shadow:
-    0 24px 70px -20px rgba(0, 0, 0, 0.75),
-    0 0 0 1px rgba(255, 255, 255, 0.06) inset;
+    0 24px 70px -20px var(--auth-shadow),
+    0 0 0 1px rgb(var(--auth-ink) / 0.06) inset;
   padding: 2rem;
 }
 
@@ -217,7 +401,7 @@
   inset: 0;
   border-radius: inherit;
   padding: 1px;
-  background: linear-gradient(155deg, rgba(255, 255, 255, 0.42), rgba(255, 255, 255, 0.06) 38%, transparent 62%);
+  background: linear-gradient(155deg, rgb(var(--auth-ink) / 0.42), rgb(var(--auth-ink) / 0.06) 38%, transparent 62%);
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   -webkit-mask-composite: xor;
   mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
@@ -233,7 +417,7 @@
   left: 12%;
   right: 12%;
   height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.5), transparent);
+  background: linear-gradient(90deg, transparent, rgb(var(--auth-ink) / 0.5), transparent);
   pointer-events: none;
 }
 
@@ -284,7 +468,7 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.18em;
-  color: rgba(165, 180, 252, 0.8);
+  color: var(--auth-accent-soft);
 }
 
 .auth-subhead {
@@ -292,7 +476,7 @@
   max-width: 34rem;
   font-size: 0.9375rem;
   line-height: 1.65;
-  color: rgba(203, 213, 225, 0.9);
+  color: var(--auth-text-soft);
 }
 
 .auth-gradient-text {
@@ -307,8 +491,8 @@
 /* ── Live answer preview (brand side) ───────────────────────────────────── */
 .auth-preview {
   border-radius: 1.1rem;
-  border: 1px solid rgba(255, 255, 255, 0.09);
-  background: rgba(9, 12, 24, 0.55);
+  border: 1px solid rgb(var(--auth-ink) / 0.09);
+  background: var(--auth-panel-soft);
   padding: 1rem 1.1rem 0.9rem;
   font-size: 0.8rem;
   overflow: hidden;
@@ -325,14 +509,14 @@
   font-size: 0.6875rem;
   font-weight: 600;
   letter-spacing: 0.02em;
-  color: #7dd3fc;
+  color: var(--auth-accent-sky);
   background: rgba(56, 189, 248, 0.12);
   border: 1px solid rgba(56, 189, 248, 0.28);
   white-space: nowrap;
 }
 
 .auth-chip-quiet {
-  color: #c4b5fd;
+  color: var(--auth-accent-soft);
   background: rgba(167, 139, 250, 0.12);
   border-color: rgba(167, 139, 250, 0.28);
 }
@@ -353,14 +537,14 @@
   display: flex;
   gap: 0.45rem;
   align-items: flex-start;
-  color: #e2e8f0;
+  color: var(--auth-text);
   font-weight: 500;
   line-height: 1.4;
   margin-bottom: 0.4rem;
 }
 
 .auth-answer-text {
-  color: #cbd5e1;
+  color: var(--auth-text-soft);
   line-height: 1.55;
 }
 
@@ -371,7 +555,7 @@
   gap: 0.5rem;
   margin-top: 0.65rem;
   font-size: 0.7rem;
-  color: #64748b;
+  color: var(--auth-text-faint);
   min-width: 0;
 }
 
@@ -394,7 +578,7 @@
   position: absolute;
   inset: 0;
   pointer-events: none;
-  opacity: 0.35;
+  opacity: var(--auth-grain-opacity);
   mix-blend-mode: overlay;
   /* One tiled SVG rather than a noise PNG: no extra request, and it scales. */
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
@@ -403,8 +587,8 @@
 /* ── Live deployment console ───────────────────────────────────────────── */
 .auth-console {
   border-radius: 0.9rem;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgb(var(--auth-ink) / 0.03);
+  border: 1px solid rgb(var(--auth-ink) / 0.08);
   overflow: hidden;
 }
 
@@ -413,12 +597,12 @@
   align-items: center;
   gap: 0.45rem;
   padding: 0.5rem 0.75rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  border-bottom: 1px solid rgb(var(--auth-ink) / 0.07);
   font-size: 0.6875rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.12em;
-  color: #64748b;
+  color: var(--auth-text-faint);
 }
 
 .auth-status {
@@ -444,7 +628,7 @@
 }
 
 .auth-status-live {
-  color: #34d399;
+  color: var(--auth-ok);
   background: rgba(52, 211, 153, 0.1);
   border-color: rgba(52, 211, 153, 0.25);
 }
@@ -454,13 +638,13 @@
 }
 
 .auth-status-checking {
-  color: #fbbf24;
+  color: var(--auth-warn);
   background: rgba(251, 191, 36, 0.1);
   border-color: rgba(251, 191, 36, 0.22);
 }
 
 .auth-status-offline {
-  color: #94a3b8;
+  color: var(--auth-text-muted);
   background: rgba(148, 163, 184, 0.1);
   border-color: rgba(148, 163, 184, 0.2);
 }
@@ -480,8 +664,8 @@
   align-items: center;
   gap: 0.4rem;
   padding: 0.6rem 0.75rem;
-  color: #64748b;
-  border-right: 1px solid rgba(255, 255, 255, 0.06);
+  color: var(--auth-text-faint);
+  border-right: 1px solid rgb(var(--auth-ink) / 0.06);
 }
 
 .auth-console-cell:last-child {
@@ -491,13 +675,13 @@
 .auth-console-value {
   font-size: 0.9375rem;
   font-weight: 700;
-  color: #e2e8f0;
+  color: var(--auth-text);
   font-variant-numeric: tabular-nums;
 }
 
 .auth-console-label {
   font-size: 0.6875rem;
-  color: #64748b;
+  color: var(--auth-text-faint);
 }
 
 /* ── Role list ─────────────────────────────────────────────────────────── */
@@ -511,20 +695,20 @@
   padding: 0.5rem 0.65rem;
   border-radius: 0.7rem;
   border-left: 2px solid rgba(129, 140, 248, 0.45);
-  background: rgba(255, 255, 255, 0.025);
+  background: rgb(var(--auth-ink) / 0.025);
 }
 
 .auth-role-name {
   display: block;
   font-size: 0.8125rem;
   font-weight: 600;
-  color: #e2e8f0;
+  color: var(--auth-text);
 }
 
 .auth-role-detail {
   display: block;
   font-size: 0.6875rem;
-  color: #64748b;
+  color: var(--auth-text-faint);
   line-height: 1.35;
   margin-top: 0.05rem;
 }
@@ -555,7 +739,7 @@
   width: 1.35rem;
   height: 1.35rem;
   flex-shrink: 0;
-  color: #34d399;
+  color: var(--auth-ok);
 }
 
 /* Right padding that clears the action cluster: a 2.1rem button per slot, the
@@ -577,7 +761,7 @@
   border-radius: 0.5rem;
   font-size: 0.75rem;
   font-weight: 600;
-  color: #fbbf24;
+  color: var(--auth-warn);
   background: rgba(251, 191, 36, 0.09);
   border: 1px solid rgba(251, 191, 36, 0.22);
 }
@@ -588,11 +772,11 @@
   gap: 0.4rem;
   margin-top: 0.45rem;
   font-size: 0.75rem;
-  color: #64748b;
+  color: var(--auth-text-faint);
 }
 
 .auth-hint-error {
-  color: #fda4af;
+  color: var(--auth-err-soft);
 }
 
 /* ── Password requirements checklist ───────────────────────────────────── */
@@ -603,7 +787,7 @@
 .auth-reqs-bar {
   height: 0.25rem;
   border-radius: 9999px;
-  background: rgba(255, 255, 255, 0.08);
+  background: rgb(var(--auth-ink) / 0.08);
   overflow: hidden;
 }
 
@@ -628,12 +812,12 @@
   align-items: center;
   gap: 0.4rem;
   font-size: 0.75rem;
-  color: #64748b;
+  color: var(--auth-text-faint);
   transition: color 0.2s ease;
 }
 
 .auth-req-met {
-  color: #6ee7b7;
+  color: var(--auth-ok-soft);
 }
 
 .auth-req-dot {
@@ -652,7 +836,7 @@
   gap: 0.5rem;
   cursor: pointer;
   font-size: 0.8125rem;
-  color: #94a3b8;
+  color: var(--auth-text-muted);
   user-select: none;
 }
 
@@ -673,8 +857,8 @@
   align-items: center;
   justify-content: center;
   border-radius: 0.35rem;
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgb(var(--auth-ink) / 0.22);
+  background: rgb(var(--auth-ink) / 0.05);
   color: transparent;
   transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease;
 }
@@ -691,7 +875,7 @@
 }
 
 .auth-check:hover .auth-check-box {
-  border-color: rgba(255, 255, 255, 0.38);
+  border-color: rgb(var(--auth-ink) / 0.38);
 }
 
 /* ── Domain quick-append ───────────────────────────────────────────────── */
@@ -704,7 +888,7 @@
   border-radius: 0.4rem;
   font-size: 0.6875rem;
   font-weight: 600;
-  color: #a5b4fc;
+  color: var(--auth-accent-soft);
   background: rgba(99, 102, 241, 0.12);
   border: 1px solid rgba(99, 102, 241, 0.28);
   transition: background-color 0.18s ease, color 0.18s ease;
@@ -712,7 +896,7 @@
 
 .auth-append:hover {
   background: rgba(99, 102, 241, 0.22);
-  color: #c7d2fe;
+  color: var(--auth-accent-soft);
 }
 
 /* ── Keyboard hint ─────────────────────────────────────────────────────── */
@@ -726,9 +910,9 @@
   border-radius: 0.3rem;
   font-size: 0.625rem;
   font-weight: 700;
-  color: #64748b;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: var(--auth-text-faint);
+  background: rgb(var(--auth-ink) / 0.06);
+  border: 1px solid rgb(var(--auth-ink) / 0.12);
   border-bottom-width: 2px;
 }
 
@@ -741,7 +925,7 @@
   font-weight: 700;
   letter-spacing: 0.08em;
   vertical-align: 0.15em;
-  color: #c4b5fd;
+  color: var(--auth-accent-soft);
   background: rgba(167, 139, 250, 0.14);
   border: 1px solid rgba(167, 139, 250, 0.3);
 }
@@ -754,8 +938,8 @@
   max-width: 26rem;
   padding: 0.55rem 0.85rem;
   border-radius: 0.85rem;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgb(var(--auth-ink) / 0.05);
+  border: 1px solid rgb(var(--auth-ink) / 0.1);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
 }
@@ -766,14 +950,14 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.1em;
-  color: #64748b;
+  color: var(--auth-text-faint);
 }
 
 .auth-tenant-name {
   display: block;
   font-size: 0.875rem;
   font-weight: 600;
-  color: #e2e8f0;
+  color: var(--auth-text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -786,9 +970,9 @@
   border-radius: 0.4rem;
   font-size: 0.6875rem;
   font-weight: 600;
-  color: #94a3b8;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.09);
+  color: var(--auth-text-muted);
+  background: rgb(var(--auth-ink) / 0.06);
+  border: 1px solid rgb(var(--auth-ink) / 0.09);
   white-space: nowrap;
 }
 
@@ -802,7 +986,7 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.12em;
-  color: #64748b;
+  color: var(--auth-text-faint);
 }
 
 /* ── ERP module grid ───────────────────────────────────────────────────── */
@@ -820,14 +1004,14 @@
   gap: 0.6rem;
   padding: 0.6rem 0.7rem;
   border-radius: 0.8rem;
-  background: rgba(255, 255, 255, 0.035);
-  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: rgb(var(--auth-ink) / 0.035);
+  border: 1px solid rgb(var(--auth-ink) / 0.07);
   transition: background-color 0.25s ease, border-color 0.25s ease;
 }
 
 .auth-module:hover {
-  background: rgba(255, 255, 255, 0.06);
-  border-color: rgba(255, 255, 255, 0.14);
+  background: rgb(var(--auth-ink) / 0.06);
+  border-color: rgb(var(--auth-ink) / 0.14);
 }
 
 .auth-module-icon {
@@ -841,13 +1025,13 @@
   display: block;
   font-size: 0.8125rem;
   font-weight: 600;
-  color: #e2e8f0;
+  color: var(--auth-text);
 }
 
 .auth-module-detail {
   display: block;
   font-size: 0.6875rem;
-  color: #64748b;
+  color: var(--auth-text-faint);
   line-height: 1.35;
   margin-top: 0.05rem;
 }
@@ -859,7 +1043,7 @@
   gap: 0.45rem;
   margin-top: 0;
   padding-top: 1rem;
-  border-top: 1px solid rgba(255, 255, 255, 0.07);
+  border-top: 1px solid rgb(var(--auth-ink) / 0.07);
 }
 
 .auth-assurance {
@@ -867,7 +1051,7 @@
   align-items: center;
   gap: 0.45rem;
   font-size: 0.75rem;
-  color: #94a3b8;
+  color: var(--auth-text-muted);
 }
 
 /* ── Institution picker ────────────────────────────────────────────────── */
@@ -880,14 +1064,14 @@
   transform: translateY(-50%);
   width: 1rem;
   height: 1rem;
-  color: #64748b;
+  color: var(--auth-text-faint);
   pointer-events: none;
   transition: transform 0.25s ease, color 0.25s ease;
 }
 
 .auth-select-caret-open {
   transform: translateY(-50%) rotate(180deg);
-  color: #a5b4fc;
+  color: var(--auth-accent-soft);
 }
 
 .auth-select-pop {
@@ -898,9 +1082,9 @@
   right: 0;
   border-radius: 0.85rem;
   overflow: hidden;
-  background: rgba(15, 18, 32, 0.97);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  box-shadow: 0 24px 50px -18px rgba(0, 0, 0, 0.8);
+  background: var(--auth-panel);
+  border: 1px solid rgb(var(--auth-ink) / 0.14);
+  box-shadow: 0 24px 50px -18px var(--auth-shadow);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   animation: auth-pop 0.18s cubic-bezier(0.16, 1, 0.3, 1) both;
@@ -911,7 +1095,13 @@
   align-items: center;
   gap: 0.5rem;
   padding: 0.65rem 0.8rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.09);
+  border-bottom: 1px solid rgb(var(--auth-ink) / 0.09);
+}
+
+/* The search box is a bare input, not an .auth-field, so it does not inherit
+   that rule's placeholder colour. */
+.auth-select-search input::placeholder {
+  color: var(--auth-text-faint);
 }
 
 .auth-select-list {
@@ -939,7 +1129,7 @@
 .auth-select-empty {
   padding: 0.9rem 0.75rem;
   font-size: 0.8125rem;
-  color: #64748b;
+  color: var(--auth-text-faint);
   text-align: center;
 }
 
@@ -959,28 +1149,28 @@
   min-width: 0;
   padding: 0.55rem 0.7rem;
   border-radius: 0.75rem;
-  background: rgba(255, 255, 255, 0.045);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgb(var(--auth-ink) / 0.045);
+  border: 1px solid rgb(var(--auth-ink) / 0.08);
 }
 
 .auth-stat-icon {
   width: 0.95rem;
   height: 0.95rem;
-  color: #94a3b8;
+  color: var(--auth-text-muted);
   flex-shrink: 0;
 }
 
 .auth-stat-value {
   font-size: 1.0625rem;
   font-weight: 700;
-  color: #fff;
+  color: var(--auth-text);
   letter-spacing: -0.01em;
   font-variant-numeric: tabular-nums;
 }
 
 .auth-stat-label {
   font-size: 0.6875rem;
-  color: #94a3b8;
+  color: var(--auth-text-muted);
   line-height: 1.3;
   /* Wraps instead of forcing the chip wider than its grid track. */
   overflow-wrap: anywhere;
@@ -991,7 +1181,7 @@
   display: block;
   font-size: 0.8125rem;
   font-weight: 600;
-  color: #cbd5e1;
+  color: var(--auth-text-soft);
   margin-bottom: 0.45rem;
   letter-spacing: 0.01em;
 }
@@ -1001,21 +1191,21 @@
   width: 100%;
   padding: 0.8rem 2.75rem 0.8rem 2.75rem;
   border-radius: 0.85rem;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  color: #f1f5f9;
+  background: rgb(var(--auth-ink) / 0.05);
+  border: 1px solid rgb(var(--auth-ink) / 0.12);
+  color: var(--auth-text);
   font-size: 0.9375rem;
   transition: border-color 0.2s ease, background-color 0.2s ease,
               box-shadow 0.2s ease, transform 0.2s ease;
 }
 
-.auth-field::placeholder { color: #64748b; }
+.auth-field::placeholder { color: var(--auth-text-faint); }
 
-.auth-field:hover:not(:focus) { border-color: rgba(255, 255, 255, 0.2); }
+.auth-field:hover:not(:focus) { border-color: rgb(var(--auth-ink) / 0.2); }
 
 .auth-field:focus {
   outline: none;
-  background: rgba(255, 255, 255, 0.08);
+  background: rgb(var(--auth-ink) / 0.08);
   border-color: rgba(165, 180, 252, 0.65);
   box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.18);
 }
@@ -1042,14 +1232,14 @@
   transform: translateY(-50%);
   width: 1.05rem;
   height: 1.05rem;
-  color: #64748b;
+  color: var(--auth-text-faint);
   pointer-events: none;
   transition: color 0.2s ease;
 }
 
 .auth-field:focus ~ .auth-field-icon,
 .auth-field:focus + .auth-field-icon {
-  color: #a5b4fc;
+  color: var(--auth-accent-soft);
 }
 
 /* ── Segmented control (role picker) ────────────────────────────────────── */
@@ -1059,8 +1249,8 @@
   gap: 0.3rem;
   padding: 0.3rem;
   border-radius: 0.95rem;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgb(var(--auth-ink) / 0.05);
+  border: 1px solid rgb(var(--auth-ink) / 0.1);
 }
 
 .auth-segment-btn {
@@ -1072,14 +1262,14 @@
   border-radius: 0.7rem;
   font-size: 0.875rem;
   font-weight: 600;
-  color: #94a3b8;
+  color: var(--auth-text-muted);
   background: transparent;
   border: none;
   cursor: pointer;
   transition: color 0.2s ease, background-color 0.25s ease, box-shadow 0.25s ease;
 }
 
-.auth-segment-btn:hover { color: #e2e8f0; }
+.auth-segment-btn:hover { color: var(--auth-text); }
 
 .auth-segment-btn[aria-pressed="true"] {
   color: #fff;
@@ -1122,7 +1312,7 @@
 .auth-btn:active:not(:disabled) { transform: translateY(0); }
 
 .auth-btn:focus-visible {
-  outline: 2px solid #a5b4fc;
+  outline: 2px solid var(--auth-accent-soft);
   outline-offset: 3px;
 }
 
@@ -1140,7 +1330,7 @@
   left: -130%;
   width: 55%;
   height: 100%;
-  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+  background: linear-gradient(100deg, transparent, rgb(var(--auth-ink) / 0.4), transparent);
   transform: skewX(-20deg);
   transition: left 0.65s ease;
   pointer-events: none;
@@ -1149,14 +1339,14 @@
 .auth-btn:hover:not(:disabled)::after { left: 135%; }
 
 .auth-btn-ghost {
-  background: rgba(255, 255, 255, 0.07);
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  color: #e2e8f0;
+  background: rgb(var(--auth-ink) / 0.07);
+  border: 1px solid rgb(var(--auth-ink) / 0.16);
+  color: var(--auth-text);
   box-shadow: none;
 }
 
 .auth-btn-ghost:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.12);
+  background: rgb(var(--auth-ink) / 0.12);
   box-shadow: none;
 }
 
@@ -1171,7 +1361,7 @@
   font-size: 0.78125rem;
   line-height: 1.4;
   text-align: left;
-  color: #94a3b8;
+  color: var(--auth-text-muted);
   cursor: pointer;
   background: rgba(56, 189, 248, 0.07);
   border: 1px dashed rgba(56, 189, 248, 0.3);
@@ -1181,17 +1371,17 @@
 .auth-demo:hover {
   background: rgba(56, 189, 248, 0.13);
   border-color: rgba(56, 189, 248, 0.55);
-  color: #e2e8f0;
+  color: var(--auth-text);
 }
 
 .auth-demo:focus-visible {
-  outline: 2px solid #a5b4fc;
+  outline: 2px solid var(--auth-accent-soft);
   outline-offset: 2px;
 }
 
 .auth-demo-cred {
   font-weight: 600;
-  color: #7dd3fc;
+  color: var(--auth-accent-sky);
   word-break: break-all;
 }
 
@@ -1200,7 +1390,7 @@
   display: flex;
   align-items: center;
   gap: 0.85rem;
-  color: #64748b;
+  color: var(--auth-text-faint);
   font-size: 0.75rem;
   font-weight: 500;
   text-transform: uppercase;
@@ -1212,7 +1402,7 @@
   content: "";
   flex: 1;
   height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.16), transparent);
+  background: linear-gradient(90deg, transparent, rgb(var(--auth-ink) / 0.16), transparent);
 }
 
 /* ── Icon button (show/hide password, generate) ────────────────────────────
@@ -1227,17 +1417,17 @@
   height: 2.1rem;
   flex-shrink: 0;
   border-radius: 0.6rem;
-  color: #94a3b8;
+  color: var(--auth-text-muted);
   background: transparent;
   border: none;
   cursor: pointer;
   transition: color 0.2s ease, background-color 0.2s ease;
 }
 
-.auth-icon-btn:hover { color: #f1f5f9; background: rgba(255, 255, 255, 0.08); }
+.auth-icon-btn:hover { color: var(--auth-text); background: rgb(var(--auth-ink) / 0.08); }
 
 .auth-icon-btn:focus-visible {
-  outline: 2px solid #a5b4fc;
+  outline: 2px solid var(--auth-accent-soft);
   outline-offset: 1px;
 }
 
@@ -1256,13 +1446,13 @@
 .auth-alert-error {
   background: rgba(248, 113, 113, 0.1);
   border-color: rgba(248, 113, 113, 0.32);
-  color: #fecaca;
+  color: var(--auth-err-soft);
 }
 
 .auth-alert-ok {
   background: rgba(52, 211, 153, 0.1);
   border-color: rgba(52, 211, 153, 0.32);
-  color: #a7f3d0;
+  color: var(--auth-ok-soft);
 }
 
 .auth-alert svg { flex-shrink: 0; margin-top: 1px; }
@@ -1270,13 +1460,13 @@
 /* ── Inline text link (switch auth mode) ────────────────────────────────── */
 .auth-switch {
   font-size: 0.875rem;
-  color: #94a3b8;
+  color: var(--auth-text-muted);
   text-align: center;
 }
 
 .auth-link {
   font-weight: 600;
-  color: #a5b4fc;
+  color: var(--auth-accent-soft);
   background: none;
   border: none;
   padding: 0;
@@ -1299,9 +1489,9 @@
   transition: transform 0.25s ease;
 }
 
-.auth-link:hover { color: #c7d2fe; }
+.auth-link:hover { color: var(--auth-accent-soft); }
 .auth-link:hover::after { transform: scaleX(1); }
-.auth-link:focus-visible { outline: 2px solid #a5b4fc; outline-offset: 3px; border-radius: 2px; }
+.auth-link:focus-visible { outline: 2px solid var(--auth-accent-soft); outline-offset: 3px; border-radius: 2px; }
 
 /* ── Modal ──────────────────────────────────────────────────────────────── */
 .auth-modal-scrim {
@@ -1312,7 +1502,7 @@
   align-items: center;
   justify-content: center;
   padding: 1rem;
-  background: rgba(3, 5, 12, 0.82);
+  background: var(--auth-scrim);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   animation: auth-fade 0.2s ease both;
@@ -1321,6 +1511,11 @@
 .auth-modal {
   width: 100%;
   max-width: 26rem;
+  /* The dialog carries .auth-card too, which paints a translucent gradient. Over
+     a scrim that reads as a glass panel in the dark theme, but in the light theme
+     it composites down to a flat grey box with dark text on it. A dialog needs to
+     be an opaque surface of its own so it lifts off the page in both themes. */
+  background: var(--auth-dialog);
   animation: auth-pop 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
@@ -1344,14 +1539,14 @@
   border-radius: 9999px;
   background: rgba(52, 211, 153, 0.14);
   border: 1px solid rgba(52, 211, 153, 0.4);
-  color: #6ee7b7;
+  color: var(--auth-ok-soft);
   animation: auth-pop 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 .auth-spinner {
   width: 1rem;
   height: 1rem;
-  border: 2px solid rgba(255, 255, 255, 0.28);
+  border: 2px solid rgb(var(--auth-ink) / 0.28);
   border-top-color: #fff;
   border-radius: 9999px;
   animation: auth-spin 0.7s linear infinite;

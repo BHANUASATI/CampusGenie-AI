@@ -146,13 +146,13 @@ export const InstitutionSelect: React.FC<InstitutionSelectProps> = ({
           readOnly ? 'opacity-70 cursor-default' : 'cursor-pointer'
         }`}
       >
-        <Building2 className="w-[1.05rem] h-[1.05rem] flex-shrink-0 text-slate-400" aria-hidden="true" />
+        <Building2 className="w-[1.05rem] h-[1.05rem] flex-shrink-0 auth-text-muted" aria-hidden="true" />
         <span className="min-w-0 flex-1">
           <span className="block truncate">
             {loading ? 'Loading institutions…' : value ? value.name : 'Select your institution'}
           </span>
           {value && (
-            <span className="block truncate text-xs text-slate-500 font-normal">
+            <span className="auth-text-faint block truncate text-xs font-normal">
               {value.email_domain}
             </span>
           )}
@@ -168,7 +168,7 @@ export const InstitutionSelect: React.FC<InstitutionSelectProps> = ({
       {open && (
         <div className="auth-select-pop" role="presentation">
           <div className="auth-select-search">
-            <Search className="w-3.5 h-3.5 flex-shrink-0 text-slate-500" aria-hidden="true" />
+            <Search className="w-3.5 h-3.5 flex-shrink-0 auth-text-faint" aria-hidden="true" />
             <input
               ref={searchRef}
               type="text"
@@ -182,7 +182,7 @@ export const InstitutionSelect: React.FC<InstitutionSelectProps> = ({
               aria-label="Search institutions"
               aria-controls="institution-list"
               aria-autocomplete="list"
-              className="w-full bg-transparent outline-none text-sm text-slate-100 placeholder:text-slate-500"
+              className="auth-ink-text w-full bg-transparent outline-none text-sm"
             />
           </div>
 
@@ -203,13 +203,13 @@ export const InstitutionSelect: React.FC<InstitutionSelectProps> = ({
                   className={`auth-select-option ${i === activeIndex ? 'auth-select-option-active' : ''}`}
                 >
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-medium text-slate-100">
+                    <span className="auth-ink-text block truncate text-sm font-medium">
                       {inst.name}
                     </span>
-                    <span className="block truncate text-xs text-slate-500">{inst.domain}</span>
+                    <span className="auth-text-faint block truncate text-xs">{inst.domain}</span>
                   </span>
                   {selected && (
-                    <Check className="w-4 h-4 flex-shrink-0 text-indigo-300" aria-hidden="true" />
+                    <Check className="w-4 h-4 flex-shrink-0 auth-accent-soft" aria-hidden="true" />
                   )}
                 </li>
               );
