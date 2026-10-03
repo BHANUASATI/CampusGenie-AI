@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   ANSWER_SAMPLES,
   FALLBACK_INSTITUTIONS,
-  FALLBACK_STATS,
   type AnswerSample,
   type Institution,
 } from './authContent';
@@ -86,40 +85,6 @@ export const useInstitutions = () => {
   }, []);
 
   return { institutions, multiTenant, status };
-};
-
-/** Knowledge-base size, so the page states its own reach. */
-export const useKnowledgeBaseStats = () => {
-  // Annotated explicitly: FALLBACK_STATS is `as const`, so inference would pin
-  // `chunks` to the literal 363 and reject the live value from the health check.
-  const [stats, setStats] = useState<{ documents: number; chunks: number }>({
-    documents: FALLBACK_STATS.documents,
-    chunks: FALLBACK_STATS.chunks,
-  });
-  // 'checking' until the first response lands, then live or offline. The auth
-  // page shows a status dot from this, and says "offline" rather than quietly
-  // displaying fallback numbers as if they were live.
-  const [status, setStatus] = useState<'checking' | 'live' | 'offline'>('checking');
-
-  useEffect(() => {
-    const controller = new AbortController();
-
-    getJson(`${API_BASE}/api/ai/health`, controller.signal)
-      .then((data) => {
-        const chunks = data?.components?.chromadb?.chunks;
-        if (typeof chunks === 'number' && chunks > 0) {
-          setStats({ documents: FALLBACK_STATS.documents, chunks });
-        }
-        setStatus(data?.status === 'error' || chunks === 0 ? 'offline' : 'live');
-      })
-      .catch(() => {
-        setStatus('offline');
-      });
-
-    return () => controller.abort();
-  }, []);
-
-  return { ...stats, status };
 };
 
 /* ── Academic structure ────────────────────────────────────────────────── */

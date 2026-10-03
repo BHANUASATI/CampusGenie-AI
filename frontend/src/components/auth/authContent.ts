@@ -199,9 +199,36 @@ export const ASSURANCES = [
   'Works across departments and campuses',
 ] as const;
 
-/* ── Fallback knowledge-base size, until /api/ai/health answers ─────────── */
+/* ── Proof points, for what a single deployment gives you ────────────────── */
 
-export const FALLBACK_STATS = {
-  documents: 7,
-  chunks: 363,
-} as const;
+export interface ProofPoint {
+  key: string;
+  label: string;
+  /** Icon to render, resolved to a component by the layout. */
+  icon: 'key' | 'mail' | 'enrol';
+}
+
+/**
+ * Three claims about reach, all of which the product can actually honour.
+ *
+ * These replaced a row of counters reading `7 indexed documents / 363
+ * retrievable passages / 100% answers sourced`, which was the weakest block on
+ * the page. "Retrievable passages" named the retrieval machinery out loud —
+ * exactly what this file exists to avoid — and the document count came from a
+ * hardcoded `FALLBACK_STATS` constant that the health check never replaced, so
+ * the one figure a technical evaluator would have checked was the one that
+ * could not be true. Neither constant survived the change. None of the three
+ * counters said anything about the ERP.
+ *
+ * Kept separate from `ASSURANCES` on purpose: those are about trust, these are
+ * about what one deployment covers.
+ */
+export const PROOF_POINTS: ProofPoint[] = [
+  { key: 'single-signin', label: 'One sign-in across every module', icon: 'key' },
+  { key: 'sign-in-methods', label: 'Campus email or Microsoft account', icon: 'mail' },
+  {
+    key: 'self-enrolment',
+    label: 'Self-service enrolment for students and faculty',
+    icon: 'enrol',
+  },
+];

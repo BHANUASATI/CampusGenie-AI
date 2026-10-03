@@ -3,20 +3,20 @@ import {
   Activity,
   BadgeCheck,
   Blocks,
-  Database,
-  FileText,
   GraduationCap,
+  KeyRound,
   Landmark,
+  Mail,
   Moon,
   Quote,
   Sparkles,
   Sun,
+  UserPlus,
 } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
-import { ANSWER_SAMPLES, ASSURANCES, MODULES, ROLES } from './authContent';
+import { ANSWER_SAMPLES, ASSURANCES, MODULES, PROOF_POINTS, ROLES } from './authContent';
 import {
   useInstitutions,
-  useKnowledgeBaseStats,
   usePrefersReducedMotion,
   useRotatingSample,
 } from './useCampusData';
@@ -57,7 +57,6 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({
   institutionDomain,
 }) => {
   const reduced = usePrefersReducedMotion();
-  const stats = useKnowledgeBaseStats();
   const { sample, index, visible } = useRotatingSample(reduced);
   const { theme, toggleTheme } = useTheme();
   const isDark = theme === 'dark';
@@ -108,6 +107,10 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({
   // Held back until the request lands: "0 universities" mid-flight is worse than
   // an empty panel, and unlike the other two it can legitimately be zero.
   const { institutions, status: institutionStatus } = useInstitutions();
+  // The directory hook calls its in-flight state `loading`; the status pill
+  // styles and copy speak in terms of `checking`.
+  const platformStatus =
+    institutionStatus === 'loading' ? 'checking' : institutionStatus;
   const footprint: { label: string; value: string; icon: React.ReactNode }[] = [
     {
       label: institutions.length === 1 ? 'university' : 'universities',
@@ -198,44 +201,46 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({
 
             <p className="auth-subhead">{subhead}</p>
 
-            {/* Live deployment state, read from the running backend. */}
-            <div className="auth-stats mt-6">
-              <div className="auth-stat">
-                <FileText className="auth-stat-icon" aria-hidden="true" />
-                <span className="auth-stat-value">{stats.documents}</span>
-                <span className="auth-stat-label">indexed documents</span>
-              </div>
-              <div className="auth-stat">
-                <Database className="auth-stat-icon" aria-hidden="true" />
-                <span className="auth-stat-value">{stats.chunks}</span>
-                <span className="auth-stat-label">retrievable passages</span>
-              </div>
-              <div className="auth-stat">
-                <BadgeCheck className="auth-stat-icon" aria-hidden="true" />
-                <span className="auth-stat-value">100%</span>
-                <span className="auth-stat-label">answers sourced</span>
-              </div>
-            </div>
+            {/* What one deployment covers, in prose. Deliberately not figures:
+                the console directly below already carries the numbers, and two
+                numeric panels stacked read as a dashboard bolted onto a
+                marketing page. */}
+            <ul className="auth-proofs mt-6">
+              {PROOF_POINTS.map(({ key, label, icon }) => {
+                const Icon = PROOF_ICONS[icon];
+                return (
+                  <li key={key} className="auth-proof">
+                    <span className="auth-proof-icon">
+                      <Icon className="w-3.5 h-3.5" aria-hidden="true" />
+                    </span>
+                    <span className="auth-proof-label">{label}</span>
+                  </li>
+                );
+              })}
+            </ul>
 
-            {/* Academic structure actually configured, plus the health of the
-                service that will answer once the user is in. */}
+            {/* What this deployment covers, and whether the directory backing
+                that count answered. The pill watches the same endpoint the
+                number comes from — it used to watch the knowledge-base health
+                check, which was the only thing on the page that figure had
+                nothing to do with. */}
             <div className="auth-console mt-3">
               <div className="auth-console-head">
                 <Activity className="w-3.5 h-3.5" aria-hidden="true" />
-                <span>Deployment</span>
+                <span>Platform</span>
                 <span
-                  className={`auth-status auth-status-${stats.status}`}
+                  className={`auth-status auth-status-${platformStatus}`}
                   title={
-                    stats.status === 'live'
+                    platformStatus === 'live'
                       ? 'Reachable now'
-                      : stats.status === 'checking'
+                      : platformStatus === 'checking'
                         ? 'Checking'
-                        : 'Not reachable — showing last known figures'
+                        : 'Not reachable — showing the last known figures'
                   }
                 >
-                  {stats.status === 'live'
+                  {platformStatus === 'live'
                     ? 'Live'
-                    : stats.status === 'checking'
+                    : platformStatus === 'checking'
                       ? 'Checking'
                       : 'Offline'}
                 </span>
@@ -356,5 +361,12 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({
 
 /* Number of rotating answers, read from the sample list length. */
 const ANSWER_SAMPLE_COUNT = ANSWER_SAMPLES.length;
+
+/** Icon per proof point. Kept here so `authContent` stays presentation-free. */
+const PROOF_ICONS = {
+  key: KeyRound,
+  mail: Mail,
+  enrol: UserPlus,
+} as const;
 
 export default AuthLayout;
