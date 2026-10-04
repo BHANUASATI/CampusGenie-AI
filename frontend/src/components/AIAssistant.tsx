@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { aiAssistantService } from '../services/api';
 import { useVoiceRecognition } from '../hooks/useVoiceRecognition';
-import { useTextToSpeech } from '../hooks/useTextToSpeech';
+import { useTextToSpeech, curatedVoices } from '../hooks/useTextToSpeech';
 import './AIAssistant.css';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -240,6 +240,8 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ isOpen, onClose }) => {
   const voiceRecognition = useVoiceRecognition({ continuous: false, lang: 'en-US' });
   const textToSpeech = useTextToSpeech({ lang: 'en-US' });
   const [voiceMode, setVoiceMode] = useState(false);
+  // The platform reports 180 voices; only the natural ones are worth choosing.
+  const voiceChoices = curatedVoices(textToSpeech.availableVoices, 'en-US');
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -898,10 +900,30 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ isOpen, onClose }) => {
                 </div>
               )}
 
-              {/* Voice mode indicator */}
+              {/* Voice mode indicator, and the voice picker. Only the good
+                  voices are offered — the platform's novelty voices (Boing,
+                  Bubbles, Trinoids, …) are filtered out of the hook's curated
+                  list, so the dropdown cannot be used to re-break the audio. */}
               {voiceMode && (
                 <div className="cg-ai-tts-status">
                   <span>🔊 Voice responses enabled</span>
+                  {voiceChoices.length > 0 && (
+                    <label className="cg-ai-voice-picker">
+                      <span className="cg-ai-voice-picker-label">Voice</span>
+                      <select
+                        className="cg-ai-voice-select"
+                        value={textToSpeech.currentVoice?.name ?? ''}
+                        onChange={(e) => textToSpeech.setVoice(e.target.value)}
+                        aria-label="Voice used for spoken answers"
+                      >
+                        {voiceChoices.map((v) => (
+                          <option key={v.voiceURI} value={v.name}>
+                            {v.name.replace(/\s*\(.*\)\s*$/, '')} · {v.lang}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
                 </div>
               )}
 

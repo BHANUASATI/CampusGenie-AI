@@ -849,7 +849,8 @@
 .cg-ai-tts-status {
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: space-between;
+  gap: 8px;
   padding: 6px 12px;
   background: rgba(16,185,129,0.1);
   border: 1px solid rgba(16,185,129,0.2);
@@ -857,6 +858,39 @@
   margin-top: 8px;
   font-size: 0.7rem;
   color: #6ee7b7;
+}
+
+/* ── Voice picker ────────────────────────────────────────────────────────── */
+/* Sits inside the voice-mode strip. The strip is `justify-content: center` by
+   default, so the label pulls back to the left edge to sit beside the text. */
+.cg-ai-voice-picker {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.cg-ai-voice-picker-label {
+  font-size: 0.65rem;
+  color: #6ee7b7;
+  opacity: 0.85;
+}
+
+.cg-ai-voice-select {
+  max-width: 190px;
+  padding: 3px 6px;
+  font-size: 0.7rem;
+  font-family: inherit;
+  color: #065f46;
+  background: rgba(255,255,255,0.9);
+  border: 1px solid rgba(16,185,129,0.35);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.cg-ai-voice-select:focus-visible {
+  outline: 2px solid #10b981;
+  outline-offset: 2px;
 }
 
 .cg-ai-footer-note {
