@@ -403,13 +403,13 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ isOpen, onClose }) => {
       }
 
       // 5. Auto-speak the AI response if voice mode is enabled.
-      // The neural voice is async (it fetches audio), so a synthesis failure
-      // falls back to the browser voice here rather than leaving the answer
-      // silent.
+      // The neural voice is async (it fetches audio), so anything it could not
+      // speak — all of it, or the part after a stalled chunk — is spoken here
+      // with the browser voice. The answer is never left partly silent.
       if (voiceMode && richAiMsg.content) {
         if (usingNeuralVoice) {
-          void neuralVoice.speak(richAiMsg.content).then((spoke: boolean) => {
-            if (!spoke && voiceMode) textToSpeech.speak(richAiMsg.content);
+          void neuralVoice.speak(richAiMsg.content).then((result) => {
+            if (result.remainder && voiceMode) textToSpeech.speak(result.remainder);
           });
         } else {
           textToSpeech.speak(richAiMsg.content);

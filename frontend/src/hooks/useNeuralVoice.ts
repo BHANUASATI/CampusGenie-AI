@@ -36,11 +36,21 @@ interface NeuralVoiceState {
   provider: string | null;
 }
 
-/** How many chunks to keep synthesised ahead of the one playing. */
-const PREFETCH_AHEAD = 1;
-
 /** Voices the backend advertises, trimmed to the ones worth showing. */
 const MAX_VOICES = 10;
+
+/**
+ * What `speak` reports back. `remainder` is the text that was not spoken, which
+ * is non-empty whenever synthesis or playback stopped early — including when
+ * nothing at all played. The caller speaks that with the browser voice so the
+ * answer is never left with a gap in the middle of it.
+ */
+export interface SpeakResult {
+  /** True when every chunk was synthesised and played. */
+  complete: boolean;
+  /** Unspoken text, empty when `complete` is true. */
+  remainder: string;
+}
 
 export const useNeuralVoice = () => {
   const [state, setState] = useState<NeuralVoiceState>({
@@ -138,12 +148,15 @@ export const useNeuralVoice = () => {
   }, []);
 
   const speak = useCallback(
-    async (text: string) => {
-      if (!state.isSupported) return false;
+    async (text: string): Promise<SpeakResult> => {
+      if (!state.isSupported) {
+        // No neural voice here; the caller speaks the whole text itself.
+        return { complete: false, remainder: text };
+      }
 
       const clean = stripMarkdownForSpeech(text);
       const chunks = chunkForSpeech(clean);
-      if (chunks.length === 0) return false;
+      if (chunks.length === 0) return { complete: true, remainder: '' };
 
       stop();
 
@@ -199,17 +212,30 @@ export const useNeuralVoice = () => {
             unavailableReason: 'Could not synthesise the spoken answer',
           }));
         }
-        return false;
+        // Nothing was spoken, so the whole reply is still unsaid.
+        return { complete: false, remainder: chunks.join(' ') };
       }
 
       setState((prev) => ({ ...prev, isSpeaking: true, unavailableReason: null }));
 
+      // The chunk that could not be synthesised or played. Everything from here
+      // on is unsaid, and the caller speaks it with the browser voice rather
+      // than leaving a hole in the middle of the answer.
+      let stalledAt = -1;
+
       for (let index = 0; index < chunks.length; index++) {
-        if (token !== tokenRef.current) return true;
+        if (token !== tokenRef.current) {
+          // Superseded by a newer reply, which is already speaking this content.
+          return { complete: true, remainder: '' };
+        }
 
         if (!bufferRef.current.has(index)) {
           const ok = await fetchChunk(index);
-          if (!ok || token !== tokenRef.current) break;
+          if (token !== tokenRef.current) return { complete: true, remainder: '' };
+          if (!ok) {
+            stalledAt = index;
+            break;
+          }
         }
 
         // Warm the next chunk while this one plays.
@@ -218,7 +244,10 @@ export const useNeuralVoice = () => {
         }
 
         const blob = bufferRef.current.get(index);
-        if (!blob) break;
+        if (!blob) {
+          stalledAt = index;
+          break;
+        }
 
         const url = URL.createObjectURL(blob);
         urlsRef.current.push(url);
@@ -238,14 +267,26 @@ export const useNeuralVoice = () => {
 
         bufferRef.current.delete(index);
 
-        if (!played) break;
+        if (!played) {
+          stalledAt = index;
+          break;
+        }
       }
 
       if (token === tokenRef.current) {
         releaseUrls();
         setState((prev) => ({ ...prev, isSpeaking: false }));
+        if (stalledAt >= 0) {
+          setState((prev) => ({
+            ...prev,
+            unavailableReason: 'Neural voice stopped partway; finishing with the browser voice',
+          }));
+        }
       }
-      return true;
+      return {
+        complete: stalledAt < 0,
+        remainder: stalledAt < 0 ? '' : chunks.slice(stalledAt).join(' '),
+      };
     },
     [state.isSupported, state.currentVoice, stop, releaseUrls]
   );

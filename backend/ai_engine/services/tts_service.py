@@ -181,30 +181,85 @@ def clear_cache() -> None:
 # ---------------------------------------------------------------------------
 
 
+# A response smaller than this is a truncated stream rather than a short
+# sentence. The service pads even "Yes." out to 11232 bytes, so genuine audio has
+# generous headroom above this floor and the floor costs nothing.
+_MIN_AUDIO_BYTES = 2048
+
+# A second, length-proportional bound. Real output runs several hundred bytes per
+# character of text; this only catches a stream that died partway through.
+_BYTES_PER_CHAR = 60
+
+# The provider's websocket stops responding under a burst of connections, and its
+# own connect timeout is 10s. Bound the attempt so a stalled stream fails fast
+# and the caller can fall back, instead of holding a request open.
+#
+# Deliberately a single attempt, and deliberately shorter than the client's own
+# 15s give-up. Retrying here used to be the plan for a dropped connection, but
+# once the client falls back to the browser voice seamlessly, a retry is strictly
+# worse: it spends another stretch of the user's silence hoping the second try
+# lands, when falling back immediately gets them an answer either way. Measured
+# latency for a healthy request is around 5s, with a long tail, so one attempt
+# covers the common case and the tail is handled by the fallback.
+_SENTENCE_TIMEOUT_S = 14
+
+
+def _plausible_audio(sentence: str, audio: bytes) -> bool:
+    """Is this response plausibly the whole sentence, rather than a fragment?"""
+    return len(audio) >= max(_MIN_AUDIO_BYTES, len(sentence) * _BYTES_PER_CHAR)
+
+
 async def _synthesize_edge(sentences: List[str], voice: str, rate: str) -> List[bytes]:
     """Synthesise with Microsoft neural voices via edge-tts.
 
     Returns one MP3 per sentence, in order. `Communicate` takes plain text only
     — it escapes whatever it is given and speaks it, so no SSML is passed here.
+
+    The sentences in a chunk are issued concurrently rather than one after
+    another. The endpoint slows down sharply with each request made back to
+    back, so a three-sentence chunk took 16s issued sequentially and 5.8s issued
+    together — and sequential requests eventually time out at the websocket
+    entirely.
     """
     try:
-        import edge_tts  # imported lazily so the app boots without it
+        import edge_tts  # noqa: F401 - imported lazily so the app boots without it
     except ImportError as exc:  # pragma: no cover - dependency is pinned
         raise TTSUnavailable(f"edge-tts is not installed: {exc}") from exc
 
-    blobs: List[bytes] = []
-    for sentence in sentences:
-        communicate = edge_tts.Communicate(sentence, voice, rate=rate)
-        audio = b""
-        async for item in communicate.stream():
-            if item["type"] == "audio":
-                audio += item["data"]
-        if not audio:
-            raise TTSUnavailable(f"provider returned no audio for {voice}")
-        blobs.append(audio)
-    if not blobs:
-        raise TTSUnavailable("nothing to synthesise")
-    return blobs
+    async def attempt(sentence: str) -> bytes:
+        import edge_tts
+
+        try:
+            communicate = edge_tts.Communicate(sentence, voice, rate=rate)
+            audio = b""
+            async for item in communicate.stream():
+                if item["type"] == "audio":
+                    audio += item["data"]
+        except asyncio.TimeoutError:
+            raise TTSUnavailable(
+                f"edge synthesis timed out after {_SENTENCE_TIMEOUT_S}s for {voice}"
+            ) from None
+        except Exception as exc:
+            # The provider drops and refuses websocket connections under load.
+            # That is a provider fault rather than a bad request, so it becomes a
+            # 503 the frontend can fall back from, not an unhandled 500.
+            raise TTSUnavailable(
+                f"edge synthesis failed for {voice}: {type(exc).__name__}: {exc}"
+            ) from exc
+
+        # A truncated stream arrives as a short 200 response, so it is only
+        # detectable by size. Left unchecked it would be served, and cached, as
+        # though it were the whole sentence.
+        if not _plausible_audio(sentence, audio):
+            raise TTSUnavailable(
+                f"edge returned a truncated stream for {voice} "
+                f"({len(audio)} bytes for {len(sentence)} chars)"
+            )
+        return audio
+
+    if not sentences:
+        return []
+    return list(await asyncio.gather(*[attempt(s) for s in sentences]))
 
 
 async def _synthesize_openai(sentences: List[str], voice: str, instructions: str) -> List[bytes]:
@@ -282,7 +337,13 @@ async def _synthesize_google(sentences: List[str], voice: str) -> List[bytes]:
 
     if response.status_code != 200:
         raise TTSUnavailable(f"google returned {response.status_code}")
-    return [base64.b64decode(response.json()["audioContent"])]
+    try:
+        audio = base64.b64decode(response.json()["audioContent"])
+    except Exception as exc:
+        raise TTSUnavailable(f"google returned an unusable body: {exc}") from exc
+    if not audio:
+        raise TTSUnavailable("google produced no audio")
+    return [audio]
 
 
 # ---------------------------------------------------------------------------

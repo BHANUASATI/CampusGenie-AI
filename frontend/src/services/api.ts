@@ -3,6 +3,14 @@
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8002';
 
+// How long to wait for synthesised speech before giving up on it and using the
+// browser's own voice. A healthy request takes several seconds and the endpoint
+// is inconsistent enough to reach the high teens, so this sits above the usual
+// case to keep the whole answer on the better voice. It is still a ceiling: once
+// a chunk is playing, the next is already being fetched, so giving up on a later
+// chunk costs only the tail — which the browser voice then finishes.
+const TTS_TIMEOUT_MS = 15000;
+
 // Generic API client
 class ApiClient {
   private baseURL: string;
@@ -478,34 +486,47 @@ export const aiAssistantService = {
   // Synthesise plain prose as MP3. Returns the blob plus the voice that
   // actually spoke, which is the only way to notice a silent substitution.
   speak: async (text: string, voice?: string) => {
-    const response = await fetch(`${API_BASE_URL}/api/ai/tts`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(localStorage.getItem('authToken')
-          ? { Authorization: `Bearer ${localStorage.getItem('authToken')}` }
-          : {}),
-      },
-      body: JSON.stringify({ text, voice }),
-    });
+    // The neural provider throttles under load and a request can sit for a long
+    // time before it either completes or gives up. The browser voice is always
+    // available as a fallback, so it is never worth waiting longer than this for
+    // the better one — past this point the user gets the fallback instead.
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), TTS_TIMEOUT_MS);
 
-    if (!response.ok) {
-      // Surface the backend's reason rather than a bare status; it distinguishes
-      // "no neural voice here" from "that request was malformed".
-      let detail = `${response.status}`;
-      try {
-        const body = await response.json();
-        if (body?.detail) detail = body.detail;
-      } catch {
-        // Non-JSON error body; the status is all we have.
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/ai/tts`, {
+        method: 'POST',
+        signal: controller.signal,
+        headers: {
+          'Content-Type': 'application/json',
+          ...(localStorage.getItem('authToken')
+            ? { Authorization: `Bearer ${localStorage.getItem('authToken')}` }
+            : {}),
+        },
+        body: JSON.stringify({ text, voice }),
+      });
+
+      if (!response.ok) {
+        // Surface the backend's reason rather than a bare status; it
+        // distinguishes "no neural voice here" from "that request was
+        // malformed".
+        let detail = `${response.status}`;
+        try {
+          const body = await response.json();
+          if (body?.detail) detail = body.detail;
+        } catch {
+          // Non-JSON error body; the status is all we have.
+        }
+        throw new Error(detail);
       }
-      throw new Error(detail);
-    }
 
-    return {
-      blob: await response.blob(),
-      voice: response.headers.get('X-TTS-Voice') || voice || null,
-    };
+      return {
+        blob: await response.blob(),
+        voice: response.headers.get('X-TTS-Voice') || voice || null,
+      };
+    } finally {
+      clearTimeout(timer);
+    }
   },
 };
 
