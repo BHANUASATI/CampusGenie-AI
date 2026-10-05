@@ -468,6 +468,45 @@ export const aiAssistantService = {
   quickChat: async (content: string) => {
     return apiClient.post('/api/ai/chat', { content });
   },
+
+  // Neural voices available for spoken answers. `available: false` means this
+  // deployment cannot synthesise, and the caller should use the browser voice.
+  getVoices: async () => {
+    return apiClient.get('/api/ai/tts/voices');
+  },
+
+  // Synthesise plain prose as MP3. Returns the blob plus the voice that
+  // actually spoke, which is the only way to notice a silent substitution.
+  speak: async (text: string, voice?: string) => {
+    const response = await fetch(`${API_BASE_URL}/api/ai/tts`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(localStorage.getItem('authToken')
+          ? { Authorization: `Bearer ${localStorage.getItem('authToken')}` }
+          : {}),
+      },
+      body: JSON.stringify({ text, voice }),
+    });
+
+    if (!response.ok) {
+      // Surface the backend's reason rather than a bare status; it distinguishes
+      // "no neural voice here" from "that request was malformed".
+      let detail = `${response.status}`;
+      try {
+        const body = await response.json();
+        if (body?.detail) detail = body.detail;
+      } catch {
+        // Non-JSON error body; the status is all we have.
+      }
+      throw new Error(detail);
+    }
+
+    return {
+      blob: await response.blob(),
+      voice: response.headers.get('X-TTS-Voice') || voice || null,
+    };
+  },
 };
 
 // AI Admin Service (knowledge base management)

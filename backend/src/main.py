@@ -64,6 +64,7 @@ from ai_engine.api.ai_routes import router as ai_assistant_router
 from ai_engine.api.document_routes import router as ai_document_router
 from ai_engine.api.health import router as ai_health_router
 from ai_engine.api.institutions_routes import router as institutions_router
+from ai_engine.api.tts_routes import router as ai_tts_router
 from notification_scheduler import start_notification_scheduler, stop_notification_scheduler
 
 # Create all database tables
@@ -90,6 +91,10 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    # Spoken answers report the voice that actually spoke in a header, so the
+    # browser can confirm it got what it asked for. Custom response headers are
+    # unreadable cross-origin unless they are exposed here.
+    expose_headers=["X-TTS-Voice"],
 )
 
 
@@ -263,6 +268,7 @@ app.include_router(institutions_router, tags=["institutions"])
 app.include_router(ai_assistant_router, prefix="/api/ai", tags=["ai-assistant"])
 app.include_router(ai_document_router, prefix="/api/ai", tags=["ai-documents"])
 app.include_router(ai_health_router, prefix="/api/ai", tags=["ai-health"])
+app.include_router(ai_tts_router, prefix="/api/ai", tags=["ai-tts"])
 
 # Serve static files for profile images
 os.makedirs("uploads/profile_images", exist_ok=True)

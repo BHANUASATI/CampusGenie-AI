@@ -50,6 +50,15 @@ python-docx==1.1.0              # DOCX extraction
 pandas==2.1.4                   # CSV processing
 reportlab==4.0.7                # PDF generation for downloads
 
+# Neural text-to-speech for spoken assistant answers
+# The browser's speechSynthesis API cannot produce a conversational voice — it
+# exposes only rate/pitch/volume over the OS's own compact voices. This reaches
+# Microsoft's neural voices (the ones behind Edge's Read aloud), which is what
+# makes a spoken answer sound like a person rather than an announcer. No API key
+# needed. If it is unavailable the frontend falls back to the browser voice, so
+# this is an optional quality dependency, not a hard requirement.
+edge-tts==7.2.8
+
 # Observability (optional)
 # opentelemetry-api==1.21.0
 # LangSmith tracing for the AI engine (ai_engine/core/tracing.py).

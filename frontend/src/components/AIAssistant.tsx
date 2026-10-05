@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { aiAssistantService } from '../services/api';
 import { useVoiceRecognition } from '../hooks/useVoiceRecognition';
 import { useTextToSpeech, curatedVoices } from '../hooks/useTextToSpeech';
+import { useNeuralVoice } from '../hooks/useNeuralVoice';
 import './AIAssistant.css';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -238,10 +239,16 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ isOpen, onClose }) => {
   
   // Voice functionality
   const voiceRecognition = useVoiceRecognition({ continuous: false, lang: 'en-US' });
+  // Neural voice from the backend. This is what actually sounds conversational;
+  // the browser voice below is only a fallback for deployments that cannot
+  // synthesise, since rate/pitch/volume over an OS voice cannot sound human.
+  const neuralVoice = useNeuralVoice();
   const textToSpeech = useTextToSpeech({ lang: 'en-US' });
   const [voiceMode, setVoiceMode] = useState(false);
-  // The platform reports 180 voices; only the natural ones are worth choosing.
-  const voiceChoices = curatedVoices(textToSpeech.availableVoices, 'en-US');
+  // The platform reports 180 browser voices; only the natural ones are worth
+  // offering. Neural voices come from the backend and are preferred when present.
+  const browserVoiceChoices = curatedVoices(textToSpeech.availableVoices, 'en-US');
+  const usingNeuralVoice = neuralVoice.isSupported;
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -395,9 +402,18 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ isOpen, onClose }) => {
         );
       }
 
-      // 5. Auto-speak the AI response if voice mode is enabled
+      // 5. Auto-speak the AI response if voice mode is enabled.
+      // The neural voice is async (it fetches audio), so a synthesis failure
+      // falls back to the browser voice here rather than leaving the answer
+      // silent.
       if (voiceMode && richAiMsg.content) {
-        textToSpeech.speak(richAiMsg.content);
+        if (usingNeuralVoice) {
+          void neuralVoice.speak(richAiMsg.content).then((spoke: boolean) => {
+            if (!spoke && voiceMode) textToSpeech.speak(richAiMsg.content);
+          });
+        } else {
+          textToSpeech.speak(richAiMsg.content);
+        }
       }
     } catch (err: any) {
       console.error('Error sending message:', err);
@@ -485,7 +501,10 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ isOpen, onClose }) => {
   const toggleVoiceMode = () => {
     setVoiceMode(!voiceMode);
     if (!voiceMode) {
+      // Silence both paths. Turning voice off must stop whichever one is
+      // currently talking, and stopping an idle one is harmless.
       textToSpeech.stop();
+      neuralVoice.stop();
     }
   };
 
@@ -900,14 +919,32 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ isOpen, onClose }) => {
                 </div>
               )}
 
-              {/* Voice mode indicator, and the voice picker. Only the good
-                  voices are offered — the platform's novelty voices (Boing,
-                  Bubbles, Trinoids, …) are filtered out of the hook's curated
-                  list, so the dropdown cannot be used to re-break the audio. */}
+              {/* Voice mode indicator, and the voice picker.
+                  When the backend can synthesise, the picker lists neural voices
+                  and those are what actually speak. Otherwise it falls back to
+                  the browser voices, with the platform's novelty voices (Boing,
+                  Bubbles, Trinoids, …) filtered out so the dropdown cannot be
+                  used to re-break the audio. */}
               {voiceMode && (
                 <div className="cg-ai-tts-status">
                   <span>🔊 Voice responses enabled</span>
-                  {voiceChoices.length > 0 && (
+                  {usingNeuralVoice && neuralVoice.voices.length > 0 ? (
+                    <label className="cg-ai-voice-picker">
+                      <span className="cg-ai-voice-picker-label">Voice</span>
+                      <select
+                        className="cg-ai-voice-select"
+                        value={neuralVoice.currentVoice ?? ''}
+                        onChange={(e) => neuralVoice.setVoice(e.target.value)}
+                        aria-label="Voice used for spoken answers"
+                      >
+                        {neuralVoice.voices.map((v) => (
+                          <option key={v.id} value={v.id}>
+                            {v.label} · {v.locale}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  ) : browserVoiceChoices.length > 0 ? (
                     <label className="cg-ai-voice-picker">
                       <span className="cg-ai-voice-picker-label">Voice</span>
                       <select
@@ -916,21 +953,27 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ isOpen, onClose }) => {
                         onChange={(e) => textToSpeech.setVoice(e.target.value)}
                         aria-label="Voice used for spoken answers"
                       >
-                        {voiceChoices.map((v) => (
+                        {browserVoiceChoices.map((v) => (
                           <option key={v.voiceURI} value={v.name}>
                             {v.name.replace(/\s*\(.*\)\s*$/, '')} · {v.lang}
                           </option>
                         ))}
                       </select>
                     </label>
-                  )}
+                  ) : null}
                 </div>
               )}
 
               <p className="cg-ai-footer-note">
                 Answers grounded in university documents · Powered by Gemini 2.5 Flash
                 {voiceRecognition.isSupported && ' · Voice input available'}
-                {textToSpeech.isSupported && ' · Voice responses available'}
+                {neuralVoice.isChecking
+                  ? ' · Checking voice…'
+                  : usingNeuralVoice
+                    ? ' · Neural voice'
+                    : textToSpeech.isSupported
+                      ? ' · Voice responses available'
+                      : ''}
               </p>
             </div>
           </div>
