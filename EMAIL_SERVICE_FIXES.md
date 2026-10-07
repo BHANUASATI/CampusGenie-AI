@@ -16,7 +16,7 @@
 
            
    
-
+      
 **Files**: `backend/src/email_service.py`, `backend/src/notification_scheduler.py`
   
 ### 3. **Scheduler Startup Issues**
