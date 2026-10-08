@@ -16,7 +16,7 @@ NetACAD/
 └── README.md               # Main project README
 ```
 
-## Detailed Structure
+## Detailed Structure.      
 
 ### `/docs/` - Project Documentation
 Contains all project-wide documentation files:
