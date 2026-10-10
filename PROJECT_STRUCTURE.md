@@ -15,7 +15,7 @@ NetACAD/
 ├── .gitignore              # Git ignore rules
 └── README.md               # Main project README
 ```
-
+          
 ## Detailed Structure.      
 
 ### `/docs/` - Project Documentation
