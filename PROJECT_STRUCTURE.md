@@ -3,7 +3,7 @@
 This document describes the organized folder structure of the CampusGenie project.
         
 ## Root Directory Structure
-
+        
 ```
 NetACAD/
 ├── docs/                    # Project-wide documentation. 
