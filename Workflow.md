@@ -8,7 +8,7 @@
 >
 > All diagrams are rendered from the **actual implementation** (`backend/ai_engine/**`,
 > `backend/src/**`, `frontend/src/**`), not from an aspirational spec.
-
+           
 ---
 
 ## Table of Contents
