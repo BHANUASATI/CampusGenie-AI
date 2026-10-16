@@ -13,7 +13,7 @@ The notification scheduler was not sending emails for todos with future times be
 **Fix**: Changed to `CalendarEvent.start_date >= now.date()` to include today's events
 **File**: `backend/src/notification_scheduler.py`
       
-
+   
 ### 2. **Enhanced Logging**
 **Problem**: No visibility into scheduler operations
 **Fix**: Added comprehensive logging:
