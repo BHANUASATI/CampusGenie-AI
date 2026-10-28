@@ -1,5 +1,5 @@
 #    CampusGenie-AI System Architecture Diagrams.     
-
+  
 ## HIGH-LEVEL SYSTEM ARCHITECTURE
  
 ```mermaid
