@@ -1,5 +1,5 @@
 # Future Time Notification Fix.     
-
+   
 ## Issue Identified
 The notification scheduler was not sending emails for todos with future times because:
 1. **Date logic was too restrictive**: Required events to be strictly in the future (`start_date > now`)
