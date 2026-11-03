@@ -1,5 +1,5 @@
 <div align="center">
-
+   
 # 🎓 CampusGenie — AI for Smarter Learning.   
              
 ### 🤖 Transforming Educational Administration Through Agentic AI
