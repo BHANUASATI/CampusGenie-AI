@@ -5,7 +5,7 @@ The notification scheduler was not sending emails for todos with future times be
 1. **Date logic was too restrictive**: Required events to be strictly in the future (`start_date > now`)
 2. **No testing capability**: No way to test email notifications immediately
 3. **Poor debugging**: Limited logging made it hard to diagnose issues
-
+   
 ## Fixes Applied
     
 ### 1. **Fixed Date Logic in Scheduler**
