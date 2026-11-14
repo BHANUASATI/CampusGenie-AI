@@ -10,7 +10,7 @@ This feature adds email notification capabilities to the student dashboard todo 
 - **Scheduled Time**: Set a specific time (HH:MM format) for daily email reminders
 - **Category Selection**: Choose between Academic and Personal todo categories
 - **Enable/Disable**: Toggle email notifications on/off per todo
-
+  
 ### 2. Backend Components
 - **Email Service** (`backend/src/email_service.py`): Handles SMTP email sending with beautiful HTML templates
 - **Notification Scheduler** (`backend/src/notification_scheduler.py`): Background task that checks and sends emails at scheduled times
