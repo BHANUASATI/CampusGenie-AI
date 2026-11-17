@@ -1,0 +1,15 @@
+.env
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+chroma_db/
+uploads/profile_images/*
+uploads/ai_documents/*
+.cache/
+*.log
+*.tmp
+.DS_Store
+tests/

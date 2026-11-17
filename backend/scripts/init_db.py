@@ -1,89 +1,57 @@
 """
-Database initialization script for University Management System
+Database initialisation script for Railway deployment.
+
+Runs once on first deploy:
+  1. Creates all SQLAlchemy tables (safe to re-run, uses CREATE IF NOT EXISTS).
+  2. Seeds the default admin account if no users exist.
+  3. Seeds the demo student account used by the "Demo Login" button.
+
+Run from the backend/ directory:
+    PYTHONPATH=src python3 scripts/init_db.py
 """
+from __future__ import annotations
+import sys
+import os
 
-from sqlalchemy import create_engine
-from models import Base, User, UserRole
-from auth import get_password_hash
-from config import settings
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-# Create database engine
-engine = create_engine(settings.DATABASE_URL)
+from database import SessionLocal, engine
+from models import Base, User
+from calendar_models import Base as CalendarBase
+from security import get_password_hash
 
-# Create all tables
-Base.metadata.create_all(bind=engine)
+def main() -> None:
+    print("Creating tables …")
+    Base.metadata.create_all(bind=engine)
+    CalendarBase.metadata.create_all(bind=engine)
+    print("Tables ready.")
 
-# Create session
-from sqlalchemy.orm import sessionmaker
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-db = SessionLocal()
-
-def create_sample_users():
-    """Create sample users for testing"""
-    
-    # Check if users already exist
-    existing_users = db.query(User).count()
-    if existing_users > 0:
-        print(f"Database already has {existing_users} users. Skipping sample data creation.")
-        return
-    
-    # Sample users
-    users = [
-        {
-            "email": "student@university.edu.in",
-            "password": "password",
-            "first_name": "Rahul",
-            "last_name": "Kumar Sharma",
-            "role": UserRole.STUDENT,
-            "enrollment_number": "2021CS001",
-            "course": "Computer Science",
-            "semester": 5,
-            "batch": "2021-2025",
-            "advisor": "Dr. Priya Sharma"
-        },
-        {
-            "email": "faculty@university.edu.in",
-            "password": "password",
-            "first_name": "Priya",
-            "last_name": "Sharma",
-            "role": UserRole.FACULTY,
-            "department": "Computer Science",
-            "employee_id": "FAC001"
-        },
-        {
-            "email": "admin@university.edu.in",
-            "password": "password",
-            "first_name": "System",
-            "last_name": "Administrator",
-            "role": UserRole.ADMIN
-        }
-    ]
-    
-    # Create users
-    for user_data in users:
-        password = user_data.pop("password")
-        # Use a shorter password for bcrypt compatibility
-        password = "pass123"  # 8 characters, well under 72 limit
-        hashed_password = get_password_hash(password)
-        
-        user = User(
-            password_hash=hashed_password,
-            **user_data
-        )
-        
-        db.add(user)
-        print(f"Created user: {user.email}")
-    
-    # Commit to database
-    db.commit()
-    print("Sample users created successfully!")
-
-if __name__ == "__main__":
+    db = SessionLocal()
     try:
-        create_sample_users()
-        print("Database initialization completed!")
-    except Exception as e:
-        print(f"Error initializing database: {e}")
-        db.rollback()
+        if db.query(User).count() > 0:
+            print("Users already exist — skipping seed.")
+            return
+
+        print("Seeding default accounts …")
+        accounts = [
+            ("admin@university.edu.in",      "admin123",      "admin"),
+            ("registrar@university.edu.in",  "registrar123",  "faculty"),
+            ("student@university.edu.in",    "student123",    "student"),
+            ("john.smith@university.edu.in", "faculty123",    "faculty"),
+        ]
+        for email, password, role in accounts:
+            user = User(
+                email=email,
+                password_hash=get_password_hash(password),
+                role=role,
+                is_active=True,
+                email_verified=True,
+            )
+            db.add(user)
+        db.commit()
+        print(f"Seeded {len(accounts)} accounts.")
     finally:
         db.close()
+
+if __name__ == "__main__":
+    main()
