@@ -42,9 +42,10 @@ langsmith==0.4.37
 # LLM provider
 google-generativeai==0.8.6
 
-# Embeddings + reranking (CPU-only torch to keep image size reasonable)
+# Embeddings + reranking
+# torch is installed separately in the Dockerfile as the CPU-only wheel
+# to avoid pulling the 3 GB CUDA build from PyPI.
 sentence-transformers==5.1.2
-torch==2.8.0
 
 # Vector database
 chromadb==0.4.22

@@ -15,13 +15,17 @@ WORKDIR /app
 # Copy and install Python dependencies first (layer cache)
 COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
+    # Install CPU-only torch first from PyTorch's index.
+    # --extra-index-url keeps PyPI available for torch's own deps (sympy, etc.)
+    pip install --no-cache-dir \
+        --extra-index-url https://download.pytorch.org/whl/cpu \
+        torch==2.0.1+cpu && \
     pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
 COPY . .
 
 # Pre-download the ML models at build time so the container starts fast
-# and doesn't pull ~100 MB on every cold start
 RUN python3 -c "\
 from sentence_transformers import SentenceTransformer, CrossEncoder; \
 SentenceTransformer('all-MiniLM-L6-v2'); \
