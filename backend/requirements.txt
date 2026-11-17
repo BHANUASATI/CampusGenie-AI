@@ -45,7 +45,7 @@ google-generativeai==0.8.6
 # Embeddings + reranking
 # torch is installed separately in the Dockerfile as the CPU-only wheel
 # to avoid pulling the 3 GB CUDA build from PyPI.
-sentence-transformers==5.1.2
+sentence-transformers==3.3.1
 
 # Vector database
 chromadb==0.4.22

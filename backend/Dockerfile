@@ -15,11 +15,12 @@ WORKDIR /app
 # Copy and install Python dependencies first (layer cache)
 COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
-    # Install CPU-only torch first from PyTorch's index.
+    # Install CPU-only torch from PyTorch's index.
+    # 2.6.0+cpu is the latest wheel available for cp311-linux_x86_64.
     # --extra-index-url keeps PyPI available for torch's own deps (sympy, etc.)
     pip install --no-cache-dir \
         --extra-index-url https://download.pytorch.org/whl/cpu \
-        torch==2.0.1+cpu && \
+        "torch==2.6.0+cpu" && \
     pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
