@@ -1,72 +1,60 @@
 # =========================================================================
 # CampusGenie Backend Requirements
-# =========================================================================
-# Original dependencies (FastAPI, SQLAlchemy, auth, email, etc.)
+# Exact versions from the verified local environment (macOS dev machine).
 # =========================================================================
 
+# Web framework
 fastapi==0.104.1
-PyMySQL==1.1.0          # Pure-Python MySQL driver — no libmysqlclient needed
-cryptography>=41.0.0    # Required by PyMySQL for SSL support
 uvicorn==0.24.0
+python-multipart==0.0.6
+
+# Database
 sqlalchemy==2.0.23
+PyMySQL==1.1.0
+alembic==1.13.1
+
+# Auth
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
-python-multipart==0.0.6
-pydantic[email]==2.5.0
-pydantic-settings==2.1.0
+cryptography>=41.0.0
+
+# Config / utils
+pydantic[email]==2.13.4
+pydantic-settings==2.11.0
 python-dotenv==1.0.0
-alembic==1.13.1
-msal==1.24.0
-requests==2.31.0
+requests==2.32.5
 aiohttp==3.9.1
 httpx>=0.28.1
+msal==1.24.0
 openai>=1.6.1,<2.0.0
+typing-extensions>=4.8.0
 
 # =========================================================================
-# AI Engine Dependencies (LangGraph + RAG + Embeddings + Vector Store)
+# AI Engine — LangChain ecosystem
 # =========================================================================
-
-# LangChain ecosystem
-langgraph==0.2.16
-langchain==0.2.16
-langchain-core==0.2.38
-langchain-community==0.2.16
-langchain-text-splitters==0.2.2
+langchain==0.3.30
+langchain-core==0.3.86
+langchain-community==0.3.31
+langchain-text-splitters==0.3.11
+langgraph==0.6.11
+langsmith==0.4.37
 
 # LLM provider
-google-generativeai==0.3.2
+google-generativeai==0.8.6
 
-# Embeddings + reranking
-sentence-transformers==2.2.2
-torch==2.0.1                    # PyTorch for sentence-transformers (CPU)
+# Embeddings + reranking (CPU-only torch to keep image size reasonable)
+sentence-transformers==5.1.2
+torch==2.8.0
 
 # Vector database
 chromadb==0.4.22
-# Note: ChromaDB needs these:
 hnswlib==0.7.0
-pydantic==2.5.0                 # Already listed above
 
 # Document processing
-pymupdf==1.23.8                 # PDF extraction (fitz)
-python-docx==1.1.0              # DOCX extraction
-pandas==2.1.4                   # CSV processing
-reportlab==4.0.7                # PDF generation for downloads
+pymupdf==1.23.8
+python-docx==1.1.0
+pandas==2.1.3
+reportlab==4.0.7
 
-# Neural text-to-speech for spoken assistant answers
-# The browser's speechSynthesis API cannot produce a conversational voice — it
-# exposes only rate/pitch/volume over the OS's own compact voices. This reaches
-# Microsoft's neural voices (the ones behind Edge's Read aloud), which is what
-# makes a spoken answer sound like a person rather than an announcer. No API key
-# needed. If it is unavailable the frontend falls back to the browser voice, so
-# this is an optional quality dependency, not a hard requirement.
+# Text-to-speech
 edge-tts==7.2.8
-
-# Observability (optional)
-# opentelemetry-api==1.21.0
-# LangSmith tracing for the AI engine (ai_engine/core/tracing.py).
-# Required when ENABLE_LANGSMITH_TRACING=true in backend/.env; the app starts
-# fine without it, it just stops shipping traces.
-langsmith>=0.2.0
-
-# Type hints
-typing-extensions==4.8.0
