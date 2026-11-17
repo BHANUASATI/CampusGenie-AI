@@ -36,9 +36,8 @@ print('Models cached.')"
 # Create uploads directory
 RUN mkdir -p src/uploads/profile_images src/uploads/ai_documents
 
-EXPOSE 8002
+EXPOSE 8080
 
-# 1. Run DB init (idempotent — skips if tables/users already exist)
-# 2. Start the API server
-# Railway injects PORT; fall back to 8002 for local docker runs
-CMD ["sh", "-c", "PYTHONPATH=src python3 scripts/init_db.py && cd src && python3 -m uvicorn main:app --host 0.0.0.0 --port ${PORT:-8002}"]
+# Railway always injects PORT=8080. We use it directly so the port Railway
+# proxies to matches what uvicorn actually binds.
+CMD ["sh", "-c", "PYTHONPATH=src python3 scripts/init_db.py && cd src && python3 -m uvicorn main:app --host 0.0.0.0 --port ${PORT:-8080}"]
