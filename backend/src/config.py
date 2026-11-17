@@ -12,7 +12,7 @@ class Settings(BaseSettings):
         extra="ignore"  # Allow extra fields in .env
     )
     # Database
-    DATABASE_URL: str = "mysql+mysqlconnector://root:@localhost:3306/CampusGenie"
+    DATABASE_URL: str = "mysql+pymysql://root:@localhost:3306/CampusGenie"
     
     # JWT
     SECRET_KEY: str = "your-secret-key-change-in-production"

@@ -5,6 +5,8 @@
 # =========================================================================
 
 fastapi==0.104.1
+PyMySQL==1.1.0          # Pure-Python MySQL driver — no libmysqlclient needed
+cryptography>=41.0.0    # Required by PyMySQL for SSL support
 uvicorn==0.24.0
 sqlalchemy==2.0.23
 python-jose[cryptography]==3.3.0

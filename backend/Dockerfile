@@ -1,12 +1,12 @@
 FROM python:3.11-slim
 
-# System dependencies for mysqlclient, sentence-transformers, and PDF libs
+# System dependencies for sentence-transformers, PDF libs, and MySQL client
+# libmariadb-dev replaces libmysqlclient-dev on Debian trixie (Python 3.11-slim)
 RUN apt-get update && apt-get install -y \
     gcc \
     g++ \
     pkg-config \
-    default-libmysqlclient-dev \
-    libmysqlclient-dev \
+    libmariadb-dev \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
