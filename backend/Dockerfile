@@ -14,8 +14,13 @@ WORKDIR /app
 
 # Copy and install Python dependencies first (layer cache)
 COPY requirements.txt .
+
+# Install CPU-only torch from the PyTorch CPU index first, so the CUDA wheels
+# and the nvidia-* dependency tree are never downloaded (keeps the image small)
 RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+    pip install --no-cache-dir torch==2.8.0 --index-url https://download.pytorch.org/whl/cpu
+
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
 COPY . .
