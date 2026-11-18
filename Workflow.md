@@ -4,7 +4,7 @@
 > the **LangGraph agent orchestrator**, the **RAG retrieval pipeline**, the
 > **document ingestion pipeline** (incl. table-aware DOCX extraction), LLM
 > **fallback/resilience**, memory persistence, auth, document management and
-> the frontend chat experience.
+> the frontend chat experience.  
 >
 > All diagrams are rendered from the **actual implementation** (`backend/ai_engine/**`,
 > `backend/src/**`, `frontend/src/**`), not from an aspirational spec.
