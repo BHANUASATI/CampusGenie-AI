@@ -7,10 +7,17 @@ echo "=== CampusGenie Startup ==="
 echo "[1/3] Initializing database..."
 PYTHONPATH=src python3 scripts/init_db.py
 
-# 2. Download and index documents from GitHub (skips already-indexed ones)
-echo "[2/3] Syncing knowledge base documents..."
-PYTHONPATH=src python3 - << 'PYEOF'
-import subprocess, sys, os
+# 2. Start server FIRST so Railway health check passes
+echo "[2/3] Starting API server on port ${PORT:-8080}..."
+cd src && python3 -m uvicorn main:app --host 0.0.0.0 --port ${PORT:-8080} &
+SERVER_PID=$!
+
+# 3. Wait for server to be ready, then index documents in background
+echo "[3/3] Waiting for server then syncing knowledge base..."
+sleep 15
+
+PYTHONPATH=/app/src python3 - << 'PYEOF' &
+import subprocess, sys, os, time
 sys.path.insert(0, '/app/src')
 
 REPO = "https://raw.githubusercontent.com/BHANUASATI/CampusGenie-AI/main/Documents"
@@ -32,26 +39,23 @@ files = [
 for fname in files:
     out = f"{DEST}/{fname}"
     if os.path.exists(out) and os.path.getsize(out) > 1000:
-        print(f"  already present: {fname}")
         continue
     url = f"{REPO}/{fname.replace(' ', '%20')}"
     r = subprocess.run(["curl", "-sL", url, "-o", out], capture_output=True)
     size = os.path.getsize(out) if os.path.exists(out) else 0
-    print(f"  downloaded: {fname} ({size} bytes)" if size > 1000 else f"  FAILED: {fname}")
+    print(f"  downloaded: {fname} ({size} bytes)", flush=True)
 
-# Index only files not already in ChromaDB
+# Index only new files
 from ai_engine.document_pipeline.indexer import index_document_from_path
 from ai_engine.vectorstore.manager import get_vector_store
-from ai_engine.vectorstore.collections import DOC_TYPES
 
 vs = get_vector_store()
 already = {d["source_file"] for d in vs.list_sources()}
-print(f"Already indexed: {len(already)} docs, {vs.count()} chunks")
+print(f"Already indexed: {len(already)} docs, {vs.count()} chunks", flush=True)
 
 ok = fail = 0
 for fname in files:
     if fname in already:
-        print(f"  skip (indexed): {fname}")
         continue
     fpath = f"{DEST}/{fname}"
     if not os.path.exists(fpath) or os.path.getsize(fpath) < 1000:
@@ -59,13 +63,12 @@ for fname in files:
     print(f"  indexing: {fname}...", end=" ", flush=True)
     try:
         index_document_from_path(fpath, doc_type="knowledge_base", department="all")
-        print("OK"); ok += 1
+        print("OK", flush=True); ok += 1
     except Exception as e:
-        print(f"FAIL: {e}"); fail += 1
+        print(f"FAIL: {e}", flush=True); fail += 1
 
-print(f"Knowledge base: {vs.count()} total chunks ({ok} new, {fail} failed)")
+print(f"Knowledge base ready: {vs.count()} total chunks ({ok} new, {fail} failed)", flush=True)
 PYEOF
 
-# 3. Start server
-echo "[3/3] Starting API server on port ${PORT:-8080}..."
-cd src && exec python3 -m uvicorn main:app --host 0.0.0.0 --port ${PORT:-8080}
+# Keep container alive by waiting for server process
+wait $SERVER_PID
