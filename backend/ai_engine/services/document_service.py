@@ -105,12 +105,19 @@ class DocumentService:
             )
             return stats
         except Exception as e:
-            # Clean up file on failure
-            if permanent_path.exists():
-                permanent_path.unlink()
+            # Keep the permanent file on disk so admin can retry indexing
+            # without re-uploading. Only log the failure.
+            logger.error(
+                "document.index_failed",
+                extra={
+                    "file": original_filename,
+                    "permanent_path": str(permanent_path),
+                    "error": str(e),
+                },
+            )
             raise DocumentProcessingError(
                 f"Failed to index document: {original_filename}",
-                {"error": str(e)},
+                {"error": str(e), "file_saved_at": str(permanent_path)},
             ) from e
 
     def list_documents(self) -> list:

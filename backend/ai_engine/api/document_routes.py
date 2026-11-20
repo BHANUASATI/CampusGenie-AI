@@ -46,7 +46,7 @@ def _require_admin(current_user: models.User):
 
 @router.post("/documents/upload")
 async def upload_document(
-    background_tasks: BackgroundTasks,   # FastAPI injects this automatically by type
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     doc_type: str = Form(...),
     department: str = Form("all"),
@@ -57,8 +57,7 @@ async def upload_document(
 ):
     """
     Upload and index a document.
-    
-    Processing happens in the background to avoid blocking.
+    File is saved to permanent storage first, then indexed in background.
     """
     _require_admin(current_user)
 
@@ -70,7 +69,7 @@ async def upload_document(
     service = DocumentService()
 
     def _process_and_cleanup():
-        """Run indexing then delete the temp file regardless of outcome."""
+        """Run indexing then delete the temp file. Permanent file is kept even on failure."""
         try:
             service.upload_and_index(
                 temp_path,
@@ -79,6 +78,10 @@ async def upload_document(
                 department,
                 semester,
                 academic_year,
+            )
+            logger.info(
+                "document.index_success",
+                extra={"filename": file.filename, "doc_type": doc_type},
             )
         except Exception as exc:
             logger.error(
@@ -90,11 +93,10 @@ async def upload_document(
                 },
             )
         finally:
-            # Always remove the temp file to avoid leaking disk space
+            # Only remove the temp file — permanent copy is kept by document_service
             if os.path.exists(temp_path):
                 os.unlink(temp_path)
 
-    # Process in background
     background_tasks.add_task(_process_and_cleanup)
 
     return {
@@ -102,6 +104,57 @@ async def upload_document(
         "filename": file.filename,
         "doc_type": doc_type,
         "status": "processing",
+    }
+
+
+@router.post("/documents/reindex")
+async def reindex_all_documents(
+    background_tasks: BackgroundTasks,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Re-index all documents sitting in AI_DOCUMENTS_DIR that are not yet indexed.
+    Safe to call multiple times — already-indexed files are skipped.
+    """
+    _require_admin(current_user)
+
+    from ai_engine.core.config import ai_config
+    from ai_engine.document_pipeline.indexer import index_document_from_path
+    from pathlib import Path
+
+    docs_dir = Path(ai_config.AI_DOCUMENTS_DIR)
+    allowed_ext = set(ai_config.ALLOWED_DOCUMENT_EXTENSIONS)
+
+    service = DocumentService()
+    already_indexed = {d["source_file"] for d in service.list_documents()}
+
+    files_to_index = [
+        f for f in docs_dir.iterdir()
+        if f.is_file() and f.suffix.lower() in allowed_ext and f.name not in already_indexed
+    ]
+
+    def _run_reindex():
+        indexed, failed = 0, 0
+        for f in files_to_index:
+            try:
+                index_document_from_path(
+                    file_path=str(f),
+                    doc_type="knowledge_base",
+                    department="all",
+                )
+                indexed += 1
+                logger.info("reindex.success", extra={"file": f.name})
+            except Exception as e:
+                failed += 1
+                logger.error("reindex.failed", extra={"file": f.name, "error": str(e)})
+
+    background_tasks.add_task(_run_reindex)
+
+    return {
+        "message": f"Reindex started for {len(files_to_index)} files",
+        "files_queued": [f.name for f in files_to_index],
+        "already_indexed": len(already_indexed),
     }
 
 
