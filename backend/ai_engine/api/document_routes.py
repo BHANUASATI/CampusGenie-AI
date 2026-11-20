@@ -158,7 +158,85 @@ async def reindex_all_documents(
     }
 
 
-@router.get("/documents")
+@router.post("/documents/bootstrap")
+async def bootstrap_knowledge_base(
+    background_tasks: BackgroundTasks,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Download documents from GitHub and index them.
+    Use this after a fresh deploy when the filesystem is empty.
+    Safe to call multiple times — already-indexed files are skipped.
+    """
+    _require_admin(current_user)
+
+    REPO = "https://raw.githubusercontent.com/BHANUASATI/CampusGenie-AI/main/Documents"
+    DEST = "/app/uploads/ai_documents"
+    FILES = [
+        "KRMU_Attendance_Policy_RAG_Knowledge_Base_v3.docx",
+        "KRMU_Academic_Timetable_Notice_MCA_BCA_BTech_RAG_v1.docx",
+        "KRMU_Hostel_Residential_Life_Policy_RAG_v1.docx",
+        "KRMU_Campus_Event_Notice_RAG_v1.docx",
+        "KRMU_Semester_Fee_Submission_Notice_2026_27.docx",
+        "KR_Mangalam_University_EDM_Fest_2026_Event_Document.docx",
+        "KRMU_Master_Timetable_RAG_Test_v2.docx",
+        "MCA2025-27Handbook_Core(14-07-25).pdf",
+    ]
+
+    def _run():
+        import subprocess
+        import os
+        from pathlib import Path
+        from ai_engine.document_pipeline.indexer import index_document_from_path
+        from ai_engine.vectorstore.manager import get_vector_store
+
+        Path(DEST).mkdir(parents=True, exist_ok=True)
+        vs = get_vector_store()
+        already = {d["source_file"] for d in vs.list_sources()}
+
+        downloaded = ok = fail = 0
+        for fname in FILES:
+            out = os.path.join(DEST, fname)
+            # Download if missing
+            size = os.path.getsize(out) if os.path.exists(out) else 0
+            if size < 1000:
+                import urllib.parse
+                url = f"{REPO}/{urllib.parse.quote(fname)}"
+                subprocess.run(["curl", "-sL", url, "-o", out], capture_output=True)
+                size = os.path.getsize(out) if os.path.exists(out) else 0
+                if size > 1000:
+                    downloaded += 1
+                    logger.info("bootstrap.downloaded", extra={"file": fname, "size": size})
+                else:
+                    logger.error("bootstrap.download_failed", extra={"file": fname})
+                    continue
+
+            # Index if not already done
+            if fname in already:
+                logger.info("bootstrap.skip_indexed", extra={"file": fname})
+                continue
+            try:
+                index_document_from_path(out, doc_type="knowledge_base", department="all")
+                ok += 1
+                logger.info("bootstrap.indexed", extra={"file": fname})
+            except Exception as e:
+                fail += 1
+                logger.error("bootstrap.index_failed", extra={"file": fname, "error": str(e)})
+
+        total = vs.count()
+        logger.info("bootstrap.done", extra={
+            "total_chunks": total, "downloaded": downloaded,
+            "indexed": ok, "failed": fail
+        })
+
+    background_tasks.add_task(_run)
+
+    return {
+        "message": "Bootstrap started — downloading and indexing documents in background",
+        "files": FILES,
+        "status": "running",
+    }
 async def list_documents(
     current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db),
