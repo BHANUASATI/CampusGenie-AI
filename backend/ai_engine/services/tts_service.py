@@ -314,8 +314,8 @@ async def _synthesize_cartesia(sentences: List[str], voice_id: str, forced_langu
         raise TTSUnavailable("CARTESIA_API_KEY is not configured")
 
     model_id = os.environ.get("CARTESIA_MODEL_ID", "sonic-latest")
-    english_voice = os.environ.get("CARTESIA_VOICE_ID", "62ae83ad-4f6a-430b-af41-a9bede9286ca")
-    hindi_voice   = os.environ.get("CARTESIA_HINDI_VOICE_ID", "6b02ffe5-e3cb-48c0-a023-c72f85953375")
+    english_voice = os.environ.get("CARTESIA_VOICE_ID", "c894559e-d529-4d70-a6fb-3330ecf7ef6b")
+    hindi_voice   = os.environ.get("CARTESIA_HINDI_VOICE_ID", "a81fccdc-5595-4dfc-ae76-4de6a515b8a2")
     url = "https://api.cartesia.ai/tts/bytes"
     headers = {
         "X-API-Key": api_key,
@@ -517,8 +517,8 @@ def catalogue() -> Dict[str, object]:
 
     if provider == "cartesia":
         available = bool((os.environ.get("CARTESIA_API_KEY") or "").strip())
-        english_voice_id = os.environ.get("CARTESIA_VOICE_ID", "62ae83ad-4f6a-430b-af41-a9bede9286ca")
-        hindi_voice_id   = os.environ.get("CARTESIA_HINDI_VOICE_ID", "6b02ffe5-e3cb-48c0-a023-c72f85953375")
+        english_voice_id = os.environ.get("CARTESIA_VOICE_ID", "c894559e-d529-4d70-a6fb-3330ecf7ef6b")
+        hindi_voice_id   = os.environ.get("CARTESIA_HINDI_VOICE_ID", "a81fccdc-5595-4dfc-ae76-4de6a515b8a2")
         return {
             "provider": "cartesia",
             "available": available,

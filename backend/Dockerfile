@@ -26,12 +26,33 @@ RUN pip install --no-cache-dir --upgrade pip && \
 # Copy application code
 COPY . .
 
-# Pre-download the ML models at build time so the container starts fast
+# Pre-download the ML models AND knowledge base documents at build time
+# so the container starts with everything ready — no runtime downloads needed.
 RUN python3 -c "\
 from sentence_transformers import SentenceTransformer, CrossEncoder; \
 SentenceTransformer('all-MiniLM-L6-v2'); \
 CrossEncoder('cross-encoder/ms-marco-MiniLM-L-6-v2'); \
 print('Models cached.')"
+
+# Download knowledge base documents from GitHub at build time
+RUN mkdir -p uploads/ai_documents && \
+    REPO="https://raw.githubusercontent.com/BHANUASATI/CampusGenie-AI/main/Documents" && \
+    for f in \
+        "KRMU_Attendance_Policy_RAG_Knowledge_Base_v3.docx" \
+        "KRMU_Academic_Timetable_Notice_MCA_BCA_BTech_RAG_v1.docx" \
+        "KRMU_Hostel_Residential_Life_Policy_RAG_v1.docx" \
+        "KRMU_Campus_Event_Notice_RAG_v1.docx" \
+        "KRMU_Semester_Fee_Submission_Notice_2026_27.docx" \
+        "KR_Mangalam_University_EDM_Fest_2026_Event_Document.docx" \
+        "KRMU_Master_Timetable_RAG_Test_v2.docx" \
+        "MCA2025-27Handbook_Core(14-07-25).pdf"; do \
+        encoded=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))" "$f"); \
+        curl -sL "$REPO/$encoded" -o "uploads/ai_documents/$f" && \
+        echo "Downloaded: $f"; \
+    done
+
+# Index all documents into ChromaDB at build time
+RUN PYTHONPATH=src python3 scripts/index_docs.py
 
 # Create uploads directory
 RUN mkdir -p src/uploads/profile_images src/uploads/ai_documents
