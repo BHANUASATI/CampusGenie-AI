@@ -9,28 +9,9 @@ GREETING_RESPONSE = """Hello! I'm **CampusGenie**, your AI academic assistant. ð
 How can I help you today?"""
 
 
-NO_INFORMATION_RESPONSE = """I couldn't find specific information about this in my current knowledge base.
+NO_INFORMATION_RESPONSE = """Yaar, yeh specific info mere paas nahi hai abhi. Department se directly poochh lena ya notice board check kar â€” wahan accurate milega.
 
-This could mean:
-- The information hasn't been added to the system yet
-- Your question might need to be rephrased
-- The specific document isn't indexed
-
-**Suggested contacts:**
-- **Academic Office**: For course and curriculum queries
-- **Examination Cell**: For exam schedules and results  
-- **Department Office**: For department-specific policies
-- **Registrar**: For enrollment and attendance records
-- **Placement Cell**: For placement-related queries
-
-**Try asking about:**
-- Course requirements and syllabus
-- Attendance policies and minimum requirements
-- Exam schedules and grading patterns
-- Faculty information and office hours
-- University general policies
-
-Is there anything else I can help you with?"""
+(If you prefer English: I don't have that info in my knowledge base right now. Check with your department directly for accurate details.)"""
 
 
 RATE_LIMIT_RESPONSE = """I'm processing too many requests right now. Please wait a moment and try again.
