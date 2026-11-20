@@ -182,6 +182,9 @@ backend/uploads/ai_documents/*
 !backend/uploads/ai_documents/.gitkeep
 media/
 *.pdf
+# Allow Documents folder for Railway deployment
+!Documents/*.pdf
+!Documents/*.docx
 *.jpg
 *.jpeg
 *.png
