@@ -299,6 +299,63 @@ async def _synthesize_openai(sentences: List[str], voice: str, instructions: str
     return [await result.aread()]
 
 
+async def _synthesize_cartesia(sentences: List[str], voice_id: str) -> List[bytes]:
+    """Synthesise with Cartesia's sonic-2 model.
+
+    Cartesia produces MP3 audio via a simple REST API. One request per sentence
+    keeps the per-sentence caching intact and matches the edge-tts pattern.
+    Voice id defaults to CARTESIA_VOICE_ID env var, then the value passed in.
+    """
+    import aiohttp
+
+    api_key = (os.environ.get("CARTESIA_API_KEY") or "").strip()
+    if not api_key:
+        raise TTSUnavailable("CARTESIA_API_KEY is not configured")
+
+    model_id = os.environ.get("CARTESIA_MODEL_ID", "sonic-latest")
+    url = "https://api.cartesia.ai/tts/bytes"
+    headers = {
+        "X-API-Key": api_key,
+        "Cartesia-Version": "2024-06-10",
+        "Content-Type": "application/json",
+    }
+
+    async def _one(sentence: str) -> bytes:
+        payload = {
+            "model_id": model_id,
+            "transcript": sentence,
+            "voice": {"mode": "id", "id": voice_id},
+            "output_format": {
+                "container": "mp3",
+                "encoding": "mp3",
+                "sample_rate": 44100,
+            },
+            "language": "en",
+        }
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    url, json=payload, headers=headers, timeout=aiohttp.ClientTimeout(total=20)
+                ) as resp:
+                    if resp.status != 200:
+                        body = await resp.text()
+                        raise TTSUnavailable(
+                            f"Cartesia returned {resp.status}: {body[:200]}"
+                        )
+                    audio = await resp.read()
+                    if not audio:
+                        raise TTSUnavailable("Cartesia produced no audio")
+                    return audio
+        except TTSUnavailable:
+            raise
+        except Exception as exc:
+            raise TTSUnavailable(f"Cartesia synthesis failed: {exc}") from exc
+
+    if not sentences:
+        return []
+    return list(await asyncio.gather(*[_one(s) for s in sentences]))
+
+
 async def _synthesize_google(sentences: List[str], voice: str) -> List[bytes]:
     """Synthesise with Google Cloud Text-to-Speech.
 
@@ -403,6 +460,11 @@ async def synthesize(
             blobs = await _synthesize_openai(wanted, chosen_voice, instructions)
         elif chosen_provider == "google":
             blobs = await _synthesize_google(wanted, chosen_voice)
+        elif chosen_provider == "cartesia":
+            cartesia_voice = (
+                os.environ.get("CARTESIA_VOICE_ID") or chosen_voice
+            ).strip()
+            blobs = await _synthesize_cartesia(wanted, cartesia_voice)
         else:
             raise TTSUnavailable(f"unknown TTS provider {chosen_provider!r}")
 
@@ -433,7 +495,25 @@ def catalogue() -> Dict[str, object]:
     provider = (os.environ.get("TTS_PROVIDER") or "edge").strip().lower()
     key = (os.environ.get("OPENAI_API_KEY") or "").strip()
 
-    if provider == "openai":
+    if provider == "cartesia":
+        available = bool((os.environ.get("CARTESIA_API_KEY") or "").strip())
+        cartesia_voice_id = (
+            os.environ.get("CARTESIA_VOICE_ID") or "47f3bbb1-e98f-4e0c-92c5-5f0325e1e206"
+        )
+        return {
+            "provider": "cartesia",
+            "available": available,
+            "default": cartesia_voice_id,
+            "voices": [
+                {
+                    "id": cartesia_voice_id,
+                    "label": "Cartesia Voice",
+                    "locale": "en-US",
+                    "gender": "neutral",
+                }
+            ],
+        }
+    elif provider == "openai":
         available = bool(key) and not key.lower().startswith("your-")
     elif provider == "google":
         available = bool((os.environ.get("GOOGLE_TTS_ACCESS_TOKEN") or "").strip())
