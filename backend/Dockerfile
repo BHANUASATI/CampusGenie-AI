@@ -52,7 +52,8 @@ RUN mkdir -p uploads/ai_documents && \
     done
 
 # Index all documents into ChromaDB at build time
-RUN PYTHONPATH=src python3 scripts/index_docs.py
+# PYTHONPATH needs both /app (for ai_engine) and /app/src (for src modules)
+RUN PYTHONPATH=/app:/app/src python3 scripts/index_docs.py
 
 # Create uploads directory
 RUN mkdir -p src/uploads/profile_images src/uploads/ai_documents

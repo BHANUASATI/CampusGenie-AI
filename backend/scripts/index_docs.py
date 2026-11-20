@@ -1,16 +1,19 @@
 """
-Idempotent document indexer — called by startup.sh after server is ready.
-Indexes any files in AI_DOCUMENTS_DIR not already in ChromaDB.
+Idempotent document indexer — called by Dockerfile at build time and startup.sh at runtime.
+Indexes any files in uploads/ai_documents not already in ChromaDB.
 """
 import sys
 import os
 
-sys.path.insert(0, "/app/src")
+# Support both build-time (/app) and runtime (/app/src) contexts
+_BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # /app
+sys.path.insert(0, _BASE)
+sys.path.insert(0, os.path.join(_BASE, "src"))
 
 from ai_engine.document_pipeline.indexer import index_document_from_path
 from ai_engine.vectorstore.manager import get_vector_store
 
-DEST = "/app/uploads/ai_documents"
+DEST = os.path.join(_BASE, "uploads", "ai_documents")
 FILES = [
     "KRMU_Attendance_Policy_RAG_Knowledge_Base_v3.docx",
     "KRMU_Academic_Timetable_Notice_MCA_BCA_BTech_RAG_v1.docx",
