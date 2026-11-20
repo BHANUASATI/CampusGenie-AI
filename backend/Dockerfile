@@ -38,6 +38,8 @@ RUN mkdir -p src/uploads/profile_images src/uploads/ai_documents
 
 EXPOSE 8080
 
-# Railway always injects PORT=8080. We use it directly so the port Railway
-# proxies to matches what uvicorn actually binds.
-CMD ["sh", "-c", "PYTHONPATH=src python3 scripts/init_db.py && cd src && python3 -m uvicorn main:app --host 0.0.0.0 --port ${PORT:-8080}"]
+# Startup script: download+index documents, init DB, start server
+COPY scripts/startup.sh /app/startup.sh
+RUN chmod +x /app/startup.sh
+
+CMD ["/app/startup.sh"]
