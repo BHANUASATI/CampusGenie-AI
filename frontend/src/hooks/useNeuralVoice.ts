@@ -148,9 +148,8 @@ export const useNeuralVoice = () => {
   }, []);
 
   const speak = useCallback(
-    async (text: string): Promise<SpeakResult> => {
+    async (text: string, language?: string): Promise<SpeakResult> => {
       if (!state.isSupported) {
-        // No neural voice here; the caller speaks the whole text itself.
         return { complete: false, remainder: text };
       }
 
@@ -184,7 +183,8 @@ export const useNeuralVoice = () => {
           try {
             const { blob } = await aiAssistantService.speak(
               chunks[index],
-              state.currentVoice ?? undefined
+              state.currentVoice ?? undefined,
+              language
             );
             if (token !== tokenRef.current) return false;
             bufferRef.current.set(index, blob);

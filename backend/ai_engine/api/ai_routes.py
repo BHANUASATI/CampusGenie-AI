@@ -254,6 +254,36 @@ async def send_message(
     db.commit()
     db.refresh(conv)
 
+    # ── Detect language of user message for TTS voice selection ─────────────
+    def _detect_language(text: str) -> str:
+        """
+        Returns 'hi' for Hindi/Hinglish, 'en' for English.
+        Hinglish = Roman script Hindi words → 'hi' (use Hindi voice).
+        Detection heuristic:
+          - Any Devanagari char → 'hi'
+          - Common Hindi Roman words present → 'hi' (Hinglish)
+          - Otherwise → 'en'
+        """
+        # Devanagari unicode range
+        if any("\u0900" <= ch <= "\u097F" for ch in text):
+            return "hi"
+        # Common Hinglish indicators (Roman script Hindi)
+        hinglish_words = {
+            "kya", "hai", "meri", "mera", "mere", "kab", "kaise", "kyun",
+            "kyunki", "aur", "bhi", "nahi", "nhi", "hain", "tha", "thi",
+            "bhai", "yaar", "chahiye", "batao", "bata", "karo", "karna",
+            "mujhe", "humko", "apna", "apni", "isko", "usko", "kitna",
+            "kitni", "kaun", "kaisa", "kaisi", "theek", "sahi", "galat",
+            "padhai", "college", "fees", "hostel", "attendance", "semester",
+            "sir", "madam", "please", "abhi", "pehle", "baad", "phir",
+        }
+        words = set(text.lower().split())
+        if len(words & hinglish_words) >= 1:
+            return "hi"
+        return "en"
+
+    tts_language = _detect_language(message_data.content)
+
     # ── Build rich ai_message response with metadata from agent_response ────
     ai_msg_dict = {
         "id": ai_msg.id,
@@ -261,6 +291,7 @@ async def send_message(
         "sender_type": ai_msg.sender_type,
         "created_at": ai_msg.created_at.isoformat() if ai_msg.created_at else None,
         "confidence": getattr(agent_response, "confidence", None),
+        "tts_language": tts_language,  # 'hi' or 'en' — frontend passes this to TTS
         "sources": [
             {"filename": s.filename, "doc_type": s.doc_type, "relevance": s.relevance}
             for s in (getattr(agent_response, "sources", None) or [])

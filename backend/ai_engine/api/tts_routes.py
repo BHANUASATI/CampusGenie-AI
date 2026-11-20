@@ -41,8 +41,9 @@ MAX_CHARS = 4000
 
 class SpeakRequest(BaseModel):
     text: str = Field(..., description="Plain prose. Markdown must already be stripped.")
-    voice: Optional[str] = Field(None, description="Neural voice id, e.g. en-US-JennyNeural")
+    voice: Optional[str] = Field(None, description="Neural voice id")
     provider: Optional[str] = Field(None, description="Override TTS_PROVIDER for this call")
+    language: Optional[str] = Field(None, description="'hi' for Hindi/Hinglish, 'en' for English")
 
 
 @router.get("/tts/voices")
@@ -70,7 +71,7 @@ async def speak(
         )
 
     try:
-        audio, voice = await synthesize(text, request.voice, request.provider)
+        audio, voice = await synthesize(text, request.voice, request.provider, request.language)
     except TTSUnavailable as exc:
         # Not an error the user caused, and not something they can fix by
         # retrying the same call. The frontend's response is to use the browser

@@ -407,8 +407,9 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ isOpen, onClose }) => {
       // speak — all of it, or the part after a stalled chunk — is spoken here
       // with the browser voice. The answer is never left partly silent.
       if (voiceMode && richAiMsg.content) {
+        const ttsLang = response.ai_message.tts_language ?? undefined;
         if (usingNeuralVoice) {
-          void neuralVoice.speak(richAiMsg.content).then((result) => {
+          void neuralVoice.speak(richAiMsg.content, ttsLang).then((result) => {
             if (result.remainder && voiceMode) textToSpeech.speak(result.remainder);
           });
         } else {
@@ -927,40 +928,9 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ isOpen, onClose }) => {
                   used to re-break the audio. */}
               {voiceMode && (
                 <div className="cg-ai-tts-status">
-                  <span>🔊 Voice responses enabled</span>
-                  {usingNeuralVoice && neuralVoice.voices.length > 0 ? (
-                    <label className="cg-ai-voice-picker">
-                      <span className="cg-ai-voice-picker-label">Voice</span>
-                      <select
-                        className="cg-ai-voice-select"
-                        value={neuralVoice.currentVoice ?? ''}
-                        onChange={(e) => neuralVoice.setVoice(e.target.value)}
-                        aria-label="Voice used for spoken answers"
-                      >
-                        {neuralVoice.voices.map((v) => (
-                          <option key={v.id} value={v.id}>
-                            {v.label} · {v.locale}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                  ) : browserVoiceChoices.length > 0 ? (
-                    <label className="cg-ai-voice-picker">
-                      <span className="cg-ai-voice-picker-label">Voice</span>
-                      <select
-                        className="cg-ai-voice-select"
-                        value={textToSpeech.currentVoice?.name ?? ''}
-                        onChange={(e) => textToSpeech.setVoice(e.target.value)}
-                        aria-label="Voice used for spoken answers"
-                      >
-                        {browserVoiceChoices.map((v) => (
-                          <option key={v.voiceURI} value={v.name}>
-                            {v.name.replace(/\s*\(.*\)\s*$/, '')} · {v.lang}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                  ) : null}
+                  <span>🔊 Voice responses enabled
+                    {usingNeuralVoice && ' · Auto Hindi/English'}
+                  </span>
                 </div>
               )}
 

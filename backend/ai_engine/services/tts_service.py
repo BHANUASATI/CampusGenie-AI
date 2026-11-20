@@ -299,12 +299,13 @@ async def _synthesize_openai(sentences: List[str], voice: str, instructions: str
     return [await result.aread()]
 
 
-async def _synthesize_cartesia(sentences: List[str], voice_id: str) -> List[bytes]:
+async def _synthesize_cartesia(sentences: List[str], voice_id: str, forced_language: Optional[str] = None) -> List[bytes]:
     """Synthesise with Cartesia sonic-latest.
 
-    Auto-detects language per sentence:
-    - Hindi (Devanagari script) → CARTESIA_HINDI_VOICE_ID + language="hi"
-    - Everything else           → CARTESIA_VOICE_ID (English) + language="en"
+    Language selection per sentence:
+    - forced_language='hi' → always Hindi voice (for Hinglish responses)
+    - forced_language='en' → always English voice
+    - forced_language=None → auto-detect per sentence from Devanagari script
     """
     import aiohttp
 
@@ -322,14 +323,18 @@ async def _synthesize_cartesia(sentences: List[str], voice_id: str) -> List[byte
         "Content-Type": "application/json",
     }
 
-    def _is_hindi(text: str) -> bool:
-        """True when the sentence contains Devanagari characters (Hindi script)."""
-        return any("\u0900" <= ch <= "\u097F" for ch in text)
+    def _pick(sentence: str):
+        """Return (voice_id, language_code) for this sentence."""
+        if forced_language == "hi":
+            return hindi_voice, "hi"
+        if forced_language == "en":
+            return english_voice, "en"
+        # Auto-detect: Devanagari → Hindi, else English
+        is_hi = any("\u0900" <= ch <= "\u097F" for ch in sentence)
+        return (hindi_voice, "hi") if is_hi else (english_voice, "en")
 
     async def _one(sentence: str) -> bytes:
-        is_hindi = _is_hindi(sentence)
-        lang = "hi" if is_hindi else "en"
-        vid  = hindi_voice if is_hindi else english_voice
+        vid, lang = _pick(sentence)
         payload = {
             "model_id": model_id,
             "transcript": sentence,
@@ -422,11 +427,13 @@ async def synthesize(
     text: str,
     voice: Optional[str] = None,
     provider: Optional[str] = None,
+    language: Optional[str] = None,
 ) -> Tuple[bytes, str]:
     """Return (mp3 bytes, voice id) for the given text.
 
-    The caller is expected to have already stripped markdown; this module
-    speaks prose, not a chat transcript.
+    language: 'hi' = Hindi/Hinglish voice for all sentences,
+              'en' = English voice for all sentences,
+              None = auto-detect per sentence from script.
     """
     text = (text or "").strip()
     if not text:
@@ -434,13 +441,9 @@ async def synthesize(
 
     chosen_provider = (provider or os.environ.get("TTS_PROVIDER") or "edge").strip().lower()
 
-    # For Cartesia, always use CARTESIA_VOICE_ID env var (or the passed voice if
-    # it looks like a UUID). Do NOT run it through resolve_voice() which only
-    # knows Edge TTS voice names and would silently replace it with JennyNeural.
     if chosen_provider == "cartesia":
-        # For Cartesia, voice is chosen per-sentence based on language detection.
-        # Use a fixed placeholder so the cache key still works correctly.
-        chosen_voice = "cartesia-auto"
+        # Cache key includes language hint so hi/en/auto cache separately
+        chosen_voice = f"cartesia-{language or 'auto'}"
     else:
         chosen_voice = resolve_voice(voice)
 
@@ -481,7 +484,7 @@ async def synthesize(
         elif chosen_provider == "google":
             blobs = await _synthesize_google(wanted, chosen_voice)
         elif chosen_provider == "cartesia":
-            blobs = await _synthesize_cartesia(wanted, chosen_voice)
+            blobs = await _synthesize_cartesia(wanted, chosen_voice, forced_language=language)
         else:
             raise TTSUnavailable(f"unknown TTS provider {chosen_provider!r}")
 

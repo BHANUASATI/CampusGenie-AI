@@ -485,11 +485,7 @@ export const aiAssistantService = {
 
   // Synthesise plain prose as MP3. Returns the blob plus the voice that
   // actually spoke, which is the only way to notice a silent substitution.
-  speak: async (text: string, voice?: string) => {
-    // The neural provider throttles under load and a request can sit for a long
-    // time before it either completes or gives up. The browser voice is always
-    // available as a fallback, so it is never worth waiting longer than this for
-    // the better one — past this point the user gets the fallback instead.
+  speak: async (text: string, voice?: string, language?: string) => {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), TTS_TIMEOUT_MS);
 
@@ -503,7 +499,7 @@ export const aiAssistantService = {
             ? { Authorization: `Bearer ${localStorage.getItem('authToken')}` }
             : {}),
         },
-        body: JSON.stringify({ text, voice }),
+        body: JSON.stringify({ text, voice, language }),
       });
 
       if (!response.ok) {
