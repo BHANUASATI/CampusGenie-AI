@@ -3,7 +3,9 @@ import { aiAssistantService } from '../services/api';
 import { useVoiceRecognition } from '../hooks/useVoiceRecognition';
 import { useTextToSpeech, curatedVoices } from '../hooks/useTextToSpeech';
 import { useNeuralVoice } from '../hooks/useNeuralVoice';
+import { VoiceChat } from './VoiceChat';
 import './AIAssistant.css';
+import './VoiceChat.css';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -245,6 +247,7 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ isOpen, onClose }) => {
   const neuralVoice = useNeuralVoice();
   const textToSpeech = useTextToSpeech({ lang: 'en-US' });
   const [voiceMode, setVoiceMode] = useState(false);
+  const [voiceChatOpen, setVoiceChatOpen] = useState(false);
   // The platform reports 180 browser voices; only the natural ones are worth
   // offering. Neural voices come from the backend and are preferred when present.
   const browserVoiceChoices = curatedVoices(textToSpeech.availableVoices, 'en-US');
@@ -910,6 +913,30 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ isOpen, onClose }) => {
                     </svg>
                   )}
                 </button>
+
+                {/* Live Voice Chat button — Siri-style */}
+                <button
+                  className="cg-ai-voice-chat-btn"
+                  onClick={() => setVoiceChatOpen(true)}
+                  title="Live voice conversation"
+                  style={{
+                    background: 'linear-gradient(135deg,#6366f1,#4f46e5)',
+                    border: 'none',
+                    borderRadius: '50%',
+                    width: '34px',
+                    height: '34px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    flexShrink: 0,
+                    boxShadow: '0 2px 8px rgba(99,102,241,0.4)',
+                    color: '#fff',
+                    fontSize: '1rem',
+                  }}
+                >
+                  🎙
+                </button>
               </div>
               
               {/* Voice status indicator */}
@@ -951,6 +978,9 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ isOpen, onClose }) => {
 
       </div>
     </div>
+
+    {/* Siri-style live voice conversation */}
+    <VoiceChat isOpen={voiceChatOpen} onClose={() => setVoiceChatOpen(false)} />
   );
 };
 
