@@ -300,11 +300,11 @@ async def _synthesize_openai(sentences: List[str], voice: str, instructions: str
 
 
 async def _synthesize_cartesia(sentences: List[str], voice_id: str) -> List[bytes]:
-    """Synthesise with Cartesia's sonic-2 model.
+    """Synthesise with Cartesia sonic-latest.
 
-    Cartesia produces MP3 audio via a simple REST API. One request per sentence
-    keeps the per-sentence caching intact and matches the edge-tts pattern.
-    Voice id defaults to CARTESIA_VOICE_ID env var, then the value passed in.
+    Auto-detects language per sentence:
+    - Hindi (Devanagari script) → CARTESIA_HINDI_VOICE_ID + language="hi"
+    - Everything else           → CARTESIA_VOICE_ID (English) + language="en"
     """
     import aiohttp
 
@@ -313,6 +313,8 @@ async def _synthesize_cartesia(sentences: List[str], voice_id: str) -> List[byte
         raise TTSUnavailable("CARTESIA_API_KEY is not configured")
 
     model_id = os.environ.get("CARTESIA_MODEL_ID", "sonic-latest")
+    english_voice = os.environ.get("CARTESIA_VOICE_ID", "62ae83ad-4f6a-430b-af41-a9bede9286ca")
+    hindi_voice   = os.environ.get("CARTESIA_HINDI_VOICE_ID", "6b02ffe5-e3cb-48c0-a023-c72f85953375")
     url = "https://api.cartesia.ai/tts/bytes"
     headers = {
         "X-API-Key": api_key,
@@ -320,22 +322,30 @@ async def _synthesize_cartesia(sentences: List[str], voice_id: str) -> List[byte
         "Content-Type": "application/json",
     }
 
+    def _is_hindi(text: str) -> bool:
+        """True when the sentence contains Devanagari characters (Hindi script)."""
+        return any("\u0900" <= ch <= "\u097F" for ch in text)
+
     async def _one(sentence: str) -> bytes:
+        is_hindi = _is_hindi(sentence)
+        lang = "hi" if is_hindi else "en"
+        vid  = hindi_voice if is_hindi else english_voice
         payload = {
             "model_id": model_id,
             "transcript": sentence,
-            "voice": {"mode": "id", "id": voice_id},
+            "voice": {"mode": "id", "id": vid},
             "output_format": {
                 "container": "mp3",
                 "encoding": "mp3",
                 "sample_rate": 44100,
             },
-            "language": "en",
+            "language": lang,
         }
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.post(
-                    url, json=payload, headers=headers, timeout=aiohttp.ClientTimeout(total=20)
+                    url, json=payload, headers=headers,
+                    timeout=aiohttp.ClientTimeout(total=20)
                 ) as resp:
                     if resp.status != 200:
                         body = await resp.text()
@@ -428,11 +438,9 @@ async def synthesize(
     # it looks like a UUID). Do NOT run it through resolve_voice() which only
     # knows Edge TTS voice names and would silently replace it with JennyNeural.
     if chosen_provider == "cartesia":
-        cartesia_default = os.environ.get(
-            "CARTESIA_VOICE_ID", "47f3bbb1-e98f-4e0c-92c5-5f0325e1e206"
-        )
-        # Accept an explicit UUID passed by the caller, otherwise use the env var
-        chosen_voice = (voice or "").strip() if (voice and "-" in voice and len(voice) > 30) else cartesia_default
+        # For Cartesia, voice is chosen per-sentence based on language detection.
+        # Use a fixed placeholder so the cache key still works correctly.
+        chosen_voice = "cartesia-auto"
     else:
         chosen_voice = resolve_voice(voice)
 
@@ -506,20 +514,26 @@ def catalogue() -> Dict[str, object]:
 
     if provider == "cartesia":
         available = bool((os.environ.get("CARTESIA_API_KEY") or "").strip())
-        cartesia_voice_id = (
-            os.environ.get("CARTESIA_VOICE_ID") or "47f3bbb1-e98f-4e0c-92c5-5f0325e1e206"
-        )
+        english_voice_id = os.environ.get("CARTESIA_VOICE_ID", "62ae83ad-4f6a-430b-af41-a9bede9286ca")
+        hindi_voice_id   = os.environ.get("CARTESIA_HINDI_VOICE_ID", "6b02ffe5-e3cb-48c0-a023-c72f85953375")
         return {
             "provider": "cartesia",
             "available": available,
-            "default": cartesia_voice_id,
+            "default": english_voice_id,
+            "auto_language": True,
             "voices": [
                 {
-                    "id": cartesia_voice_id,
-                    "label": "Cartesia Voice",
+                    "id": english_voice_id,
+                    "label": "English Voice",
                     "locale": "en-US",
                     "gender": "neutral",
-                }
+                },
+                {
+                    "id": hindi_voice_id,
+                    "label": "Hindi Voice",
+                    "locale": "hi-IN",
+                    "gender": "neutral",
+                },
             ],
         }
     elif provider == "openai":
