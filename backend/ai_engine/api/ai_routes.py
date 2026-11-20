@@ -274,8 +274,7 @@ async def send_message(
             "bhai", "yaar", "chahiye", "batao", "bata", "karo", "karna",
             "mujhe", "humko", "apna", "apni", "isko", "usko", "kitna",
             "kitni", "kaun", "kaisa", "kaisi", "theek", "sahi", "galat",
-            "padhai", "college", "fees", "hostel", "attendance", "semester",
-            "sir", "madam", "please", "abhi", "pehle", "baad", "phir",
+            "sir", "madam", "abhi", "pehle", "baad", "phir", "padhai",
         }
         words = set(text.lower().split())
         if len(words & hinglish_words) >= 1:
