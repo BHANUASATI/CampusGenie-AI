@@ -422,8 +422,20 @@ async def synthesize(
     if not text:
         raise TTSUnavailable("no text to speak")
 
-    chosen_voice = resolve_voice(voice)
     chosen_provider = (provider or os.environ.get("TTS_PROVIDER") or "edge").strip().lower()
+
+    # For Cartesia, always use CARTESIA_VOICE_ID env var (or the passed voice if
+    # it looks like a UUID). Do NOT run it through resolve_voice() which only
+    # knows Edge TTS voice names and would silently replace it with JennyNeural.
+    if chosen_provider == "cartesia":
+        cartesia_default = os.environ.get(
+            "CARTESIA_VOICE_ID", "47f3bbb1-e98f-4e0c-92c5-5f0325e1e206"
+        )
+        # Accept an explicit UUID passed by the caller, otherwise use the env var
+        chosen_voice = (voice or "").strip() if (voice and "-" in voice and len(voice) > 30) else cartesia_default
+    else:
+        chosen_voice = resolve_voice(voice)
+
     rate = os.environ.get("TTS_RATE", "-4%")
     instructions = os.environ.get(
         "TTS_INSTRUCTIONS",
@@ -461,10 +473,7 @@ async def synthesize(
         elif chosen_provider == "google":
             blobs = await _synthesize_google(wanted, chosen_voice)
         elif chosen_provider == "cartesia":
-            cartesia_voice = (
-                os.environ.get("CARTESIA_VOICE_ID") or chosen_voice
-            ).strip()
-            blobs = await _synthesize_cartesia(wanted, cartesia_voice)
+            blobs = await _synthesize_cartesia(wanted, chosen_voice)
         else:
             raise TTSUnavailable(f"unknown TTS provider {chosen_provider!r}")
 
