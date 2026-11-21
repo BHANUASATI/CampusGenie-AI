@@ -590,29 +590,30 @@ def create_student(
         db.add(student)
         db.commit()
         
-        # Send credentials via email if email service is configured
+        # Send credentials email in a background thread — never block the response
         email_sent = False
         if email_service.is_configured():
-            try:
-                student_name = f"{student_data.first_name} {student_data.last_name}"
-                email_sent = email_service.send_email(
-                    to_email=student_data.personal_email,
-                    subject="🎓 Your CampusGenie Account Credentials",
-                    html_content=_build_credentials_email(
-                        name=student_name,
-                        login_email=student_data.email,
-                        password=student_data.password,
-                    ),
-                    text_content=(
-                        f"Hello {student_name},\n\n"
-                        f"Login Email: {student_data.email}\n"
-                        f"Password: {student_data.password}\n\n"
-                        f"Please change your password after first login.\n\nCampusGenie Team"
-                    ),
-                )
-            except Exception as e:
-                print(f"Failed to send email: {str(e)}")
-                email_sent = False
+            import threading
+            student_name = f"{student_data.first_name} {student_data.last_name}"
+            def _send_student_email():
+                try:
+                    email_service.send_email(
+                        to_email=student_data.personal_email,
+                        subject="🎓 Your CampusGenie Account Credentials",
+                        html_content=_build_credentials_email(
+                            name=student_name,
+                            login_email=student_data.email,
+                            password=student_data.password,
+                        ),
+                        text_content=(
+                            f"Hello {student_name},\n\nLogin Email: {student_data.email}\n"
+                            f"Password: {student_data.password}\n\nCampusGenie Team"
+                        ),
+                    )
+                except Exception as e:
+                    print(f"Email send failed: {e}")
+            threading.Thread(target=_send_student_email, daemon=True).start()
+            email_sent = True  # optimistically true; actual result logged in thread
         
         response_message = "Student created successfully"
         if email_sent:
@@ -783,31 +784,30 @@ def create_faculty(
         db.add(faculty)
         db.commit()
         
-        # Send credentials via email if email service is configured
+        # Send credentials email in a background thread — never block the response
         email_sent = False
         if email_service.is_configured():
-            import asyncio
+            import threading
             faculty_name = f"{faculty_data.first_name} {faculty_data.last_name}"
-            try:
-                faculty_name = f"{faculty_data.first_name} {faculty_data.last_name}"
-                email_sent = email_service.send_email(
-                    to_email=faculty_data.personal_email,
-                    subject="🎓 Your CampusGenie Faculty Account Credentials",
-                    html_content=_build_credentials_email(
-                        name=faculty_name,
-                        login_email=faculty_data.email,
-                        password=faculty_data.password,
-                    ),
-                    text_content=(
-                        f"Hello {faculty_name},\n\n"
-                        f"Login Email: {faculty_data.email}\n"
-                        f"Password: {faculty_data.password}\n\n"
-                        f"Please change your password after first login.\n\nCampusGenie Team"
-                    ),
-                )
-            except Exception as e:
-                print(f"Failed to send email: {str(e)}")
-                email_sent = False
+            def _send_faculty_email():
+                try:
+                    email_service.send_email(
+                        to_email=faculty_data.personal_email,
+                        subject="🎓 Your CampusGenie Faculty Account Credentials",
+                        html_content=_build_credentials_email(
+                            name=faculty_name,
+                            login_email=faculty_data.email,
+                            password=faculty_data.password,
+                        ),
+                        text_content=(
+                            f"Hello {faculty_name},\n\nLogin Email: {faculty_data.email}\n"
+                            f"Password: {faculty_data.password}\n\nCampusGenie Team"
+                        ),
+                    )
+                except Exception as e:
+                    print(f"Faculty email send failed: {e}")
+            threading.Thread(target=_send_faculty_email, daemon=True).start()
+            email_sent = True
         
         response_message = "Faculty created successfully"
         if email_sent:
