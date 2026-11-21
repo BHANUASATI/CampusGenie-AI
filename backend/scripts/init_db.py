@@ -81,8 +81,8 @@ def main() -> None:
 
 
 def _seed_departments(db) -> None:
-    """Seed a default school + departments if none exist — safe to call every boot."""
-    from models import School
+    """Seed a default school + departments + courses if none exist — safe to call every boot."""
+    from models import School, Course
     if db.query(Department).count() > 0:
         return
 
@@ -105,10 +105,30 @@ def _seed_departments(db) -> None:
         ("Civil",              "CE",  "civil",              "Civil Engineering"),
         ("Mathematics",        "MA",  "mathematics",        "Mathematics and Statistics"),
     ]
+    dept_objs = {}
     for name, code, dtype, desc in depts:
-        db.add(Department(name=name, code=code, type=dtype, description=desc, school_id=school.id))
+        d = Department(name=name, code=code, type=dtype, description=desc, school_id=school.id)
+        db.add(d)
+        db.flush()
+        dept_objs[code] = d
+
+    # Seed courses
+    courses = [
+        ("CS", "Bachelor of Computer Applications", "BCA", "bca", 3),
+        ("CS", "Master of Computer Applications",  "MCA", "mca", 2),
+        ("CS", "B.Tech Computer Science",           "BTCS", "btech_cs", 4),
+        ("EC", "B.Tech Electronics",                "BTEC", "btech_ec", 4),
+        ("ME", "B.Tech Mechanical",                 "BTME", "btech_me", 4),
+        ("CE", "B.Tech Civil",                      "BTCE", "btech_ce", 4),
+        ("MA", "B.Sc Mathematics",                  "BSCMA", "bsc_math", 3),
+    ]
+    for dept_code, name, code, ctype, years in courses:
+        if dept_code in dept_objs:
+            db.add(Course(name=name, code=code, type=ctype, description=name,
+                          department_id=dept_objs[dept_code].id, duration_years=years))
+
     db.commit()
-    print(f"Seeded school + {len(depts)} departments.")
+    print(f"Seeded school + {len(depts)} departments + {len(courses)} courses.")
 
 
 def _ensure_registrar(db) -> None:
