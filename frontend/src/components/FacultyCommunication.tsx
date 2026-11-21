@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
+
+const API_BASE = process.env.REACT_APP_API_URL || API_BASE + '';
   MessageSquare, 
   Send, 
   Reply, 
@@ -136,7 +138,7 @@ const FacultyCommunication: React.FC = () => {
       const token = localStorage.getItem('authToken');
       
       // Fetch messages
-      const messagesResponse = await fetch('http://localhost:8002/faculty/messages', {
+      const messagesResponse = await fetch(API_BASE + '/faculty/messages', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       
@@ -146,7 +148,7 @@ const FacultyCommunication: React.FC = () => {
       }
 
       // Fetch conversations
-      const conversationsResponse = await fetch('http://localhost:8002/faculty/conversations', {
+      const conversationsResponse = await fetch(API_BASE + '/faculty/conversations', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       
@@ -156,7 +158,7 @@ const FacultyCommunication: React.FC = () => {
       }
 
       // Fetch notifications
-      const notificationsResponse = await fetch('http://localhost:8002/faculty/notifications', {
+      const notificationsResponse = await fetch(API_BASE + '/faculty/notifications', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       
@@ -348,7 +350,7 @@ const FacultyCommunication: React.FC = () => {
         formData.append(`attachment_${index}`, file);
       });
 
-      const response = await fetch('http://localhost:8002/faculty/messages', {
+      const response = await fetch(API_BASE + '/faculty/messages', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`

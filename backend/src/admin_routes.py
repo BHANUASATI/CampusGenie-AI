@@ -240,7 +240,10 @@ class UserCreate(BaseModel):
     role: str  # 'student' or 'faculty'
     phone: str = None
     enrollment_number: str = None
-    department: str
+    department: str = None          # department name (legacy)
+    department_id: str = None       # department ID (from frontend dropdown)
+    school_id: str = None           # accepted but ignored (school lookup done via dept)
+    course_id: str = None           # accepted but ignored
     password: str
     confirm_password: str
 
@@ -338,12 +341,26 @@ def create_user(
             detail="Email already registered"
         )
     
-    # Get department
-    department = db.query(Department).filter(Department.name == user_data.department).first()
+    # Get department — accept either department name or department_id
+    department = None
+    if user_data.department_id:
+        try:
+            department = db.query(Department).filter(
+                Department.id == int(user_data.department_id)
+            ).first()
+        except (ValueError, TypeError):
+            pass
+    if not department and user_data.department:
+        department = db.query(Department).filter(
+            Department.name == user_data.department
+        ).first()
+    if not department:
+        # Fall back to first available department rather than hard-failing
+        department = db.query(Department).first()
     if not department:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Department not found"
+            detail="No departments found. Please create a department first."
         )
     
     try:

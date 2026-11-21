@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
+
+const API_BASE = process.env.REACT_APP_API_URL || API_BASE + '';
   User, 
   Mail, 
   Phone, 
@@ -98,7 +100,7 @@ const FacultyProfile: React.FC<FacultyProfileProps> = ({ facultyData }) => {
       if (!token) return;
 
       // Try to get faculty profile from simple endpoint first
-      const response = await fetch('http://localhost:8002/faculty/me', {
+      const response = await fetch(API_BASE + '/faculty/me', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
 
@@ -165,7 +167,7 @@ const FacultyProfile: React.FC<FacultyProfileProps> = ({ facultyData }) => {
     setSaving(true);
     try {
       const token = localStorage.getItem('authToken');
-      const response = await fetch('http://localhost:8002/faculty/me', {
+      const response = await fetch(API_BASE + '/faculty/me', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -198,7 +200,7 @@ const FacultyProfile: React.FC<FacultyProfileProps> = ({ facultyData }) => {
       const formData = new FormData();
       formData.append('profile_image', file);
 
-      const response = await fetch('http://localhost:8002/faculty/upload-profile-image', {
+      const response = await fetch(API_BASE + '/faculty/upload-profile-image', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`
