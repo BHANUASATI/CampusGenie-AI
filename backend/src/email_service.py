@@ -1,4 +1,5 @@
 import smtplib
+import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from typing import Optional
@@ -7,7 +8,6 @@ from datetime import datetime
 import logging
 from dotenv import load_dotenv
 
-# Load environment variables
 load_dotenv()
 
 logger = logging.getLogger(__name__)
@@ -65,6 +65,108 @@ class EmailService:
         except Exception as e:
             logger.error(f"Failed to send email to {to_email}: {str(e)}")
             return False
+
+    def is_configured(self) -> bool:
+        """Return True when SMTP credentials are present."""
+        return bool(self.smtp_username and self.smtp_password and
+                    not self.smtp_username.startswith("your-"))
+
+    async def send_credentials_email(
+        self,
+        to_email: str,
+        student_name: str,
+        login_email: str,
+        password: str,
+    ) -> bool:
+        """Send login credentials to a newly created student or faculty member."""
+        subject = "🎓 Your CampusGenie Account Credentials"
+        html_content = f"""
+        <!DOCTYPE html>
+        <html>
+        <head><meta charset="utf-8"></head>
+        <body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                     background:#f3f4f6; padding:30px; margin:0;">
+          <div style="max-width:520px; margin:auto; background:#fff;
+                      border-radius:14px; overflow:hidden;
+                      box-shadow:0 4px 20px rgba(0,0,0,0.08);">
+            <!-- Header -->
+            <div style="background:linear-gradient(135deg,#4f46e5,#7c3aed);
+                        padding:30px; text-align:center;">
+              <h1 style="color:#fff; margin:0; font-size:1.6rem; font-weight:700;">
+                🎓 CampusGenie
+              </h1>
+              <p style="color:rgba(255,255,255,0.85); margin:6px 0 0; font-size:0.95rem;">
+                AI-Powered University Portal
+              </p>
+            </div>
+            <!-- Body -->
+            <div style="padding:32px;">
+              <p style="font-size:1rem; color:#374151; margin:0 0 16px;">
+                Hello <strong>{student_name}</strong>, welcome to CampusGenie!
+              </p>
+              <p style="color:#6b7280; margin:0 0 24px; line-height:1.6;">
+                Your account has been created. Here are your login credentials:
+              </p>
+              <!-- Credentials box -->
+              <div style="background:#f9fafb; border:1px solid #e5e7eb;
+                          border-radius:10px; padding:20px; margin-bottom:24px;">
+                <table style="width:100%; border-collapse:collapse;">
+                  <tr>
+                    <td style="padding:8px 0; color:#6b7280; font-size:0.88rem;
+                                font-weight:600; text-transform:uppercase;
+                                letter-spacing:0.05em; width:120px;">Login Email</td>
+                    <td style="padding:8px 0; color:#1f2937;
+                                font-weight:500;">{login_email}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding:8px 0; color:#6b7280; font-size:0.88rem;
+                                font-weight:600; text-transform:uppercase;
+                                letter-spacing:0.05em;">Password</td>
+                    <td style="padding:8px 0;">
+                      <code style="background:#ede9fe; color:#5b21b6;
+                                   padding:4px 10px; border-radius:6px;
+                                   font-size:0.95rem; font-weight:600;">{password}</code>
+                    </td>
+                  </tr>
+                </table>
+              </div>
+              <!-- Warning -->
+              <div style="background:#fef3c7; border-left:4px solid #f59e0b;
+                          border-radius:4px; padding:12px 16px; margin-bottom:24px;">
+                <p style="margin:0; color:#92400e; font-size:0.88rem;">
+                  ⚠️ Please change your password after your first login.
+                </p>
+              </div>
+              <!-- CTA -->
+              <div style="text-align:center;">
+                <a href="{os.getenv('FRONTEND_URL', 'https://campusgenie-ai-production-c6422709.up.railway.app')}"
+                   style="display:inline-block; background:linear-gradient(135deg,#4f46e5,#7c3aed);
+                          color:#fff; padding:12px 32px; border-radius:999px;
+                          text-decoration:none; font-weight:600; font-size:0.95rem;">
+                  Login to CampusGenie →
+                </a>
+              </div>
+            </div>
+            <!-- Footer -->
+            <div style="background:#f9fafb; border-top:1px solid #e5e7eb;
+                        padding:16px; text-align:center;">
+              <p style="margin:0; color:#9ca3af; font-size:0.8rem;">
+                This is an automated message from CampusGenie. Do not reply.
+              </p>
+            </div>
+          </div>
+        </body>
+        </html>
+        """
+        text_content = (
+            f"Hello {student_name},\n\n"
+            f"Your CampusGenie account has been created.\n\n"
+            f"Login Email: {login_email}\n"
+            f"Password: {password}\n\n"
+            f"Please change your password after first login.\n\n"
+            f"CampusGenie Team"
+        )
+        return self.send_email(to_email, subject, html_content, text_content)
     
     def send_todo_notification(
         self,

@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
+
+const API_BASE = process.env.REACT_APP_API_URL || API_BASE + '';
   FileText, 
   CheckCircle, 
   XCircle, 
@@ -490,7 +492,7 @@ const RegistrarDashboard: React.FC = () => {
   const fetchSchools = async () => {
     try {
       const token = localStorage.getItem('authToken');
-      const response = await fetch('http://localhost:8002/schools/', {
+      const response = await fetch(API_BASE + '/schools/', {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -522,7 +524,7 @@ const RegistrarDashboard: React.FC = () => {
   const fetchCourses = async () => {
     try {
       const token = localStorage.getItem('authToken');
-      const response = await fetch('http://localhost:8002/schools/courses', {
+      const response = await fetch(API_BASE + '/schools/courses', {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -581,7 +583,7 @@ const RegistrarDashboard: React.FC = () => {
             headers['Authorization'] = `Bearer ${token}`;
           }
           
-          const response = await fetch(`http://localhost:8002${endpoint}`, {
+          const response = await fetch(`${API_BASE}${endpoint}`, {
             headers: headers
           });
           
@@ -634,7 +636,7 @@ const RegistrarDashboard: React.FC = () => {
         headers['Authorization'] = `Bearer ${token}`;
       }
       
-      const response = await fetch('http://localhost:8002/registrar/stats', {
+      const response = await fetch(API_BASE + '/registrar/stats', {
         headers: headers
       });
       
@@ -672,7 +674,7 @@ const RegistrarDashboard: React.FC = () => {
   const fetchDocumentTypes = async () => {
     try {
       const token = localStorage.getItem('authToken');
-      const response = await fetch('http://localhost:8002/documents/types', {
+      const response = await fetch(API_BASE + '/documents/types', {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -709,7 +711,7 @@ const RegistrarDashboard: React.FC = () => {
   const fetchStudents = async () => {
     try {
       const token = localStorage.getItem('authToken');
-      const response = await fetch('http://localhost:8002/registrar/students/all', {
+      const response = await fetch(API_BASE + '/registrar/students/all', {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -727,7 +729,7 @@ const RegistrarDashboard: React.FC = () => {
   const fetchRecentActivity = async () => {
     try {
       const token = localStorage.getItem('authToken');
-      const response = await fetch('http://localhost:8002/registrar/recent-activity', {
+      const response = await fetch(API_BASE + '/registrar/recent-activity', {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -772,7 +774,7 @@ const RegistrarDashboard: React.FC = () => {
         console.log('Available localStorage keys:', Object.keys(localStorage));
       }
       
-      const response = await fetch('http://localhost:8002/registrar/students/all', {
+      const response = await fetch(API_BASE + '/registrar/students/all', {
         headers: headers
       });
       
@@ -808,7 +810,7 @@ const RegistrarDashboard: React.FC = () => {
   const fetchStudentStats = async () => {
     try {
       const token = localStorage.getItem('authToken');
-      const response = await fetch('http://localhost:8002/registrar/stats', {
+      const response = await fetch(API_BASE + '/registrar/stats', {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -844,7 +846,7 @@ const RegistrarDashboard: React.FC = () => {
   const fetchDepartments = async () => {
     try {
       const token = localStorage.getItem('authToken');
-      const response = await fetch('http://localhost:8002/schools/departments', {
+      const response = await fetch(API_BASE + '/schools/departments', {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -886,7 +888,7 @@ const RegistrarDashboard: React.FC = () => {
 
     try {
       const token = localStorage.getItem('authToken');
-      const response = await fetch(`http://localhost:8002/registrar/search?q=${encodeURIComponent(searchTerm)}`, {
+      const response = await fetch(`${API_BASE}/registrar/search?q=${encodeURIComponent(searchTerm)}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -958,8 +960,8 @@ const RegistrarDashboard: React.FC = () => {
       
       // Try to fetch student-specific documents
       const endpoints = [
-        `http://localhost:8002/registrar/student/${studentId}/documents`,
-        `http://localhost:8002/faculty/student/${studentId}/documents`
+        `${API_BASE}/registrar/student/${studentId}/documents`,
+        `${API_BASE}/faculty/student/${studentId}/documents`
       ];
 
       let studentDocs: StudentDocument[] = [];
@@ -1042,7 +1044,7 @@ const RegistrarDashboard: React.FC = () => {
 
     try {
       const token = localStorage.getItem('authToken');
-      const response = await fetch(`http://localhost:8002/registrar/documents/${selectedDocument.id}/verify`, {
+      const response = await fetch(`${API_BASE}/registrar/documents/${selectedDocument.id}/verify`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -1074,7 +1076,7 @@ const RegistrarDashboard: React.FC = () => {
 
     try {
       const token = localStorage.getItem('authToken');
-      const response = await fetch('http://localhost:8002/registrar/documents/bulk-verify', {
+      const response = await fetch(API_BASE + '/registrar/documents/bulk-verify', {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -1156,7 +1158,7 @@ const RegistrarDashboard: React.FC = () => {
       console.log('Download - Token length:', token ? token.length : 0);
       
       // Use the registrar download endpoint
-      const downloadUrl = `http://localhost:8002/registrar/documents/download/${document.id}`;
+      const downloadUrl = `${API_BASE}/registrar/documents/download/${document.id}`;
       
       const headers: { [key: string]: string } = {};
       if (token) {
@@ -1231,7 +1233,7 @@ const RegistrarDashboard: React.FC = () => {
 
     try {
       const token = localStorage.getItem('authToken');
-      const response = await fetch(`http://localhost:8002/registrar/students/${selectedStudentForVerification.id}/verify`, {
+      const response = await fetch(`${API_BASE}/registrar/students/${selectedStudentForVerification.id}/verify`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -1259,7 +1261,7 @@ const RegistrarDashboard: React.FC = () => {
 
     try {
       const token = localStorage.getItem('authToken');
-      const response = await fetch(`http://localhost:8002/registrar/students/${selectedStudentForVerification.id}/verify`, {
+      const response = await fetch(`${API_BASE}/registrar/students/${selectedStudentForVerification.id}/verify`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -1288,8 +1290,8 @@ const RegistrarDashboard: React.FC = () => {
     try {
       const token = localStorage.getItem('authToken');
       const endpoint = bulkStudentVerificationStatus === 'verified' 
-        ? 'http://localhost:8002/registrar/students/bulk-verify' 
-        : 'http://localhost:8002/registrar/students/bulk-verify';
+        ? API_BASE + '/registrar/students/bulk-verify' 
+        : API_BASE + '/registrar/students/bulk-verify';
       
       const response = await fetch(endpoint, {
         method: 'POST',
@@ -1439,7 +1441,7 @@ const RegistrarDashboard: React.FC = () => {
 
     try {
       const token = localStorage.getItem('authToken');
-      const response = await fetch('http://localhost:8002/registrar/students/create', {
+      const response = await fetch(API_BASE + '/registrar/students/create', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1502,7 +1504,7 @@ const RegistrarDashboard: React.FC = () => {
 
     try {
       const token = localStorage.getItem('authToken');
-      const response = await fetch(`http://localhost:8002/registrar/students/${selectedStudentForEdit.id}`, {
+      const response = await fetch(`${API_BASE}/registrar/students/${selectedStudentForEdit.id}`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -1532,7 +1534,7 @@ const RegistrarDashboard: React.FC = () => {
 
     try {
       const token = localStorage.getItem('authToken');
-      const response = await fetch(`http://localhost:8002/registrar/students/${selectedStudentForDelete.id}`, {
+      const response = await fetch(`${API_BASE}/registrar/students/${selectedStudentForDelete.id}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -1639,7 +1641,7 @@ const RegistrarDashboard: React.FC = () => {
 
     try {
       const token = localStorage.getItem('authToken');
-      const response = await fetch('http://localhost:8002/registrar/faculty', {
+      const response = await fetch(API_BASE + '/registrar/faculty', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -1699,7 +1701,7 @@ const RegistrarDashboard: React.FC = () => {
   const fetchFaculty = async () => {
     try {
       const token = localStorage.getItem('authToken');
-      const response = await fetch('http://localhost:8002/registrar/faculty', {
+      const response = await fetch(API_BASE + '/registrar/faculty', {
         headers: {
           'Authorization': `Bearer ${token}`
         }
