@@ -1,17 +1,16 @@
 /**
- * VoiceChat — Siri-style live voice conversation with CampusGenie.
+ * VoiceChat — Apple Siri–style instant voice conversation.
  *
- * Flow:
- *   1. User taps mic → Speech recognition starts
- *   2. User speaks → transcript shown in real-time
- *   3. User stops → auto-send to AI
- *   4. AI responds → Cartesia TTS speaks the answer immediately
- *   5. TTS done → mic auto-opens again (continuous conversation)
+ * Exactly like Siri:
+ *  • One tap → mic opens immediately, no extra steps
+ *  • User speaks → AI listens in real-time
+ *  • Silence detected → auto-sends, AI speaks back
+ *  • TTS finishes → mic reopens automatically
+ *  • No text bubbles cluttering the UI — just the orb and what's being said
  */
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { aiAssistantService } from '../services/api';
-import { useNeuralVoice } from '../hooks/useNeuralVoice';
 import { stripMarkdownForSpeech } from '../hooks/useTextToSpeech';
 
 interface VoiceChatProps {
@@ -19,236 +18,239 @@ interface VoiceChatProps {
   onClose: () => void;
 }
 
-type Phase =
-  | 'idle'        // waiting to start
-  | 'listening'   // mic open, hearing user
-  | 'thinking'    // sent to AI, waiting response
-  | 'speaking'    // TTS playing
-  | 'error';
+type Phase = 'listening' | 'thinking' | 'speaking' | 'error';
 
-const SILENCE_TIMEOUT_MS = 1800; // auto-send after 1.8s silence
+const API = process.env.REACT_APP_API_URL || 'http://localhost:8002';
+const SILENCE_MS = 1600; // silence before auto-send
 
+// ── Cartesia TTS directly — fastest path, no extra round-trip ─────────────
+async function speakWithCartesia(text: string, lang: string, token: string): Promise<void> {
+  const clean = stripMarkdownForSpeech(text);
+  if (!clean.trim()) return;
+
+  // Split into sentences for faster first audio
+  const sentences = clean.match(/[^.!?।]+[.!?।]*/g)?.filter(s => s.trim()) || [clean];
+
+  for (const sentence of sentences) {
+    try {
+      const res = await fetch(`${API}/api/ai/tts`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ text: sentence.trim(), language: lang }),
+        signal: AbortSignal.timeout(15000),
+      });
+      if (!res.ok) continue;
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      await new Promise<void>((resolve) => {
+        const audio = new Audio(url);
+        audio.onended = () => { URL.revokeObjectURL(url); resolve(); };
+        audio.onerror = () => { URL.revokeObjectURL(url); resolve(); };
+        audio.play().catch(() => resolve());
+      });
+    } catch { /* skip failed sentence */ }
+  }
+}
+
+// ── Language detection ─────────────────────────────────────────────────────
+function detectLang(text: string): string {
+  if ([...text].some(ch => ch >= '\u0900' && ch <= '\u097F')) return 'hi';
+  const hi = new Set(['kya','hai','meri','mera','kab','kaise','bhai','yaar','nahi','theek','abhi','phir','karo','batao','mujhe','kitna','kaun']);
+  if (text.toLowerCase().split(/\s+/).some(w => hi.has(w))) return 'hi';
+  return 'en';
+}
+
+// ── Component ─────────────────────────────────────────────────────────────
 export const VoiceChat: React.FC<VoiceChatProps> = ({ isOpen, onClose }) => {
-  const [phase, setPhase] = useState<Phase>('idle');
-  const [transcript, setTranscript] = useState('');
-  const [aiText, setAiText] = useState('');
-  const [error, setError] = useState('');
-  const [conversationId, setConversationId] = useState<number | null>(null);
+  const [phase, setPhase] = useState<Phase>('listening');
+  const [liveText, setLiveText] = useState('');   // what user is saying right now
+  const [aiText, setAiText]   = useState('');     // last AI sentence being spoken
+  const [convId, setConvId]   = useState<number | null>(null);
 
-  const recognitionRef = useRef<any>(null);
-  const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const activeRef = useRef(false); // tracks if voice session is running
+  const recRef        = useRef<any>(null);
+  const silenceTimer  = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const activeRef     = useRef(false);
+  const speakingRef   = useRef(false);
 
-  const neuralVoice = useNeuralVoice();
+  const token = localStorage.getItem('authToken') || '';
 
-  // ── Detect language for TTS ────────────────────────────────────────────────
-  const detectLang = (text: string): string => {
-    if (text.split('').some(ch => ch >= '\u0900' && ch <= '\u097F')) return 'hi';
-    const hinglish = new Set(['kya','hai','meri','mera','kab','kaise','bhai','yaar','nahi','theek','abhi','phir','karo','batao']);
-    if (text.toLowerCase().split(/\s+/).some(w => hinglish.has(w))) return 'hi';
-    return 'en';
-  };
+  // ── Create conversation once ─────────────────────────────────────────────
+  const getConvId = useCallback(async (): Promise<number> => {
+    if (convId) return convId;
+    const c = await aiAssistantService.createConversation('Voice Chat') as any;
+    setConvId(c.id);
+    return c.id;
+  }, [convId]);
 
-  // ── Create/reuse conversation ──────────────────────────────────────────────
-  const ensureConversation = useCallback(async (): Promise<number> => {
-    if (conversationId) return conversationId;
-    const conv = await aiAssistantService.createConversation('Voice Chat') as any;
-    setConversationId(conv.id);
-    return conv.id;
-  }, [conversationId]);
-
-  // ── Stop mic ───────────────────────────────────────────────────────────────
-  const stopListening = useCallback(() => {
-    if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
-    recognitionRef.current?.stop();
+  // ── Stop mic ─────────────────────────────────────────────────────────────
+  const stopMic = useCallback(() => {
+    if (silenceTimer.current) clearTimeout(silenceTimer.current);
+    try { recRef.current?.stop(); } catch {}
   }, []);
 
-  // ── Send transcript to AI ──────────────────────────────────────────────────
+  // ── Send to AI + speak response ──────────────────────────────────────────
   const sendToAI = useCallback(async (text: string) => {
-    if (!text.trim()) { setPhase('idle'); return; }
+    if (!text.trim() || !activeRef.current) return;
     setPhase('thinking');
-    setAiText('');
+
     try {
-      const convId = await ensureConversation();
-      const resp = await aiAssistantService.sendMessage(convId.toString(), text) as any;
-      const answer = resp?.ai_message?.content || '';
-      const lang = resp?.ai_message?.tts_language || detectLang(text);
-      setAiText(answer);
+      const id  = await getConvId();
+      const res = await aiAssistantService.sendMessage(id.toString(), text) as any;
+      const ans = res?.ai_message?.content || '';
+      const lng = res?.ai_message?.tts_language || detectLang(text);
 
       if (!activeRef.current) return;
       setPhase('speaking');
+      speakingRef.current = true;
 
-      const clean = stripMarkdownForSpeech(answer);
-      if (neuralVoice.isSupported && clean) {
-        await neuralVoice.speak(clean, lang);
+      // Show first 80 chars of what AI is saying
+      setAiText(ans.slice(0, 120) + (ans.length > 120 ? '…' : ''));
+
+      await speakWithCartesia(ans, lng, token);
+
+      speakingRef.current = false;
+      if (activeRef.current) {
+        setLiveText('');
+        setAiText('');
+        setPhase('listening');
       }
-
-      if (activeRef.current) setPhase('listening');
     } catch (e: any) {
-      setError(e?.message || 'Something went wrong');
-      setPhase('error');
+      speakingRef.current = false;
+      if (activeRef.current) setPhase('listening'); // recover silently
     }
-  }, [ensureConversation, neuralVoice]);
+  }, [getConvId, token]);
 
-  // ── Start listening ────────────────────────────────────────────────────────
-  const startListening = useCallback(() => {
+  // ── Open mic ─────────────────────────────────────────────────────────────
+  const openMic = useCallback(() => {
     if (!activeRef.current) return;
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SR) { setError('Speech recognition not supported in this browser'); setPhase('error'); return; }
+    if (!SR) return;
 
     const rec = new SR();
-    rec.continuous = true;
+    rec.continuous     = true;
     rec.interimResults = true;
-    rec.lang = 'hi-IN'; // supports both Hindi and English in multilingual mode
+    rec.lang           = 'hi-IN'; // supports Hindi + English bilingual
 
-    let finalText = '';
-
-    rec.onstart = () => setPhase('listening');
+    let final = '';
 
     rec.onresult = (e: any) => {
       let interim = '';
       for (let i = e.resultIndex; i < e.results.length; i++) {
         const t = e.results[i][0].transcript;
-        if (e.results[i].isFinal) finalText += t;
+        if (e.results[i].isFinal) final += t + ' ';
         else interim += t;
       }
-      setTranscript(finalText + interim);
+      const full = (final + interim).trim();
+      setLiveText(full);
 
-      // Reset silence timer on each result
-      if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
-      silenceTimerRef.current = setTimeout(() => {
+      // Reset silence timer
+      if (silenceTimer.current) clearTimeout(silenceTimer.current);
+      silenceTimer.current = setTimeout(() => {
         rec.stop();
-        if ((finalText + interim).trim()) sendToAI(finalText + interim);
-        else if (activeRef.current) startListening();
-      }, SILENCE_TIMEOUT_MS);
+        if (full) sendToAI(full);
+        else if (activeRef.current) openMic(); // restart if nothing heard
+      }, SILENCE_MS);
     };
 
     rec.onerror = (e: any) => {
       if (e.error === 'no-speech' && activeRef.current) {
-        startListening(); // restart silently on no-speech
-        return;
+        setTimeout(() => activeRef.current && !speakingRef.current && openMic(), 200);
       }
-      setError(`Mic error: ${e.error}`);
-      setPhase('error');
     };
 
     rec.onend = () => {
-      // If no results fired (abrupt end), restart
-      if (activeRef.current && phase === 'listening' && !finalText) {
-        setTimeout(() => activeRef.current && startListening(), 300);
+      // If we ended without results and still active, restart
+      if (activeRef.current && !final.trim() && !speakingRef.current && phase === 'listening') {
+        setTimeout(() => activeRef.current && openMic(), 200);
       }
     };
 
-    recognitionRef.current = rec;
-    setTranscript('');
+    recRef.current = rec;
+    setLiveText('');
     try { rec.start(); } catch {}
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase, sendToAI]);
 
-  // ── Auto-start listening when speaking finishes ────────────────────────────
+  // Auto-open mic when phase becomes 'listening'
   useEffect(() => {
-    if (phase === 'listening' && activeRef.current) {
-      startListening();
-    }
+    if (phase === 'listening' && activeRef.current) openMic();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase]);
 
-  // ── Open / close session ───────────────────────────────────────────────────
-  const startSession = () => {
-    activeRef.current = true;
-    setError('');
-    setTranscript('');
-    setAiText('');
-    setPhase('listening');
-  };
-
-  const endSession = useCallback(() => {
-    activeRef.current = false;
-    stopListening();
-    neuralVoice.stop?.();
-    setPhase('idle');
-    setTranscript('');
-    setAiText('');
-  }, [stopListening, neuralVoice]);
-
-  // Cleanup on unmount / close
+  // Start session when dialog opens
   useEffect(() => {
-    if (!isOpen) endSession();
-    return () => { activeRef.current = false; stopListening(); };
-  }, [isOpen, endSession, stopListening]);
+    if (isOpen) {
+      activeRef.current = true;
+      setPhase('listening');
+      setLiveText('');
+      setAiText('');
+    } else {
+      activeRef.current = false;
+      stopMic();
+    }
+  }, [isOpen, stopMic]);
+
+  // Cleanup
+  useEffect(() => () => {
+    activeRef.current = false;
+    stopMic();
+  }, [stopMic]);
 
   if (!isOpen) return null;
 
-  // ── UI ─────────────────────────────────────────────────────────────────────
-  const phaseLabel: Record<Phase, string> = {
-    idle: 'Tap to start talking',
-    listening: 'Listening…',
-    thinking: 'Thinking…',
-    speaking: 'Speaking…',
-    error: error || 'Something went wrong',
-  };
+  const orbClass =
+    phase === 'listening' ? 'vc-orb vc-orb-listen' :
+    phase === 'thinking'  ? 'vc-orb vc-orb-think'  :
+    phase === 'speaking'  ? 'vc-orb vc-orb-speak'  :
+    'vc-orb';
 
-  const pulseClass = phase === 'listening' ? 'vc-pulse-listen'
-    : phase === 'speaking' ? 'vc-pulse-speak'
-    : phase === 'thinking' ? 'vc-pulse-think'
-    : '';
+  const statusText =
+    phase === 'listening' ? 'Listening…' :
+    phase === 'thinking'  ? 'Thinking…'  :
+    phase === 'speaking'  ? 'Speaking…'  : '';
 
   return (
-    <div className="vc-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
+    <div className="vc-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
       <div className="vc-panel">
+
         {/* Close */}
-        <button className="vc-close" onClick={onClose}>✕</button>
+        <button className="vc-close" onClick={onClose} aria-label="Close">✕</button>
 
-        {/* Title */}
-        <div className="vc-title">🎓 CampusGenie Voice</div>
-
-        {/* Animated orb */}
-        <div className={`vc-orb ${pulseClass}`} onClick={phase === 'idle' ? startSession : undefined}>
-          {phase === 'idle' && <span className="vc-orb-icon">🎤</span>}
-          {phase === 'listening' && <span className="vc-orb-icon vc-wave">●</span>}
-          {phase === 'thinking' && <span className="vc-orb-icon vc-spin">⟳</span>}
-          {phase === 'speaking' && <span className="vc-orb-icon vc-wave">♫</span>}
-          {phase === 'error' && <span className="vc-orb-icon">⚠</span>}
+        {/* Orb */}
+        <div className={orbClass}>
+          <div className="vc-orb-ring vc-orb-ring-1" />
+          <div className="vc-orb-ring vc-orb-ring-2" />
+          <div className="vc-orb-ring vc-orb-ring-3" />
+          <div className="vc-orb-core">
+            {phase === 'listening' && <span className="vc-wave-icon">🎤</span>}
+            {phase === 'thinking'  && <span className="vc-spin-icon">⟳</span>}
+            {phase === 'speaking'  && <span className="vc-wave-icon">♪</span>}
+          </div>
         </div>
 
         {/* Status */}
-        <div className="vc-status">{phaseLabel[phase]}</div>
+        <div className="vc-status">{statusText}</div>
 
-        {/* Transcript */}
-        {transcript && (
-          <div className="vc-bubble vc-user">
-            <span className="vc-bubble-label">You</span>
-            {transcript}
-          </div>
+        {/* Live transcript */}
+        {liveText && (
+          <div className="vc-transcript vc-user-text">"{liveText}"</div>
         )}
 
-        {/* AI response */}
+        {/* AI speaking text */}
         {aiText && (
-          <div className="vc-bubble vc-ai">
-            <span className="vc-bubble-label">CampusGenie</span>
-            {aiText.length > 200 ? aiText.slice(0, 200) + '…' : aiText}
-          </div>
+          <div className="vc-transcript vc-ai-text">{aiText}</div>
         )}
-
-        {/* Controls */}
-        <div className="vc-controls">
-          {phase === 'idle' ? (
-            <button className="vc-btn vc-btn-start" onClick={startSession}>
-              Start Talking
-            </button>
-          ) : (
-            <button className="vc-btn vc-btn-stop" onClick={endSession}>
-              End
-            </button>
-          )}
-        </div>
 
         {/* Hint */}
-        <div className="vc-hint">
-          {phase === 'listening' ? 'Speak naturally — Hindi, Hinglish, or English'
-            : phase === 'speaking' ? 'Listening again after response…'
-            : 'Tap Start to have a voice conversation'}
-        </div>
+        {!liveText && !aiText && phase === 'listening' && (
+          <div className="vc-hint">Speak in Hindi, Hinglish, or English</div>
+        )}
+
+        {/* End button */}
+        <button className="vc-end-btn" onClick={onClose}>End</button>
       </div>
     </div>
   );

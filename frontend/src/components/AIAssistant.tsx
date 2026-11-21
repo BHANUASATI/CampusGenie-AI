@@ -918,24 +918,33 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ isOpen, onClose }) => {
                 <button
                   className="cg-ai-voice-chat-btn"
                   onClick={() => setVoiceChatOpen(true)}
-                  title="Live voice conversation"
+                  title="Live voice conversation (Siri-style)"
                   style={{
-                    background: 'linear-gradient(135deg,#6366f1,#4f46e5)',
+                    background: 'linear-gradient(135deg, #6366f1, #4f46e5)',
                     border: 'none',
                     borderRadius: '50%',
-                    width: '34px',
-                    height: '34px',
+                    width: '36px',
+                    height: '36px',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     cursor: 'pointer',
                     flexShrink: 0,
-                    boxShadow: '0 2px 8px rgba(99,102,241,0.4)',
+                    boxShadow: '0 2px 10px rgba(99,102,241,0.5)',
                     color: '#fff',
-                    fontSize: '1rem',
+                    fontSize: '1.1rem',
+                    transition: 'transform 0.15s, box-shadow 0.15s',
+                  }}
+                  onMouseEnter={e => {
+                    (e.currentTarget as HTMLButtonElement).style.transform = 'scale(1.1)';
+                    (e.currentTarget as HTMLButtonElement).style.boxShadow = '0 4px 16px rgba(99,102,241,0.7)';
+                  }}
+                  onMouseLeave={e => {
+                    (e.currentTarget as HTMLButtonElement).style.transform = 'scale(1)';
+                    (e.currentTarget as HTMLButtonElement).style.boxShadow = '0 2px 10px rgba(99,102,241,0.5)';
                   }}
                 >
-                  🎙
+                  🎙️
                 </button>
               </div>
               

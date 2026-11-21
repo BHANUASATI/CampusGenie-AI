@@ -335,10 +335,18 @@ async def _synthesize_cartesia(sentences: List[str], voice_id: str, forced_langu
 
     async def _one(sentence: str) -> bytes:
         vid, lang = _pick(sentence)
+        # Speed "fast" makes it sound more natural and less robotic
+        tts_speed = os.environ.get("CARTESIA_SPEED", "fast")
         payload = {
             "model_id": model_id,
             "transcript": sentence,
-            "voice": {"mode": "id", "id": vid},
+            "voice": {
+                "mode": "id",
+                "id": vid,
+                "__experimental_controls": {
+                    "speed": tts_speed,
+                },
+            },
             "output_format": {
                 "container": "mp3",
                 "encoding": "mp3",
