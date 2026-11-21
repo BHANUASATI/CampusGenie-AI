@@ -379,7 +379,7 @@ const FacultyCommunication: React.FC = () => {
 
     try {
       const token = localStorage.getItem('authToken');
-      const response = await fetch(`http://localhost:8002/faculty/messages/${selectedMessage.id}/reply`, {
+      const response = await fetch(`${API_BASE}/faculty/messages/${selectedMessage.id}/reply`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -403,7 +403,7 @@ const FacultyCommunication: React.FC = () => {
   const handleMarkAsRead = async (messageId: number) => {
     try {
       const token = localStorage.getItem('authToken');
-      await fetch(`http://localhost:8002/faculty/messages/${messageId}/read`, {
+      await fetch(`${API_BASE}/faculty/messages/${messageId}/read`, {
         method: 'PATCH',
         headers: {
           'Authorization': `Bearer ${token}`

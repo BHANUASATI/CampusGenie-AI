@@ -7,6 +7,8 @@ import { VoiceChat } from './VoiceChat';
 import './AIAssistant.css';
 import './VoiceChat.css';
 
+const API_BASE_URL = process.env.REACT_APP_API_URL || API_BASE_URL + '';
+
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 interface Source {
@@ -459,7 +461,7 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ isOpen, onClose }) => {
 
   const handleDownload = async (content: string, format: string, filename?: string) => {
     try {
-      const response = await fetch('http://localhost:8002/api/ai/download', {
+      const response = await fetch(API_BASE_URL + '/api/ai/download', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
+
+const API_BASE_URL = process.env.REACT_APP_API_URL || API_BASE_URL + '';
   Users, 
   Calendar, 
   Clock, 
@@ -98,7 +100,7 @@ const ClassManagement: React.FC = () => {
       const token = localStorage.getItem('authToken');
       
       // Fetch classes
-      const classesResponse = await fetch('http://localhost:8002/faculty/classes', {
+      const classesResponse = await fetch(API_BASE_URL + '/faculty/classes', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       
@@ -210,7 +212,7 @@ const ClassManagement: React.FC = () => {
   const handleMarkAttendance = async (studentId: number, status: 'present' | 'absent' | 'late' | 'excused') => {
     try {
       const token = localStorage.getItem('authToken');
-      await fetch(`http://localhost:8002/faculty/attendance`, {
+      await fetch(`${API_BASE_URL}/faculty/attendance`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

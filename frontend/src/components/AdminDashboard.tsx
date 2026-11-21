@@ -28,6 +28,8 @@ import {
 } from 'lucide-react';
 import AIKnowledgeBase from './admin/AIKnowledgeBase';
 
+const API_BASE_URL = process.env.REACT_APP_API_URL || API_BASE_URL + '';
+
 interface User {
   id: number;
   name: string;
@@ -122,7 +124,7 @@ const AdminDashboard: React.FC = () => {
 
   const fetchSchools = async () => {
     try {
-      const response = await fetch('http://localhost:8002/schools/', {
+      const response = await fetch(API_BASE_URL + '/schools/', {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('authToken')}`
         }
@@ -136,7 +138,7 @@ const AdminDashboard: React.FC = () => {
 
   const fetchDepartments = async () => {
     try {
-      const response = await fetch('http://localhost:8002/schools/departments', {
+      const response = await fetch(API_BASE_URL + '/schools/departments', {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('authToken')}`
         }
@@ -150,7 +152,7 @@ const AdminDashboard: React.FC = () => {
 
   const fetchCourses = async () => {
     try {
-      const response = await fetch('http://localhost:8002/schools/departments/courses', {
+      const response = await fetch(API_BASE_URL + '/schools/departments/courses', {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('authToken')}`
         }

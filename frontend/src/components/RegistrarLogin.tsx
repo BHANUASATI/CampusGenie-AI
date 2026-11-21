@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { User, Lock, GraduationCap } from 'lucide-react';
 
+const API_BASE_URL = process.env.REACT_APP_API_URL || API_BASE_URL + '';
+
 const RegistrarLogin: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -13,7 +15,7 @@ const RegistrarLogin: React.FC = () => {
     setError('');
 
     try {
-      const response = await fetch('http://localhost:8002/api/auth/login', {
+      const response = await fetch(API_BASE_URL + '/api/auth/login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

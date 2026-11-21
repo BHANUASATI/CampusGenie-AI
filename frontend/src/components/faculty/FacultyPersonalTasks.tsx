@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Filter, Search, Calendar, CheckCircle, Clock, AlertTriangle, TrendingUp, Edit2, Trash2 } from 'lucide-react';
 
+const API_BASE_URL = process.env.REACT_APP_API_URL || API_BASE_URL + '';
+
 interface PersonalTask {
   id: number;
   title: string;
@@ -54,7 +56,7 @@ export const FacultyPersonalTasks: React.FC<FacultyPersonalTasksProps> = ({ them
   const fetchTasks = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:8002/personal-tasks/', {
+      const response = await fetch(API_BASE_URL + '/personal-tasks/', {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
@@ -73,7 +75,7 @@ export const FacultyPersonalTasks: React.FC<FacultyPersonalTasksProps> = ({ them
   const fetchStats = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:8002/personal-tasks/stats', {
+      const response = await fetch(API_BASE_URL + '/personal-tasks/stats', {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
@@ -90,7 +92,7 @@ export const FacultyPersonalTasks: React.FC<FacultyPersonalTasksProps> = ({ them
   const handleCreateTask = async (taskData: Partial<PersonalTask>) => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:8002/personal-tasks/', {
+      const response = await fetch(API_BASE_URL + '/personal-tasks/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -112,7 +114,7 @@ export const FacultyPersonalTasks: React.FC<FacultyPersonalTasksProps> = ({ them
     if (!editingTask) return;
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:8002/personal-tasks/${editingTask.id}`, {
+      const response = await fetch(`${API_BASE_URL}/personal-tasks/${editingTask.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -135,7 +137,7 @@ export const FacultyPersonalTasks: React.FC<FacultyPersonalTasksProps> = ({ them
     if (!confirm('Are you sure you want to delete this task?')) return;
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:8002/personal-tasks/${taskId}`, {
+      const response = await fetch(`${API_BASE_URL}/personal-tasks/${taskId}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -157,7 +159,7 @@ export const FacultyPersonalTasks: React.FC<FacultyPersonalTasksProps> = ({ them
       if (!task) return;
 
       const endpoint = task.status === 'completed' ? 'uncomplete' : 'complete';
-      const response = await fetch(`http://localhost:8002/personal-tasks/${taskId}/${endpoint}`, {
+      const response = await fetch(`${API_BASE_URL}/personal-tasks/${taskId}/${endpoint}`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -175,7 +177,7 @@ export const FacultyPersonalTasks: React.FC<FacultyPersonalTasksProps> = ({ them
   const handleUpdateProgress = async (taskId: number, progress: number) => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:8002/personal-tasks/${taskId}/progress`, {
+      const response = await fetch(`${API_BASE_URL}/personal-tasks/${taskId}/progress`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

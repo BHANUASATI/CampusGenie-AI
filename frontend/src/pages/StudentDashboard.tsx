@@ -21,6 +21,8 @@ import {
 } from 'lucide-react';
 import { ThemeToggle } from '../components/common/ThemeToggle';
 
+const API_BASE_URL = process.env.REACT_APP_API_URL || API_BASE_URL + '';
+
 type TaskPriority = 'high' | 'medium' | 'low' | 'urgent';
 type TaskStatus = 'pending' | 'in-progress' | 'completed' | 'locked';
 type TaskType = 'document' | 'code' | 'exam' | 'lab' | 'presentation' | 'research' | 'project';
@@ -1663,7 +1665,7 @@ export const StudentDashboard: React.FC = () => {
               <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shadow overflow-hidden">
                 {studentProfile?.profile_image && !profileImageError ? (
                   <img 
-                    src={`http://localhost:8002${studentProfile.profile_image}`} 
+                    src={`${API_BASE_URL}${studentProfile.profile_image}`} 
                     alt="Profile" 
                     className="w-full h-full object-cover"
                     onError={(e) => {
@@ -1793,7 +1795,7 @@ export const StudentDashboard: React.FC = () => {
                     <div className={`w-20 h-20 lg:w-24 lg:h-24 rounded-2xl flex items-center justify-center shadow-xl overflow-hidden ${isDark ? 'bg-slate-700/80' : 'bg-white/20 backdrop-blur-sm border border-white/30'}`}>
                       {studentProfile?.profile_image && !profileImageError ? (
                         <img 
-                          src={`http://localhost:8002${studentProfile.profile_image}`} 
+                          src={`${API_BASE_URL}${studentProfile.profile_image}`} 
                           alt="Profile" 
                           className="w-full h-full object-cover"
                           onError={(e) => {
@@ -2088,7 +2090,7 @@ export const StudentDashboard: React.FC = () => {
                   {profileImagePreview ? (
                     <img src={profileImagePreview} alt="Profile Preview" className="w-full h-full object-cover" />
                   ) : studentProfile?.profile_image && !profileImageError ? (
-                    <img src={`http://localhost:8002${studentProfile.profile_image}`} alt="Current Profile" className="w-full h-full object-cover" onError={() => setProfileImageError(true)} />
+                    <img src={`${API_BASE_URL}${studentProfile.profile_image}`} alt="Current Profile" className="w-full h-full object-cover" onError={() => setProfileImageError(true)} />
                   ) : (
                     <User className="w-10 h-10 text-white" />
                   )}
