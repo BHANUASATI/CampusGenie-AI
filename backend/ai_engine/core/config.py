@@ -41,34 +41,24 @@ class AIEngineConfig(BaseSettings):
     # -----------------------------------------------------------------------
     GEMINI_API_KEY: str = Field(default="", description="Google Gemini API key")
     GEMINI_TEMPERATURE: float = Field(default=0.1, ge=0.0, le=2.0)
-    GEMINI_MAX_OUTPUT_TOKENS: int = Field(default=2048)
+    GEMINI_MAX_OUTPUT_TOKENS: int = Field(default=500)
     GEMINI_CHAT_MODEL: str = Field(
-        default="gemini-3.5-flash",
-        description="Model for answer generation (high quality, streaming)",
+        default="gemini-flash-lite-latest",
+        description="Model for answer generation",
     )
     GEMINI_FAST_MODEL: str = Field(
-        default="gemini-3.1-flash-lite",
-        description="Model for intent classification (low latency, cheap)",
+        default="gemini-flash-lite-latest",
+        description="Model for intent classification (low latency)",
     )
-    # Each free-tier Gemini model caps at 20 requests/day.  On a 429 the
-    # client rotates through these to keep the chatbot online.
     GEMINI_FALLBACK_MODELS: list[str] = Field(
         default_factory=lambda: [
-            "gemini-flash-latest",
+            "gemini-2.5-flash",
             "gemini-flash-lite-latest",
-            "gemini-3.1-flash-lite",
         ],
-        description="Models to try when the primary Gemini model is rate-limited",
+        description="Models to try when primary is rate-limited",
     )
-    GEMINI_RATE_LIMIT_RETRIES: int = Field(
-        default=0,
-        ge=0,
-        le=5,
-        description="Short backoff retries for transient (per-minute) Gemini 429s",
-    )
-    # Hard total timeout (seconds) for one Gemini request.  The SDK has no
-    # default cap and will otherwise retry a stalled request for minutes.
-    GEMINI_TIMEOUT_SECONDS: float = Field(default=60.0)
+    GEMINI_RATE_LIMIT_RETRIES: int = Field(default=0, ge=0, le=5)
+    GEMINI_TIMEOUT_SECONDS: float = Field(default=10.0)
 
     # -----------------------------------------------------------------------
     # Embedding model (sentence-transformers, runs locally, no API cost)
@@ -99,16 +89,10 @@ class AIEngineConfig(BaseSettings):
     # -----------------------------------------------------------------------
     # RAG / Retrieval
     # -----------------------------------------------------------------------
-    RETRIEVAL_TOP_K: int = Field(default=15, description="Candidates fetched from ChromaDB")
-    RERANK_TOP_N: int = Field(default=8, description="Documents passed to LLM after reranking")
-    FAST_RESPONSE_MODE: bool = Field(
-        default=False,
-        description="Use local, extractive responses instead of a remote LLM for chat",
-    )
-    FAST_INTENT_ROUTING: bool = Field(
-        default=True,
-        description="Classify common academic requests locally before calling an LLM",
-    )
+    RETRIEVAL_TOP_K: int = Field(default=8, description="Candidates fetched from ChromaDB")
+    RERANK_TOP_N: int = Field(default=4, description="Documents passed to LLM after reranking")
+    FAST_RESPONSE_MODE: bool = Field(default=False)
+    FAST_INTENT_ROUTING: bool = Field(default=True)
     FAST_RETRIEVAL_TOP_K: int = Field(
         default=3,
         ge=1,
@@ -116,8 +100,8 @@ class AIEngineConfig(BaseSettings):
         description="Maximum document chunks considered in fast response mode",
     )
     MAX_CONTEXT_CHARS_PER_DOCUMENT: int = Field(
-        default=1200,
-        ge=400,
+        default=600,
+        ge=200,
         le=10000,
         description="Maximum characters included from one chunk in an LLM prompt",
     )
