@@ -20,6 +20,43 @@ import os
 
 router = APIRouter(prefix="/registrar", tags=["registrar"])
 
+
+def _build_credentials_email(name: str, login_email: str, password: str) -> str:
+    """HTML email body for new account credentials."""
+    frontend_url = os.getenv("FRONTEND_URL", "https://campusgenie-ai-production-c6422709.up.railway.app")
+    return f"""<!DOCTYPE html>
+<html><head><meta charset="utf-8"></head>
+<body style="font-family:Arial,sans-serif;background:#f3f4f6;padding:30px;margin:0">
+<div style="max-width:520px;margin:auto;background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,.08)">
+  <div style="background:linear-gradient(135deg,#4f46e5,#7c3aed);padding:30px;text-align:center">
+    <h1 style="color:#fff;margin:0;font-size:1.5rem">🎓 CampusGenie</h1>
+    <p style="color:rgba(255,255,255,.85);margin:6px 0 0;font-size:.9rem">AI-Powered University Portal</p>
+  </div>
+  <div style="padding:30px">
+    <p style="color:#374151;margin:0 0 16px">Hello <strong>{name}</strong>, welcome to CampusGenie!</p>
+    <p style="color:#6b7280;margin:0 0 24px;line-height:1.6">Your account credentials:</p>
+    <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;padding:20px;margin-bottom:24px">
+      <p style="margin:0 0 10px;color:#374151"><strong>Login Email:</strong> {login_email}</p>
+      <p style="margin:0;color:#374151"><strong>Password:</strong>
+        <code style="background:#ede9fe;color:#5b21b6;padding:3px 8px;border-radius:4px">{password}</code>
+      </p>
+    </div>
+    <div style="background:#fef3c7;border-left:4px solid #f59e0b;border-radius:4px;padding:12px 16px;margin-bottom:24px">
+      <p style="margin:0;color:#92400e;font-size:.88rem">⚠️ Please change your password after first login.</p>
+    </div>
+    <div style="text-align:center">
+      <a href="{frontend_url}" style="display:inline-block;background:linear-gradient(135deg,#4f46e5,#7c3aed);color:#fff;padding:12px 32px;border-radius:999px;text-decoration:none;font-weight:600">
+        Login to CampusGenie →
+      </a>
+    </div>
+  </div>
+  <div style="background:#f9fafb;border-top:1px solid #e5e7eb;padding:16px;text-align:center">
+    <p style="margin:0;color:#9ca3af;font-size:.8rem">Automated message from CampusGenie. Do not reply.</p>
+  </div>
+</div>
+</body></html>"""
+
+
 # Helper function to check if user is registrar
 def get_registrar_user(current_user: User = Depends(get_current_active_user), db: Session = Depends(get_db)):
     """Check if current user is a registrar.
@@ -556,21 +593,23 @@ def create_student(
         # Send credentials via email if email service is configured
         email_sent = False
         if email_service.is_configured():
-            import asyncio
-            student_name = f"{student_data.first_name} {student_data.last_name}"
             try:
-                # Run async email sending in sync context
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                email_sent = loop.run_until_complete(
-                    email_service.send_credentials_email(
-                        to_email=student_data.personal_email,
-                        student_name=student_name,
+                student_name = f"{student_data.first_name} {student_data.last_name}"
+                email_sent = email_service.send_email(
+                    to_email=student_data.personal_email,
+                    subject="🎓 Your CampusGenie Account Credentials",
+                    html_content=_build_credentials_email(
+                        name=student_name,
                         login_email=student_data.email,
-                        password=student_data.password
-                    )
+                        password=student_data.password,
+                    ),
+                    text_content=(
+                        f"Hello {student_name},\n\n"
+                        f"Login Email: {student_data.email}\n"
+                        f"Password: {student_data.password}\n\n"
+                        f"Please change your password after first login.\n\nCampusGenie Team"
+                    ),
                 )
-                loop.close()
             except Exception as e:
                 print(f"Failed to send email: {str(e)}")
                 email_sent = False
@@ -750,18 +789,22 @@ def create_faculty(
             import asyncio
             faculty_name = f"{faculty_data.first_name} {faculty_data.last_name}"
             try:
-                # Run async email sending in sync context
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                email_sent = loop.run_until_complete(
-                    email_service.send_faculty_credentials_email(
-                        to_email=faculty_data.personal_email,
-                        faculty_name=faculty_name,
+                faculty_name = f"{faculty_data.first_name} {faculty_data.last_name}"
+                email_sent = email_service.send_email(
+                    to_email=faculty_data.personal_email,
+                    subject="🎓 Your CampusGenie Faculty Account Credentials",
+                    html_content=_build_credentials_email(
+                        name=faculty_name,
                         login_email=faculty_data.email,
-                        password=faculty_data.password
-                    )
+                        password=faculty_data.password,
+                    ),
+                    text_content=(
+                        f"Hello {faculty_name},\n\n"
+                        f"Login Email: {faculty_data.email}\n"
+                        f"Password: {faculty_data.password}\n\n"
+                        f"Please change your password after first login.\n\nCampusGenie Team"
+                    ),
                 )
-                loop.close()
             except Exception as e:
                 print(f"Failed to send email: {str(e)}")
                 email_sent = False

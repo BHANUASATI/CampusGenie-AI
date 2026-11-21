@@ -2,12 +2,10 @@
 Database initialisation script for Railway deployment.
 
 Runs once on first deploy:
-  1. Creates all SQLAlchemy tables (safe to re-run, uses CREATE IF NOT EXISTS).
-  2. Seeds the default admin account if no users exist.
-  3. Seeds the demo student account used by the "Demo Login" button.
-
-Run from the backend/ directory:
-    PYTHONPATH=src python3 scripts/init_db.py
+  1. Creates all SQLAlchemy tables (idempotent).
+  2. Seeds departments if none exist.
+  3. Seeds default user accounts if none exist.
+  4. Ensures registrar has correct Faculty record + Registrar designation.
 """
 from __future__ import annotations
 import sys
@@ -20,6 +18,7 @@ from models import Base, User, Faculty, Department
 from calendar_models import Base as CalendarBase
 from security import get_password_hash
 
+
 def main() -> None:
     print("Creating tables …")
     Base.metadata.create_all(bind=engine)
@@ -28,20 +27,17 @@ def main() -> None:
 
     db = SessionLocal()
     try:
+        # Always seed departments — idempotent
+        _seed_departments(db)
+
         if db.query(User).count() > 0:
-            # Users exist — but make sure registrar has correct designation
-            _ensure_registrar_designation(db)
-            print("Users already exist — skipping seed.")
+            # Existing DB — just ensure registrar is set up correctly
+            _ensure_registrar(db)
+            print("Users already exist — skipping user seed.")
             return
 
         print("Seeding default accounts …")
-
-        # Seed a default department first
         dept = db.query(Department).first()
-        if not dept:
-            dept = Department(name="Computer Science", code="CS", description="Computer Science and Engineering")
-            db.add(dept)
-            db.flush()
 
         accounts = [
             ("admin@university.edu.in",      "admin123",      "admin"),
@@ -62,40 +58,71 @@ def main() -> None:
             db.flush()
             users[email] = user
 
-        # Create Faculty records for faculty/registrar accounts
-        faculty_records = [
-            (users["registrar@university.edu.in"], "REG001", "Registrar", "Registrar"),
-            (users["john.smith@university.edu.in"], "FAC001", "John", "Smith"),
+        faculty_seed = [
+            (users["registrar@university.edu.in"], "REG001", "Registrar", "Office",  "Registrar"),
+            (users["john.smith@university.edu.in"], "FAC001", "John",      "Smith",   "Professor"),
         ]
-        for user, emp_id, first, last in faculty_records:
-            faculty = Faculty(
+        for user, emp_id, first, last, designation in faculty_seed:
+            db.add(Faculty(
                 user_id=user.id,
                 employee_id=emp_id,
                 first_name=first,
                 last_name=last,
-                designation="Registrar" if "REG" in emp_id else "Professor",
-                department_id=dept.id,
+                designation=designation,
+                department_id=dept.id if dept else None,
                 can_verify_documents=True,
                 can_assign_tasks=True,
-            )
-            db.add(faculty)
+            ))
 
         db.commit()
-        print(f"Seeded {len(accounts)} accounts with faculty records.")
+        print(f"Seeded {len(accounts)} accounts.")
     finally:
         db.close()
 
 
-def _ensure_registrar_designation(db) -> None:
-    """Make sure the registrar user has a Faculty record with Registrar designation."""
+def _seed_departments(db) -> None:
+    """Seed departments if none exist — safe to call every boot."""
+    if db.query(Department).count() > 0:
+        return
+    depts = [
+        ("Computer Science",  "CS",  "Computer Science and Engineering"),
+        ("Electronics",        "EC",  "Electronics and Communication Engineering"),
+        ("Mechanical",         "ME",  "Mechanical Engineering"),
+        ("Civil",              "CE",  "Civil Engineering"),
+        ("Mathematics",        "MA",  "Mathematics and Statistics"),
+    ]
+    for name, code, desc in depts:
+        db.add(Department(name=name, code=code, description=desc))
+    db.commit()
+    print(f"Seeded {len(depts)} departments.")
+
+
+def _ensure_registrar(db) -> None:
+    """Guarantee the registrar account has a Faculty record with Registrar designation."""
     reg_user = db.query(User).filter(User.email == "registrar@university.edu.in").first()
     if not reg_user:
         return
     faculty = db.query(Faculty).filter(Faculty.user_id == reg_user.id).first()
-    if faculty and "registrar" not in (faculty.designation or "").lower():
-        faculty.designation = "Registrar"
+    if faculty:
+        if "registrar" not in (faculty.designation or "").lower():
+            faculty.designation = "Registrar"
+            db.commit()
+            print("Fixed registrar designation → Registrar")
+    else:
+        dept = db.query(Department).first()
+        db.add(Faculty(
+            user_id=reg_user.id,
+            employee_id="REG001",
+            first_name="Registrar",
+            last_name="Office",
+            designation="Registrar",
+            department_id=dept.id if dept else None,
+            can_verify_documents=True,
+            can_assign_tasks=True,
+        ))
         db.commit()
-        print(f"Fixed registrar designation: {faculty.designation} → Registrar")
+        print("Created missing Faculty record for registrar.")
+
 
 if __name__ == "__main__":
     main()
