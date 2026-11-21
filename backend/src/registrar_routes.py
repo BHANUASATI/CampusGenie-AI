@@ -22,32 +22,27 @@ router = APIRouter(prefix="/registrar", tags=["registrar"])
 
 # Helper function to check if user is registrar
 def get_registrar_user(current_user: User = Depends(get_current_active_user), db: Session = Depends(get_db)):
-    """Check if current user is a registrar"""
-    # Allow users with role "registrar" or faculty users with registrar designation
-    if current_user.role == "registrar":
-        # Check if there's a faculty record for this user
+    """Check if current user is a registrar.
+    Accepts: role == 'admin', role == 'registrar', or faculty with designation containing 'registrar'.
+    """
+    # Admin can always access registrar functions
+    if current_user.role == "admin":
         faculty = db.query(Faculty).filter(Faculty.user_id == current_user.id).first()
-        if faculty and faculty.designation.lower() == "registrar":
-            return faculty
-        # If no faculty record but role is registrar, create a minimal return object
-        elif faculty:
-            return faculty
-        else:
-            # Return the user info if no faculty record exists
-            return current_user
-    elif current_user.role == "faculty":
+        return faculty or current_user
+
+    if current_user.role in ("registrar", "faculty"):
         faculty = db.query(Faculty).filter(Faculty.user_id == current_user.id).first()
-        if not faculty or faculty.designation.lower() != "registrar":
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Access denied. Registrar privileges required."
-            )
-        return faculty
-    else:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied. Registrar access required."
-        )
+        # Allow if designation contains 'registrar' (case-insensitive)
+        if faculty and "registrar" in (faculty.designation or "").lower():
+            return faculty
+        # Also allow if role is explicitly 'registrar'
+        if current_user.role == "registrar":
+            return faculty or current_user
+
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Access denied. Registrar privileges required."
+    )
 
 @router.get("/documents/all", response_model=List[dict])
 def get_all_documents(
