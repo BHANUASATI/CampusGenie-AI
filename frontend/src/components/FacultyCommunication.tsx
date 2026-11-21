@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { 
 
-const API_BASE = process.env.REACT_APP_API_URL || API_BASE + '';
   MessageSquare, 
   Send, 
   Reply, 
@@ -37,6 +36,8 @@ const API_BASE = process.env.REACT_APP_API_URL || API_BASE + '';
   Image,
   Link
 } from 'lucide-react';
+
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8002';
 
 interface Message {
   id: number;
@@ -138,7 +139,7 @@ const FacultyCommunication: React.FC = () => {
       const token = localStorage.getItem('authToken');
       
       // Fetch messages
-      const messagesResponse = await fetch(API_BASE + '/faculty/messages', {
+      const messagesResponse = await fetch(API_BASE_URL + '/faculty/messages', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       
@@ -148,7 +149,7 @@ const FacultyCommunication: React.FC = () => {
       }
 
       // Fetch conversations
-      const conversationsResponse = await fetch(API_BASE + '/faculty/conversations', {
+      const conversationsResponse = await fetch(API_BASE_URL + '/faculty/conversations', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       
@@ -158,7 +159,7 @@ const FacultyCommunication: React.FC = () => {
       }
 
       // Fetch notifications
-      const notificationsResponse = await fetch(API_BASE + '/faculty/notifications', {
+      const notificationsResponse = await fetch(API_BASE_URL + '/faculty/notifications', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       
@@ -350,7 +351,7 @@ const FacultyCommunication: React.FC = () => {
         formData.append(`attachment_${index}`, file);
       });
 
-      const response = await fetch(API_BASE + '/faculty/messages', {
+      const response = await fetch(API_BASE_URL + '/faculty/messages', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -379,7 +380,7 @@ const FacultyCommunication: React.FC = () => {
 
     try {
       const token = localStorage.getItem('authToken');
-      const response = await fetch(`${API_BASE}/faculty/messages/${selectedMessage.id}/reply`, {
+      const response = await fetch(`${API_BASE_URL}/faculty/messages/${selectedMessage.id}/reply`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -403,7 +404,7 @@ const FacultyCommunication: React.FC = () => {
   const handleMarkAsRead = async (messageId: number) => {
     try {
       const token = localStorage.getItem('authToken');
-      await fetch(`${API_BASE}/faculty/messages/${messageId}/read`, {
+      await fetch(`${API_BASE_URL}/faculty/messages/${messageId}/read`, {
         method: 'PATCH',
         headers: {
           'Authorization': `Bearer ${token}`

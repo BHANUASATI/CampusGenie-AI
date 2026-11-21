@@ -171,13 +171,13 @@ export const VoiceChat: React.FC<VoiceChatProps> = ({ isOpen, onClose }) => {
     recRef.current = rec;
     setLiveText('');
     try { rec.start(); } catch {}
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line
   }, [phase, sendToAI]);
 
   // Auto-open mic when phase becomes 'listening'
   useEffect(() => {
     if (phase === 'listening' && activeRef.current) openMic();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line
   }, [phase]);
 
   // Start session when dialog opens

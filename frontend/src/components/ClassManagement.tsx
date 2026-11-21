@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { 
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || API_BASE_URL + '';
   Users, 
   Calendar, 
   Clock, 
@@ -36,6 +35,8 @@ const API_BASE_URL = process.env.REACT_APP_API_URL || API_BASE_URL + '';
   Mail,
   MessageSquare
 } from 'lucide-react';
+
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8002';
 
 interface Class {
   id: number;

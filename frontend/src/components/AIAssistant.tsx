@@ -7,7 +7,7 @@ import { VoiceChat } from './VoiceChat';
 import './AIAssistant.css';
 import './VoiceChat.css';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || API_BASE_URL + '';
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8002';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -557,6 +557,7 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ isOpen, onClose }) => {
   if (!isOpen) return null;
 
   return (
+    <>
     <div className="cg-ai-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="cg-ai-panel">
 
@@ -992,6 +993,7 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ isOpen, onClose }) => {
 
     {/* Siri-style live voice conversation */}
     <VoiceChat isOpen={voiceChatOpen} onClose={() => setVoiceChatOpen(false)} />
+    </>
   );
 };
 

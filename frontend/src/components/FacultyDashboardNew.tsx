@@ -79,7 +79,7 @@ import ClassManagement from './ClassManagement';
 import FacultyCommunication from './FacultyCommunication';
 import FacultyProfile from './FacultyProfile';
 
-const API_BASE = process.env.REACT_APP_API_URL || API_BASE + '';
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8002';
 
 interface FacultyStats {
   total_students: number;
@@ -270,7 +270,7 @@ const FacultyDashboard: React.FC = () => {
 
       // Fetch faculty profile first
       try {
-        const profileResponse = await fetch(API_BASE + '/faculty/simple/me', {
+        const profileResponse = await fetch(API_BASE_URL + '/faculty/simple/me', {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         if (profileResponse.ok) {
@@ -286,7 +286,7 @@ const FacultyDashboard: React.FC = () => {
 
       // Fetch stats from simple endpoint
       try {
-        const statsResponse = await fetch(API_BASE + '/faculty/simple/stats', {
+        const statsResponse = await fetch(API_BASE_URL + '/faculty/simple/stats', {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         if (statsResponse.ok) {
@@ -302,7 +302,7 @@ const FacultyDashboard: React.FC = () => {
 
       // Fetch tasks from simple endpoint
       try {
-        const tasksResponse = await fetch(API_BASE + '/faculty/simple/tasks', {
+        const tasksResponse = await fetch(API_BASE_URL + '/faculty/simple/tasks', {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         if (tasksResponse.ok) {
@@ -318,7 +318,7 @@ const FacultyDashboard: React.FC = () => {
 
       // Fetch pending documents from simple endpoint
       try {
-        const documentsResponse = await fetch(API_BASE + '/faculty/simple/documents/pending', {
+        const documentsResponse = await fetch(API_BASE_URL + '/faculty/simple/documents/pending', {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         if (documentsResponse.ok) {
@@ -334,7 +334,7 @@ const FacultyDashboard: React.FC = () => {
 
       // Fetch students from simple endpoint
       try {
-        const studentsResponse = await fetch(API_BASE + '/faculty/simple/students', {
+        const studentsResponse = await fetch(API_BASE_URL + '/faculty/simple/students', {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         if (studentsResponse.ok) {
@@ -482,7 +482,7 @@ const FacultyDashboard: React.FC = () => {
   const handleCreateTask = async () => {
     try {
       const token = localStorage.getItem('authToken');
-      const response = await fetch(API_BASE + '/faculty/tasks', {
+      const response = await fetch(API_BASE_URL + '/faculty/tasks', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -512,7 +512,7 @@ const FacultyDashboard: React.FC = () => {
   const handleSendMessage = async () => {
     try {
       const token = localStorage.getItem('authToken');
-      const response = await fetch(API_BASE + '/faculty/messages', {
+      const response = await fetch(API_BASE_URL + '/faculty/messages', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

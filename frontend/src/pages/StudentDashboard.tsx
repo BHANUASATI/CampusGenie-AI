@@ -21,7 +21,7 @@ import {
 } from 'lucide-react';
 import { ThemeToggle } from '../components/common/ThemeToggle';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || API_BASE_URL + '';
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8002';
 
 type TaskPriority = 'high' | 'medium' | 'low' | 'urgent';
 type TaskStatus = 'pending' | 'in-progress' | 'completed' | 'locked';

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Plus, Filter, Search, Calendar, CheckCircle, Clock, AlertTriangle, TrendingUp } from 'lucide-react';
 import { PersonalTaskCard } from './PersonalTaskCard';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || API_BASE_URL + '';
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8002';
 
 interface PersonalTask {
   id: number;

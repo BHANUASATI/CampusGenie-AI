@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { User, Lock, GraduationCap } from 'lucide-react';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || API_BASE_URL + '';
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8002';
 
 const RegistrarLogin: React.FC = () => {
   const [email, setEmail] = useState('');
