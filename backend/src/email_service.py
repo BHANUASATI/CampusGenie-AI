@@ -4,358 +4,105 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from typing import Optional
 import os
-from datetime import datetime
 import logging
+import requests
 from dotenv import load_dotenv
 
 load_dotenv()
 
 logger = logging.getLogger(__name__)
 
+
 class EmailService:
     def __init__(self):
-        self.smtp_server = os.getenv("SMTP_SERVER", "smtp.gmail.com")
-        self.smtp_port = int(os.getenv("SMTP_PORT", "587"))
-        self.smtp_username = os.getenv("SMTP_USERNAME")
-        self.smtp_password = os.getenv("SMTP_PASSWORD")
-        self.from_email = os.getenv("FROM_EMAIL", self.smtp_username)
-        
-        # Log configuration status
-        if self.smtp_username and self.smtp_password:
-            logger.info(f"✅ Email service configured with server: {self.smtp_server}")
+        self.resend_api_key  = os.getenv("RESEND_API_KEY", "")
+        self.smtp_server     = os.getenv("SMTP_SERVER", "smtp.gmail.com")
+        self.smtp_port       = int(os.getenv("SMTP_PORT", "587"))
+        self.smtp_username   = os.getenv("SMTP_USERNAME", "")
+        self.smtp_password   = os.getenv("SMTP_PASSWORD", "")
+        self.from_email      = os.getenv("FROM_EMAIL", "onboarding@resend.dev")
+
+        if self.resend_api_key and not self.resend_api_key.startswith("your-"):
+            logger.info("✅ Email service configured via Resend API")
+        elif self.smtp_username and self.smtp_password and not self.smtp_username.startswith("your-"):
+            logger.info(f"✅ Email service configured via SMTP: {self.smtp_server}")
         else:
-            logger.warning("⚠️ Email service not properly configured - SMTP credentials missing")
-        
+            logger.warning("⚠️ Email service not configured — set RESEND_API_KEY or SMTP credentials")
+
+    def is_configured(self) -> bool:
+        if self.resend_api_key and not self.resend_api_key.startswith("your-"):
+            return True
+        if (self.smtp_username and self.smtp_password
+                and not self.smtp_username.startswith("your-")
+                and not self.smtp_password.startswith("your-")):
+            return True
+        return False
+
     def send_email(
         self,
         to_email: str,
         subject: str,
         html_content: str,
-        text_content: Optional[str] = None
+        text_content: Optional[str] = None,
     ) -> bool:
-        """Send an email using SMTP."""
-        if not all([self.smtp_username, self.smtp_password]):
-            logger.warning("SMTP credentials not configured. Email sending disabled.")
+        """Send email via Resend API (preferred) or SMTP fallback."""
+        if not self.is_configured():
+            logger.warning("Email not configured — skipping send")
             return False
-            
+
+        # ── Resend API (works on Railway — HTTPS, no port blocking) ──────────
+        if self.resend_api_key and not self.resend_api_key.startswith("your-"):
+            return self._send_via_resend(to_email, subject, html_content, text_content)
+
+        # ── SMTP fallback ─────────────────────────────────────────────────────
+        return self._send_via_smtp(to_email, subject, html_content, text_content)
+
+    def _send_via_resend(self, to_email: str, subject: str, html: str, text: Optional[str]) -> bool:
+        """Send via Resend REST API — no port restrictions."""
         try:
-            # Create message
-            msg = MIMEMultipart('alternative')
-            msg['From'] = self.from_email
-            msg['To'] = to_email
-            msg['Subject'] = subject
-            
-            # Add text and HTML parts
-            if text_content:
-                part1 = MIMEText(text_content, 'plain')
-                msg.attach(part1)
-            
-            part2 = MIMEText(html_content, 'html')
-            msg.attach(part2)
-            
-            # Send email — with a 10s connection timeout so it never hangs
+            payload = {
+                "from": self.from_email,
+                "to": [to_email],
+                "subject": subject,
+                "html": html,
+            }
+            if text:
+                payload["text"] = text
+            resp = requests.post(
+                "https://api.resend.com/emails",
+                json=payload,
+                headers={"Authorization": f"Bearer {self.resend_api_key}"},
+                timeout=15,
+            )
+            if resp.status_code in (200, 201):
+                logger.info(f"Email sent via Resend to {to_email}")
+                return True
+            else:
+                logger.error(f"Resend error {resp.status_code}: {resp.text[:200]}")
+                return False
+        except Exception as e:
+            logger.error(f"Resend send failed: {e}")
+            return False
+
+    def _send_via_smtp(self, to_email: str, subject: str, html: str, text: Optional[str]) -> bool:
+        """Send via SMTP — may be blocked on some hosting platforms."""
+        try:
+            msg = MIMEMultipart("alternative")
+            msg["From"]    = self.from_email
+            msg["To"]      = to_email
+            msg["Subject"] = subject
+            if text:
+                msg.attach(MIMEText(text, "plain"))
+            msg.attach(MIMEText(html, "html"))
             with smtplib.SMTP(self.smtp_server, self.smtp_port, timeout=10) as server:
                 server.starttls()
                 server.login(self.smtp_username, self.smtp_password)
                 server.send_message(msg)
-                
-            logger.info(f"Email sent successfully to {to_email}")
+            logger.info(f"Email sent via SMTP to {to_email}")
             return True
-            
         except Exception as e:
-            logger.error(f"Failed to send email to {to_email}: {str(e)}")
+            logger.error(f"SMTP send failed to {to_email}: {e}")
             return False
 
-    def is_configured(self) -> bool:
-        """Return True when SMTP credentials are present."""
-        return bool(self.smtp_username and self.smtp_password and
-                    not self.smtp_username.startswith("your-"))
 
-    async def send_credentials_email(
-        self,
-        to_email: str,
-        student_name: str,
-        login_email: str,
-        password: str,
-    ) -> bool:
-        """Send login credentials to a newly created student or faculty member."""
-        subject = "🎓 Your CampusGenie Account Credentials"
-        html_content = f"""
-        <!DOCTYPE html>
-        <html>
-        <head><meta charset="utf-8"></head>
-        <body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-                     background:#f3f4f6; padding:30px; margin:0;">
-          <div style="max-width:520px; margin:auto; background:#fff;
-                      border-radius:14px; overflow:hidden;
-                      box-shadow:0 4px 20px rgba(0,0,0,0.08);">
-            <!-- Header -->
-            <div style="background:linear-gradient(135deg,#4f46e5,#7c3aed);
-                        padding:30px; text-align:center;">
-              <h1 style="color:#fff; margin:0; font-size:1.6rem; font-weight:700;">
-                🎓 CampusGenie
-              </h1>
-              <p style="color:rgba(255,255,255,0.85); margin:6px 0 0; font-size:0.95rem;">
-                AI-Powered University Portal
-              </p>
-            </div>
-            <!-- Body -->
-            <div style="padding:32px;">
-              <p style="font-size:1rem; color:#374151; margin:0 0 16px;">
-                Hello <strong>{student_name}</strong>, welcome to CampusGenie!
-              </p>
-              <p style="color:#6b7280; margin:0 0 24px; line-height:1.6;">
-                Your account has been created. Here are your login credentials:
-              </p>
-              <!-- Credentials box -->
-              <div style="background:#f9fafb; border:1px solid #e5e7eb;
-                          border-radius:10px; padding:20px; margin-bottom:24px;">
-                <table style="width:100%; border-collapse:collapse;">
-                  <tr>
-                    <td style="padding:8px 0; color:#6b7280; font-size:0.88rem;
-                                font-weight:600; text-transform:uppercase;
-                                letter-spacing:0.05em; width:120px;">Login Email</td>
-                    <td style="padding:8px 0; color:#1f2937;
-                                font-weight:500;">{login_email}</td>
-                  </tr>
-                  <tr>
-                    <td style="padding:8px 0; color:#6b7280; font-size:0.88rem;
-                                font-weight:600; text-transform:uppercase;
-                                letter-spacing:0.05em;">Password</td>
-                    <td style="padding:8px 0;">
-                      <code style="background:#ede9fe; color:#5b21b6;
-                                   padding:4px 10px; border-radius:6px;
-                                   font-size:0.95rem; font-weight:600;">{password}</code>
-                    </td>
-                  </tr>
-                </table>
-              </div>
-              <!-- Warning -->
-              <div style="background:#fef3c7; border-left:4px solid #f59e0b;
-                          border-radius:4px; padding:12px 16px; margin-bottom:24px;">
-                <p style="margin:0; color:#92400e; font-size:0.88rem;">
-                  ⚠️ Please change your password after your first login.
-                </p>
-              </div>
-              <!-- CTA -->
-              <div style="text-align:center;">
-                <a href="{os.getenv('FRONTEND_URL', 'https://campusgenie-ai-production-c6422709.up.railway.app')}"
-                   style="display:inline-block; background:linear-gradient(135deg,#4f46e5,#7c3aed);
-                          color:#fff; padding:12px 32px; border-radius:999px;
-                          text-decoration:none; font-weight:600; font-size:0.95rem;">
-                  Login to CampusGenie →
-                </a>
-              </div>
-            </div>
-            <!-- Footer -->
-            <div style="background:#f9fafb; border-top:1px solid #e5e7eb;
-                        padding:16px; text-align:center;">
-              <p style="margin:0; color:#9ca3af; font-size:0.8rem;">
-                This is an automated message from CampusGenie. Do not reply.
-              </p>
-            </div>
-          </div>
-        </body>
-        </html>
-        """
-        text_content = (
-            f"Hello {student_name},\n\n"
-            f"Your CampusGenie account has been created.\n\n"
-            f"Login Email: {login_email}\n"
-            f"Password: {password}\n\n"
-            f"Please change your password after first login.\n\n"
-            f"CampusGenie Team"
-        )
-        return self.send_email(to_email, subject, html_content, text_content)
-    
-    def send_todo_notification(
-        self,
-        to_email: str,
-        todo_title: str,
-        todo_description: str,
-        due_date: datetime,
-        todo_type: str = "personal",
-        priority: str = "medium"
-    ) -> bool:
-        """Send a todo notification email."""
-        
-        # Format due date
-        formatted_date = due_date.strftime("%B %d, %Y at %I:%M %p")
-        
-        # Determine priority color
-        priority_colors = {
-            "low": "#10b981",
-            "medium": "#f59e0b", 
-            "high": "#ef4444",
-            "urgent": "#dc2626"
-        }
-        priority_color = priority_colors.get(priority, "#6b7280")
-        
-        # Create HTML content
-        html_content = f"""
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <meta charset="utf-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Todo Reminder</title>
-            <style>
-                body {{
-                    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-                    line-height: 1.6;
-                    color: #333;
-                    max-width: 600px;
-                    margin: 0 auto;
-                    padding: 20px;
-                    background-color: #f9fafb;
-                }}
-                .container {{
-                    background-color: #ffffff;
-                    border-radius: 12px;
-                    padding: 30px;
-                    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-                }}
-                .header {{
-                    text-align: center;
-                    padding-bottom: 20px;
-                    border-bottom: 2px solid #e5e7eb;
-                }}
-                .logo {{
-                    font-size: 24px;
-                    font-weight: bold;
-                    color: #4f46e5;
-                }}
-                .content {{
-                    padding: 20px 0;
-                }}
-                .todo-title {{
-                    font-size: 22px;
-                    font-weight: 600;
-                    color: #1f2937;
-                    margin-bottom: 10px;
-                }}
-                .todo-type {{
-                    display: inline-block;
-                    padding: 4px 12px;
-                    border-radius: 20px;
-                    font-size: 12px;
-                    font-weight: 600;
-                    text-transform: uppercase;
-                    margin-bottom: 15px;
-                }}
-                .academic {{
-                    background-color: #e0e7ff;
-                    color: #4338ca;
-                }}
-                .personal {{
-                    background-color: #fce7f3;
-                    color: #be185d;
-                }}
-                .todo-description {{
-                    color: #6b7280;
-                    margin-bottom: 20px;
-                    line-height: 1.8;
-                }}
-                .due-date {{
-                    background-color: #fef3c7;
-                    border-left: 4px solid #f59e0b;
-                    padding: 15px;
-                    margin: 20px 0;
-                    border-radius: 4px;
-                }}
-                .due-date strong {{
-                    color: #92400e;
-                }}
-                .priority-badge {{
-                    display: inline-block;
-                    padding: 6px 16px;
-                    border-radius: 20px;
-                    font-size: 14px;
-                    font-weight: 600;
-                    color: white;
-                    background-color: {priority_color};
-                    margin-top: 10px;
-                }}
-                .footer {{
-                    text-align: center;
-                    padding-top: 20px;
-                    border-top: 1px solid #e5e7eb;
-                    color: #9ca3af;
-                    font-size: 12px;
-                }}
-                .button {{
-                    display: inline-block;
-                    padding: 12px 24px;
-                    background-color: #4f46e5;
-                    color: white;
-                    text-decoration: none;
-                    border-radius: 8px;
-                    font-weight: 600;
-                    margin-top: 20px;
-                }}
-                .button:hover {{
-                    background-color: #4338ca;
-                }}
-            </style>
-        </head>
-        <body>
-            <div class="container">
-                <div class="header">
-                    <div class="logo">🎓 CampusGenie</div>
-                </div>
-                
-                <div class="content">
-                    <h2 style="color: #1f2937; margin-bottom: 5px;">Todo Reminder</h2>
-                    <p style="color: #6b7280; margin-bottom: 20px;">You have a task that needs your attention!</p>
-                    
-                    <span class="todo-type {todo_type}">{todo_type}</span>
-                    
-                    <h3 class="todo-title">{todo_title}</h3>
-                    
-                    {f'<p class="todo-description">{todo_description}</p>' if todo_description else ''}
-                    
-                    <div class="due-date">
-                        <strong>📅 Due Date:</strong> {formatted_date}
-                    </div>
-                    
-                    <div class="priority-badge">
-                        Priority: {priority.upper()}
-                    </div>
-                    
-                    <div style="text-align: center; margin-top: 30px;">
-                        <a href="http://localhost:3000" class="button">View in CampusGenie</a>
-                    </div>
-                </div>
-                
-                <div class="footer">
-                    <p>This is an automated reminder from CampusGenie. Please do not reply to this email.</p>
-                    <p>© 2024 CampusGenie. All rights reserved.</p>
-                </div>
-            </div>
-        </body>
-        </html>
-        """
-        
-        # Text version for email clients that don't support HTML
-        text_content = f"""
-        CampusGenie - Todo Reminder
-        
-        You have a task that needs your attention!
-        
-        Type: {todo_type.upper()}
-        Title: {todo_title}
-        {f'Description: {todo_description}' if todo_description else ''}
-        Due Date: {formatted_date}
-        Priority: {priority.upper()}
-        
-        View in CampusGenie: http://localhost:3000
-        
-        This is an automated reminder. Please do not reply.
-        """
-        
-        subject = f"🔔 Reminder: {todo_title} - Due {formatted_date}"
-        
-        return self.send_email(to_email, subject, html_content, text_content)
-
-# Global email service instance
 email_service = EmailService()
