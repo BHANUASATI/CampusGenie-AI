@@ -81,20 +81,34 @@ def main() -> None:
 
 
 def _seed_departments(db) -> None:
-    """Seed departments if none exist — safe to call every boot."""
+    """Seed a default school + departments if none exist — safe to call every boot."""
+    from models import School
     if db.query(Department).count() > 0:
         return
+
+    # Create a default school first (Department requires school_id)
+    school = db.query(School).first()
+    if not school:
+        school = School(
+            name="School of Engineering and Technology",
+            code="SET",
+            type="engineering_technology",
+            description="School of Engineering and Technology",
+        )
+        db.add(school)
+        db.flush()
+
     depts = [
-        ("Computer Science",  "CS",  "Computer Science and Engineering"),
-        ("Electronics",        "EC",  "Electronics and Communication Engineering"),
-        ("Mechanical",         "ME",  "Mechanical Engineering"),
-        ("Civil",              "CE",  "Civil Engineering"),
-        ("Mathematics",        "MA",  "Mathematics and Statistics"),
+        ("Computer Science",  "CS",  "computer_science",   "Computer Science and Engineering"),
+        ("Electronics",        "EC",  "electronics",        "Electronics and Communication Engineering"),
+        ("Mechanical",         "ME",  "mechanical",         "Mechanical Engineering"),
+        ("Civil",              "CE",  "civil",              "Civil Engineering"),
+        ("Mathematics",        "MA",  "mathematics",        "Mathematics and Statistics"),
     ]
-    for name, code, desc in depts:
-        db.add(Department(name=name, code=code, description=desc))
+    for name, code, dtype, desc in depts:
+        db.add(Department(name=name, code=code, type=dtype, description=desc, school_id=school.id))
     db.commit()
-    print(f"Seeded {len(depts)} departments.")
+    print(f"Seeded school + {len(depts)} departments.")
 
 
 def _ensure_registrar(db) -> None:
