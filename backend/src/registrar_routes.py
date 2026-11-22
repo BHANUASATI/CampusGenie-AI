@@ -2,8 +2,6 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_
-from models import User, Faculty, Student, StudentDocument, DocumentType, Admin
-from database import get_db
 from models import User, Faculty, Student, StudentDocument, DocumentType, Admin, Department
 from database import get_db
 from dependencies import get_current_active_user, get_current_faculty
@@ -11,50 +9,9 @@ from typing import List, Optional, Dict, Any
 from datetime import datetime
 from pydantic import BaseModel
 from security import get_password_hash
-from dependencies import get_current_active_user, get_current_faculty
-from typing import List, Optional, Dict, Any
-from datetime import datetime
-from pydantic import BaseModel
 from email_service import email_service
-import os
 
 router = APIRouter(prefix="/registrar", tags=["registrar"])
-
-
-def _build_credentials_email(name: str, login_email: str, password: str) -> str:
-    """HTML email body for new account credentials."""
-    frontend_url = os.getenv("FRONTEND_URL", "https://campusgenie-ai-production-c6422709.up.railway.app")
-    return f"""<!DOCTYPE html>
-<html><head><meta charset="utf-8"></head>
-<body style="font-family:Arial,sans-serif;background:#f3f4f6;padding:30px;margin:0">
-<div style="max-width:520px;margin:auto;background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,.08)">
-  <div style="background:linear-gradient(135deg,#4f46e5,#7c3aed);padding:30px;text-align:center">
-    <h1 style="color:#fff;margin:0;font-size:1.5rem">🎓 CampusGenie</h1>
-    <p style="color:rgba(255,255,255,.85);margin:6px 0 0;font-size:.9rem">AI-Powered University Portal</p>
-  </div>
-  <div style="padding:30px">
-    <p style="color:#374151;margin:0 0 16px">Hello <strong>{name}</strong>, welcome to CampusGenie!</p>
-    <p style="color:#6b7280;margin:0 0 24px;line-height:1.6">Your account credentials:</p>
-    <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;padding:20px;margin-bottom:24px">
-      <p style="margin:0 0 10px;color:#374151"><strong>Login Email:</strong> {login_email}</p>
-      <p style="margin:0;color:#374151"><strong>Password:</strong>
-        <code style="background:#ede9fe;color:#5b21b6;padding:3px 8px;border-radius:4px">{password}</code>
-      </p>
-    </div>
-    <div style="background:#fef3c7;border-left:4px solid #f59e0b;border-radius:4px;padding:12px 16px;margin-bottom:24px">
-      <p style="margin:0;color:#92400e;font-size:.88rem">⚠️ Please change your password after first login.</p>
-    </div>
-    <div style="text-align:center">
-      <a href="{frontend_url}" style="display:inline-block;background:linear-gradient(135deg,#4f46e5,#7c3aed);color:#fff;padding:12px 32px;border-radius:999px;text-decoration:none;font-weight:600">
-        Login to CampusGenie →
-      </a>
-    </div>
-  </div>
-  <div style="background:#f9fafb;border-top:1px solid #e5e7eb;padding:16px;text-align:center">
-    <p style="margin:0;color:#9ca3af;font-size:.8rem">Automated message from CampusGenie. Do not reply.</p>
-  </div>
-</div>
-</body></html>"""
 
 
 # Helper function to check if user is registrar
@@ -80,6 +37,48 @@ def get_registrar_user(current_user: User = Depends(get_current_active_user), db
         status_code=status.HTTP_403_FORBIDDEN,
         detail="Access denied. Registrar privileges required."
     )
+
+
+# ── Email diagnostics ──────────────────────────────────────────────────────
+class TestEmailRequest(BaseModel):
+    to_email: str
+
+
+@router.get("/email/config")
+def email_config(
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db),
+):
+    """Show email configuration status (no secrets) for troubleshooting."""
+    get_registrar_user(current_user, db)
+    return email_service.configuration_summary()
+
+
+@router.post("/email/test")
+def test_email(
+    payload: TestEmailRequest,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db),
+):
+    """Send a sample credentials email to verify delivery from the live server."""
+    get_registrar_user(current_user, db)
+    if not email_service.is_configured():
+        return {"success": False, **email_service.configuration_summary()}
+
+    success = email_service.send_credentials_email(
+        to_email=payload.to_email,
+        student_name="Demo Student",
+        login_email="demo.student@example.edu",
+        password="DEMO-ONLY-DO-NOT-USE",
+        account_type="student",
+    )
+    return {
+        "success": success,
+        "error": email_service.last_error,
+        "from_email": email_service.from_email,
+        "to_email": payload.to_email,
+    }
+
 
 @router.get("/documents/all", response_model=List[dict])
 def get_all_documents(
@@ -590,40 +589,35 @@ def create_student(
         db.add(student)
         db.commit()
         
-        # Send credentials email in a background thread — never block the response
+        # Send the real credentials email and report the actual result.
+        # Resend is an HTTPS API call (~100ms), so this does not hang the request.
         email_sent = False
+        email_error = None
         if email_service.is_configured():
-            import threading
-            student_name = f"{student_data.first_name} {student_data.last_name}"
-            def _send_student_email():
-                try:
-                    email_service.send_email(
-                        to_email=student_data.personal_email,
-                        subject="🎓 Your CampusGenie Account Credentials",
-                        html_content=_build_credentials_email(
-                            name=student_name,
-                            login_email=student_data.email,
-                            password=student_data.password,
-                        ),
-                        text_content=(
-                            f"Hello {student_name},\n\nLogin Email: {student_data.email}\n"
-                            f"Password: {student_data.password}\n\nCampusGenie Team"
-                        ),
-                    )
-                except Exception as e:
-                    print(f"Email send failed: {e}")
-            threading.Thread(target=_send_student_email, daemon=True).start()
-            email_sent = True  # optimistically true; actual result logged in thread
-        
+            email_sent = email_service.send_credentials_email(
+                to_email=student_data.personal_email,
+                student_name=f"{student_data.first_name} {student_data.last_name}",
+                login_email=student_data.email,
+                password=student_data.password,
+                account_type="student",
+            )
+            if not email_sent:
+                email_error = email_service.last_error or "Unknown email error"
+        else:
+            email_error = email_service.configuration_summary()["issue"]
+
         response_message = "Student created successfully"
         if email_sent:
             response_message += " and credentials sent to personal email"
-        elif email_service.is_configured():
-            response_message += " but failed to send credentials email"
         else:
-            response_message += " (email service not configured)"
-            
-        return {"message": response_message, "student_id": student.id, "email_sent": email_sent}
+            response_message += f" but credentials email was NOT sent: {email_error}"
+
+        return {
+            "message": response_message,
+            "student_id": student.id,
+            "email_sent": email_sent,
+            "email_error": email_error,
+        }
         
     except Exception as e:
         db.rollback()
@@ -784,40 +778,34 @@ def create_faculty(
         db.add(faculty)
         db.commit()
         
-        # Send credentials email in a background thread — never block the response
+        # Send the real credentials email and report the actual result.
         email_sent = False
+        email_error = None
         if email_service.is_configured():
-            import threading
-            faculty_name = f"{faculty_data.first_name} {faculty_data.last_name}"
-            def _send_faculty_email():
-                try:
-                    email_service.send_email(
-                        to_email=faculty_data.personal_email,
-                        subject="🎓 Your CampusGenie Faculty Account Credentials",
-                        html_content=_build_credentials_email(
-                            name=faculty_name,
-                            login_email=faculty_data.email,
-                            password=faculty_data.password,
-                        ),
-                        text_content=(
-                            f"Hello {faculty_name},\n\nLogin Email: {faculty_data.email}\n"
-                            f"Password: {faculty_data.password}\n\nCampusGenie Team"
-                        ),
-                    )
-                except Exception as e:
-                    print(f"Faculty email send failed: {e}")
-            threading.Thread(target=_send_faculty_email, daemon=True).start()
-            email_sent = True
-        
+            email_sent = email_service.send_credentials_email(
+                to_email=faculty_data.personal_email,
+                student_name=f"{faculty_data.first_name} {faculty_data.last_name}",
+                login_email=faculty_data.email,
+                password=faculty_data.password,
+                account_type="faculty",
+            )
+            if not email_sent:
+                email_error = email_service.last_error or "Unknown email error"
+        else:
+            email_error = email_service.configuration_summary()["issue"]
+
         response_message = "Faculty created successfully"
         if email_sent:
             response_message += " and credentials sent to personal email"
-        elif email_service.is_configured():
-            response_message += " but failed to send credentials email"
         else:
-            response_message += " (email service not configured)"
-            
-        return {"message": response_message, "faculty_id": faculty.id, "email_sent": email_sent}
+            response_message += f" but credentials email was NOT sent: {email_error}"
+
+        return {
+            "message": response_message,
+            "faculty_id": faculty.id,
+            "email_sent": email_sent,
+            "email_error": email_error,
+        }
         
     except Exception as e:
         db.rollback()

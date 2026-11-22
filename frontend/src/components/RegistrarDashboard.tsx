@@ -1470,7 +1470,7 @@ const RegistrarDashboard: React.FC = () => {
         const message = responseData.message || "Student added successfully";
         const emailStatus = responseData.email_sent ? 
           "\n✅ Login credentials have been sent to the student's personal email." : 
-          "\n⚠️ Failed to send credentials email. Please manually provide the credentials.";
+          `\n⚠️ Credentials email was NOT sent${responseData.email_error ? `: ${responseData.email_error}` : ''}. Please provide the credentials manually.`;
         
         alert(`${message}${emailStatus}\n\nStudent Details:\nName: ${newStudent.first_name} ${newStudent.last_name}\nLogin Email: ${newStudent.email}\nPersonal Email: ${newStudent.personal_email}\nEnrollment Number: ${newStudent.enrollment_number}\nPassword: ${newStudent.password}\nSchool: ${schools.find(s => s.id === newStudent.school_id)?.name}\nDepartment: ${filteredDepartments.find(d => d.id === newStudent.department_id)?.name}\nCourse: ${filteredCourses.find(c => c.id === newStudent.course_id)?.name}`);
         setShowAddStudentModal(false);
@@ -1666,7 +1666,7 @@ const RegistrarDashboard: React.FC = () => {
         const message = responseData.message || "Faculty added successfully";
         const emailStatus = responseData.email_sent ? 
           "\n✅ Login credentials have been sent to the faculty's personal email." : 
-          "\n⚠️ Failed to send credentials email. Please manually provide the credentials.";
+          `\n⚠️ Credentials email was NOT sent${responseData.email_error ? `: ${responseData.email_error}` : ''}. Please provide the credentials manually.`;
         
         alert(`${message}${emailStatus}\n\nFaculty Details:\nName: ${newFaculty.first_name} ${newFaculty.last_name}\nLogin Email: ${email}\nPersonal Email: ${newFaculty.personal_email}\nEmployee ID: ${employeeId}\nPassword: ${password}\nDesignation: ${newFaculty.designation}\nDepartment: ${newFaculty.department_id === 1 ? 'Computer Science' : 'Unknown'}`);
         setShowAddFacultyModal(false);
