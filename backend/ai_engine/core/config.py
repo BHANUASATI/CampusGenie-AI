@@ -148,6 +148,14 @@ class AIEngineConfig(BaseSettings):
         default=[".pdf", ".docx", ".txt", ".csv", ".md"]
     )
 
+    # OCR for scanned / image-only PDF pages. Native text is always preferred;
+    # only pages with less than OCR_MIN_TEXT_CHARS characters are rendered and
+    # passed through Tesseract (installed in the Dockerfile).
+    OCR_ENABLED: bool = Field(default=True)
+    OCR_MIN_TEXT_CHARS: int = Field(default=60, ge=0, le=500)
+    OCR_DPI: int = Field(default=200, ge=100, le=400)
+    OCR_LANGUAGE: str = Field(default="eng")
+
     # -----------------------------------------------------------------------
     # Observability
     # -----------------------------------------------------------------------

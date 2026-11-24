@@ -384,8 +384,9 @@ const AIKnowledgeBase: React.FC = () => {
               <div className="mb-5">
                 <h2 className="text-lg font-bold text-slate-800">Upload to Knowledge Base</h2>
                 <p className="text-sm text-slate-500 mt-1">
-                  Documents are automatically extracted, chunked, embedded, and stored in ChromaDB.
-                  Students can then ask questions about the content in real time.
+                  Digital and scanned PDFs are both supported — image-only pages are OCR'd
+                  automatically. Documents are chunked, embedded, and stored in ChromaDB,
+                  so students can ask questions about the content immediately.
                 </p>
               </div>
 

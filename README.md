@@ -477,10 +477,12 @@ this script **adds to** whatever is already indexed and is safe to re-run:
 Inspect the result with `GET /api/ai/documents/stats` or the
 `components.chromadb.chunks` field in `GET /api/ai/health`.
 
-> **Scanned PDFs cannot be indexed.** `Academic-Calendar-for-Academic-Session-2025-26.pdf`
-> is 4 image-only pages with no text layer, so extraction refuses it
-> (`PDF appears to be scanned / empty`) rather than storing empty chunks. Making
-> it searchable needs OCR (e.g. `ocrmypdf`) run on the file before upload.
+> **Scanned PDFs are supported.** Pages with a real text layer are read directly;
+> image-only pages are rendered at `OCR_DPI` and recognised with Tesseract
+> (installed in the Docker image). A scanned calendar PDF therefore becomes
+> searchable just like a digital one. The Tesseract language can be changed with
+> `OCR_LANGUAGE` (the image ships `eng`, `hin` and `osd`). If OCR fails, the
+> upload reports the exact page numbers instead of silently indexing nothing.
 
 ---
 

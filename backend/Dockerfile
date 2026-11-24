@@ -1,6 +1,7 @@
 FROM python:3.11-slim
 
-# System dependencies for sentence-transformers, PDF libs, and MySQL client
+# System dependencies for sentence-transformers, PDF libs, MySQL client and
+# Tesseract OCR (scanned PDFs are rendered by PyMuPDF and read by pytesseract).
 # libmariadb-dev replaces libmysqlclient-dev on Debian trixie (Python 3.11-slim)
 RUN apt-get update && apt-get install -y \
     gcc \
@@ -8,6 +9,10 @@ RUN apt-get update && apt-get install -y \
     pkg-config \
     libmariadb-dev \
     curl \
+    tesseract-ocr \
+    tesseract-ocr-eng \
+    tesseract-ocr-hin \
+    tesseract-ocr-osd \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

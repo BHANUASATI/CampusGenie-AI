@@ -21,6 +21,7 @@ import re
 from pathlib import Path
 from typing import List, Tuple
 
+from ai_engine.core.config import ai_config
 from ai_engine.core.exceptions import DocumentProcessingError
 from ai_engine.core.logging import get_logger
 from ai_engine.document_pipeline.table_markers import TABLE_END_MARKER, TABLE_START_MARKER
@@ -34,13 +35,43 @@ PagedText = List[Tuple[int, str]]
 # ---------------------------------------------------------------------------
 # PDF Extractor
 # ---------------------------------------------------------------------------
+def _ocr_page(fitz, page, language: str, dpi: int) -> str:
+    """Render one PDF page and recognise its text with Tesseract.
+
+    Rotation detection is best-effort: a scanned page fed in sideways is still
+    readable after a 90/180/270 degree correction.
+    """
+    import pytesseract
+    from PIL import Image
+
+    scale = max(1.0, float(dpi) / 72.0)
+    pixmap = page.get_pixmap(
+        matrix=fitz.Matrix(scale, scale),
+        colorspace=fitz.csGRAY,
+        alpha=False,
+    )
+    image = Image.open(io.BytesIO(pixmap.tobytes("png")))
+
+    try:
+        osd = pytesseract.image_to_osd(image)
+        angle_match = re.search(r"Rotate:\s*(\d+)", osd)
+        angle = int(angle_match.group(1)) if angle_match else 0
+        if angle:
+            image = image.rotate(-angle, expand=True)
+    except Exception:
+        # OSD language data is optional; continue with the unrotated image.
+        pass
+
+    return pytesseract.image_to_string(image, lang=language, config="--psm 3")
+
+
 def extract_pdf(file_path: str) -> PagedText:
     """
-    Extract text from a PDF using PyMuPDF.
+    Extract text from a PDF using PyMuPDF, with automatic OCR fallback.
 
-    Handles:
-      - Multi-column layouts (sorts text blocks by reading order)
-      - Scanned PDFs return empty strings (OCR not implemented — logged)
+    Digital PDFs use the embedded text layer (fast, exact). Pages with little
+    or no text are rendered at OCR_DPI and read with Tesseract, so image-only
+    scanned documents become searchable without any manual pre-processing.
     """
     try:
         import fitz  # PyMuPDF
@@ -50,10 +81,46 @@ def extract_pdf(file_path: str) -> PagedText:
         ) from e
 
     pages: PagedText = []
+    ocr_pages: List[int] = []
+    ocr_failures: List[int] = []
     try:
         doc = fitz.open(file_path)
         for page_num, page in enumerate(doc, start=1):
-            text = page.get_text("text")  # reading-order text
+            native_text = page.get_text("text") or ""
+            needs_ocr = (
+                ai_config.OCR_ENABLED
+                and len(native_text.strip()) < ai_config.OCR_MIN_TEXT_CHARS
+            )
+
+            text = native_text
+            if needs_ocr:
+                try:
+                    ocr_text = _ocr_page(
+                        fitz,
+                        page,
+                        language=ai_config.OCR_LANGUAGE,
+                        dpi=ai_config.OCR_DPI,
+                    )
+                except Exception as exc:
+                    ocr_text = ""
+                    ocr_failures.append(page_num)
+                    logger.warning(
+                        "extractor.ocr_failed",
+                        extra={
+                            "file": Path(file_path).name,
+                            "page": page_num,
+                            "error": str(exc),
+                        },
+                    )
+                if ocr_text.strip():
+                    text = ocr_text
+                    ocr_pages.append(page_num)
+                else:
+                    logger.warning(
+                        "extractor.ocr_empty",
+                        extra={"file": Path(file_path).name, "page": page_num},
+                    )
+
             if text.strip():
                 pages.append((page_num, text))
             else:
@@ -62,17 +129,35 @@ def extract_pdf(file_path: str) -> PagedText:
                     extra={"file": Path(file_path).name, "page": page_num},
                 )
         doc.close()
+    except DocumentProcessingError:
+        raise
     except Exception as e:
         raise DocumentProcessingError(
             f"Failed to extract PDF: {Path(file_path).name}", {"error": str(e)}
         ) from e
 
     if not pages:
+        hint = (
+            "Tesseract could not read any page. Check OCR_LANGUAGE / tesseract "
+            "language packs, or upload a clearer scan."
+            if ocr_failures or ocr_pages
+            else "No text layer or readable image content was found."
+        )
         raise DocumentProcessingError(
-            f"PDF appears to be scanned / empty: {Path(file_path).name}",
-            {"hint": "Consider running OCR before uploading"},
+            f"PDF appears to be empty or unreadable: {Path(file_path).name}",
+            {"hint": hint, "ocr_pages": ocr_pages, "ocr_failures": ocr_failures},
         )
 
+    logger.info(
+        "extractor.pdf_done",
+        extra={
+            "event": "extractor.pdf_done",
+            "file": Path(file_path).name,
+            "pages": len(pages),
+            "ocr_pages": ocr_pages,
+            "ocr_failures": ocr_failures,
+        },
+    )
     return pages
 
 
