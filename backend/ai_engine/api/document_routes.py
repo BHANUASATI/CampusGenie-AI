@@ -49,6 +49,20 @@ def _update_job(job_id: str, **changes) -> None:
         _upload_jobs.setdefault(job_id, {}).update(changes)
 
 
+def _safe_log(level: str, event: str, **fields) -> None:
+    """Emit a structured log without letting logging break an upload job.
+
+    ``logging.LogRecord`` reserves names such as ``filename``. Passing one via
+    ``extra=`` raises "Attempt to overwrite 'filename' in LogRecord", which
+    previously turned a *successful* index into a failed job.
+    """
+    try:
+        getattr(logger, level)(event, extra=fields)
+    except Exception:
+        # Log the event without structured fields rather than fail the job.
+        getattr(logger, level)(event)
+
+
 def _require_admin(current_user: models.User):
     """Helper to check if user is admin/registrar."""
     if current_user.role not in (models.UserRole.ADMIN, models.UserRole.REGISTRAR):
@@ -116,20 +130,16 @@ async def upload_document(
                 chunks_indexed=stats.get("chunks_indexed", 0),
                 message=message,
             )
-            logger.info(
-                "document.index_success",
-                extra={"filename": file.filename, "doc_type": doc_type, **stats},
-            )
+            _safe_log("info", "document.index_success", **{"doc_type": doc_type, **stats})
         except Exception as exc:
             message = f'Indexing failed for "{file.filename}": {exc}'
             _update_job(job_id, status="failed", error=str(exc), message=message)
-            logger.error(
+            _safe_log(
+                "error",
                 "document.index_failed",
-                extra={
-                    "filename": file.filename,
-                    "doc_type": doc_type,
-                    "error": str(exc),
-                },
+                source_file=file.filename,
+                doc_type=doc_type,
+                error=str(exc),
             )
         finally:
             # Only remove the temp file — permanent copy is kept by document_service
