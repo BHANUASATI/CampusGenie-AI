@@ -109,6 +109,22 @@ def _clean_date_text(value: str) -> str:
     return _normalise_calendar_date(match) if match else value.strip()
 
 
+# (answer, source filename, doc type, relevance) — carrying the source prevents
+# a calendar answer from being cited with the timetable chunk that was ranked
+# first by mistake.
+DirectAnswer = tuple[str, str, str, float]
+
+
+def _document_source(document) -> tuple[str, str, float]:
+    """Extract citation fields from a ranked or retrieved document."""
+    metadata = document.metadata
+    relevance = max(
+        getattr(document, "similarity_score", 0.0),
+        getattr(document, "rerank_score", 0.0),
+    )
+    return metadata.source_file, metadata.doc_type, _clamp(relevance)
+
+
 def _has_known_date_event(question: str) -> bool:
     lower = question.lower()
     return any(
@@ -164,17 +180,38 @@ def _date_near_term(text: str, term: str) -> Optional[str]:
     return None
 
 
-def _extract_event_date(question: str, documents: List[RankedDocument]) -> Optional[str]:
+def _extract_event_date(question: str, documents: List[RankedDocument]) -> Optional[DirectAnswer]:
     """Answer event-date questions such as "diwali kab ki hai" from the calendar."""
-    for term, label in _question_event_terms(question):
+    terms = _question_event_terms(question)
+    for term, label in terms:
         for document in documents[:6]:
             date_text = _date_near_term(document.content, term)
             if date_text:
-                return f"{label} is on {date_text}."
+                source_file, doc_type, relevance = _document_source(document)
+                return f"{label} is on {date_text}.", source_file, doc_type, relevance
+
+    # The retriever can still surface a different document first (e.g. the
+    # Master Timetable). Ask the local vector store directly for that event's
+    # calendar row before giving up — this stays fast and keeps the answer
+    # grounded in the indexed PDF.
+    if terms:
+        try:
+            from ai_engine.vectorstore.manager import get_vector_store
+
+            store = get_vector_store()
+            for term, label in terms:
+                for probe in (f"{term} academic calendar date", f"{term} holiday"):
+                    for result in store.search(query=probe, top_k=5):
+                        date_text = _date_near_term(result.content, term)
+                        if date_text:
+                            source_file, doc_type, relevance = _document_source(result)
+                            return f"{label} is on {date_text}.", source_file, doc_type, relevance
+        except Exception:
+            pass
     return None
 
 
-def _extract_direct_answer(question: str, documents: List[RankedDocument]) -> Optional[str]:
+def _extract_direct_answer(question: str, documents: List[RankedDocument]) -> Optional[DirectAnswer]:
     """Pull a single unambiguous date/time/percentage from document text.
 
     Prose chunks often split a sentence across "K.R." or a table boundary. A
@@ -198,6 +235,8 @@ def _extract_direct_answer(question: str, documents: List[RankedDocument]) -> Op
     for document in documents[:6]:
         text = " ".join(document.content.split())
 
+        source_file, doc_type, relevance = _document_source(document)
+
         if wants_date:
             # "Last date" must not resolve to the first date in the chunk,
             # which is often the fee window's *opening* date.
@@ -206,25 +245,25 @@ def _extract_direct_answer(question: str, documents: List[RankedDocument]) -> Op
                     window = text[occurrence.end(): occurrence.end() + 200]
                     ocr_date = _CALENDAR_DATE_RE.search(window)
                     if ocr_date:
-                        return f"Last date: {_normalise_calendar_date(ocr_date)}"
+                        return f"Last date: {_normalise_calendar_date(ocr_date)}", source_file, doc_type, relevance
                     plain_date = re.search(_DATE_VALUE, window, re.I)
                     if plain_date:
-                        return f"Last date: {_clean_date_text(plain_date.group(0))}"
+                        return f"Last date: {_clean_date_text(plain_date.group(0))}", source_file, doc_type, relevance
             match = re.search(_DATE_RE, text, re.I)
             if match:
-                return f"Date: {_clean_date_text(match.group(0))}"
+                return f"Date: {_clean_date_text(match.group(0))}", source_file, doc_type, relevance
 
         if re.search(r"\b(time|timings|curfew)\b", question_lower):
             match = re.search(_TIME_RE, text, re.I)
             if match:
                 hostel = re.search(r"(?:Boys'|Girls')\s+Hostel", text, re.I)
                 prefix = f"{hostel.group(0)} — " if hostel else ""
-                return f"{prefix}Time: {match.group(0).upper()}"
+                return f"{prefix}Time: {match.group(0).upper()}", source_file, doc_type, relevance
 
         if "minimum" in question_lower and "attendance" in question_lower:
             match = re.search(_PERCENT_RE, text)
             if match:
-                return f"Minimum attendance: {match.group(0)}"
+                return f"Minimum attendance: {match.group(0)}", source_file, doc_type, relevance
     return None
 
 
@@ -488,15 +527,15 @@ def build_fast_response(
 
     direct = _extract_direct_answer(question, documents)
     if direct:
-        source_doc = documents[0]
+        answer, source_file, doc_type, relevance = direct
         return AgentResponse(
-            answer=direct,
-            confidence=max(0.85, _clamp(source_doc.similarity_score)),
+            answer=answer,
+            confidence=max(0.85, relevance),
             sources=[
                 Source(
-                    filename=source_doc.metadata.source_file,
-                    doc_type=source_doc.metadata.doc_type,
-                    relevance=_clamp(source_doc.similarity_score),
+                    filename=source_file,
+                    doc_type=doc_type,
+                    relevance=relevance,
                 )
             ],
             follow_up_questions=[],

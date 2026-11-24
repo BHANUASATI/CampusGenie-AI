@@ -185,6 +185,36 @@ _SCHEDULE_FILLER_WORDS = frozenset({
 })
 
 
+# Calendar/festival date questions must not be hijacked by timetable
+# enrichment. "when is Diwali" / "diwali kab hai" previously pulled the Master
+# Academic Timetable to the top and returned its title as the answer.
+_CALENDAR_EVENT_KEYWORDS = (
+    "diwali", "deepawali", "govardhan", "bhai duj", "guru nanak",
+    "christmas", "convocation", "holi", "eid", "new year",
+    "festival", "fest", "holiday", "vacation", "winter break",
+    "summer break", "academic calendar", "academic calender", "calendar",
+    "calender", "result declaration", "last day of teaching",
+)
+
+
+def _calendar_enrichment_queries(user_message: str, retrieval_query: str) -> List[str]:
+    """Surface the academic calendar chunk named in a festival/date question."""
+    joined = f"{user_message} {retrieval_query}".lower()
+    if not any(k in joined for k in _CALENDAR_EVENT_KEYWORDS):
+        return []
+
+    queries: List[str] = [
+        "academic calendar festival holidays event date",
+        "Diwali date academic calendar holiday list",
+    ]
+    for keyword in _CALENDAR_EVENT_KEYWORDS:
+        if keyword in ("calendar", "calender", "holiday", "festival"):
+            continue
+        if keyword in joined and len(keyword) > 3:
+            queries.append(f"{keyword.title()} academic calendar date")
+    return queries[:6]
+
+
 def _extract_subject_phrase(text: str) -> Optional[str]:
     """Best-guess subject name from a schedule question (a 2+ token run of
     non-filler words, e.g. 'Advanced Database Management Systems')."""
@@ -206,6 +236,11 @@ def _schedule_enrichment_queries(user_message: str, retrieval_query: str) -> Lis
     timing / faculty / room questions."""
     joined = f"{user_message} {retrieval_query}".lower()
     has_day = any(d in joined for d in _DAY_NAMES_FULL)
+    # A festival/holiday date is answered from the academic calendar, not from
+    # class timetable rows. Skipping here stops "Master Academic Timetable"
+    # from outranking the calendar document.
+    if any(k in joined for k in _CALENDAR_EVENT_KEYWORDS):
+        return []
     if not any(k in joined for k in _SCHEDULE_KEYWORDS) and not has_day:
         return []
 
@@ -345,6 +380,7 @@ def retrieve_context_node(state: AgentState) -> AgentState:
         query,
         user_message,
         *_curriculum_enrichment_queries(user_message, query),
+        *_calendar_enrichment_queries(user_message, query),
         *schedule_queries,
     ):
         q = (q or "").strip()
