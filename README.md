@@ -481,8 +481,12 @@ Inspect the result with `GET /api/ai/documents/stats` or the
 > image-only pages are rendered at `OCR_DPI` and recognised with Tesseract
 > (installed in the Docker image). A scanned calendar PDF therefore becomes
 > searchable just like a digital one. The Tesseract language can be changed with
-> `OCR_LANGUAGE` (the image ships `eng`, `hin` and `osd`). If OCR fails, the
-> upload reports the exact page numbers instead of silently indexing nothing.
+> `OCR_LANGUAGE` (the image ships `eng`, `hin` and `osd`); `OCR_PSM=4` keeps
+> scanned table rows on one line so event/date cells stay together. If OCR
+> fails, the upload reports the exact page numbers instead of silently indexing
+> nothing. On Railway, `startup.sh` rebuilds the vector index from the files on
+> disk (`REBUILD_INDEX_ON_STARTUP=true`), so a redeploy cannot silently serve an
+> empty or stale ChromaDB volume.
 
 ---
 

@@ -36,7 +36,10 @@ NO_INFORMATION_ANSWER = (
 _MONTHS = (
     "January|February|March|April|May|June|July|August|September|October|November|December"
 )
-_DATE_VALUE = rf"\d{{1,2}}[^\d\s]{{0,3}}\s+(?:{_MONTHS})\s*,?\s*\d{{2,4}}"
+# Tesseract renders ordinals from scans in many ways: 20th, 22™4, 234 (23rd),
+# 31S, 01%. Keep the leading 1-2 real digits and discard the OCR noise later.
+_DAY_TOKEN = r"\d{1,2}(?:[^\d\s]{0,3}\d{1,2})?[^\d\s]{0,3}"
+_DATE_VALUE = rf"{_DAY_TOKEN}\s+(?:{_MONTHS})\s*,?\s*\d{{2,4}}"
 _DATE_RE = rf"\b(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)?\s*{_DATE_VALUE}\b"
 _TIME_RE = r"\b\d{1,2}:\d{2}\s*(?:AM|PM)\b"
 _PERCENT_RE = r"\b\d+(?:\.\d+)?\s*%"
@@ -45,7 +48,7 @@ _PERCENT_RE = r"\b\d+(?:\.\d+)?\s*%"
 # (Monday)") rather than clean sentences. Match ordinals, two-digit years and
 # an optional weekday so the exact cell can be turned into a direct answer.
 _CALENDAR_DATE_RE = re.compile(
-    rf"(?P<day>\d{{1,2}}[^\d\s]{{0,3}})\s+(?P<month>{_MONTHS})\s*,?\s*"
+    rf"(?P<day>{_DAY_TOKEN})\s+(?P<month>{_MONTHS})\s*,?\s*"
     rf"(?P<year>\d{{2,4}})?\s*(?:\((?P<weekday>[A-Za-z]+)\))?",
     re.I,
 )
@@ -134,50 +137,50 @@ def _has_known_date_event(question: str) -> bool:
 
 
 def _question_event_terms(question: str) -> List[tuple[str, str]]:
-    """Return ``(search term, display label)`` pairs, named events first."""
-    lower = question.lower()
-    terms: List[tuple[str, str]] = []
-    for term, label in _KNOWN_DATE_EVENTS.items():
-        if re.search(rf"\b{re.escape(term)}\b", lower):
-            terms.append((term, label))
-    if terms:
-        return terms
+    """Return ``(search term, display label)`` pairs for named calendar events.
 
-    for token in re.findall(r"[a-zA-Z][a-zA-Z'\-]{2,}", lower):
-        token = token.strip()
-        if len(token) < 4 or token in _QUESTION_NOISE or token in _STOP_WORDS:
-            continue
-        terms.append((token, token.title()))
-    return terms
+    We deliberately do *not* fall back to generic question words: treating a
+    word like "hostel" or "October" as an event makes the answer extractor grab
+    an unrelated nearby date from any document.
+    """
+    lower = question.lower()
+    return [
+        (term, label)
+        for term, label in _KNOWN_DATE_EVENTS.items()
+        if re.search(rf"\b{re.escape(term)}\b", lower)
+    ]
 
 
 def _date_near_term(text: str, term: str) -> Optional[str]:
-    """Find a calendar date in the same row as ``term`` (OCR or prose)."""
-    flat = " ".join(text.split())
-    for match in re.finditer(re.escape(term), flat, re.I):
-        after = flat[match.end(): match.end() + 160]
-        date = _CALENDAR_DATE_RE.search(after)
-        if date:
-            return _normalise_calendar_date(date)
-        before = flat[max(0, match.start() - 120): match.start()]
-        earlier = list(_CALENDAR_DATE_RE.finditer(before))
-        if earlier:
-            return _normalise_calendar_date(earlier[-1])
+    """Return the calendar date closest to ``term`` in either direction.
 
-    # Scanned tables often keep the event and date on separate OCR lines.
-    lines = [line.strip() for line in text.splitlines() if line.strip()]
-    for index, line in enumerate(lines):
-        if not re.search(re.escape(term), line, re.I):
-            continue
-        window = " ".join(lines[index:index + 3])
-        date = _CALENDAR_DATE_RE.search(window)
-        if date:
-            return _normalise_calendar_date(date)
-        previous = " ".join(lines[max(0, index - 2):index + 1])
-        earlier = list(_CALENDAR_DATE_RE.finditer(previous))
-        if earlier:
-            return _normalise_calendar_date(earlier[-1])
-    return None
+    Tesseract frequently emits a table row as ``20 October,25\n21 | Diwali``
+    (date *before* the event). Always reading the following 160 characters
+    then picked the next row's date, which is why scanned calendars answered
+    with the wrong festival date. Nearest-date-wins handles both layouts.
+    """
+    dates = [
+        (match.start(), match.end(), _normalise_calendar_date(match))
+        for match in _CALENDAR_DATE_RE.finditer(text)
+    ]
+    if not dates:
+        return None
+
+    best: Optional[tuple[int, str]] = None
+    for term_match in re.finditer(re.escape(term), text, re.I):
+        term_start, term_end = term_match.span()
+        for date_start, date_end, value in dates:
+            if date_end <= term_start:
+                distance = term_start - date_end
+            elif date_start >= term_end:
+                distance = date_start - term_end
+            else:
+                continue
+            if distance > 160:
+                continue
+            if best is None or distance < best[0]:
+                best = (distance, value)
+    return best[1] if best else None
 
 
 def _extract_event_date(question: str, documents: List[RankedDocument]) -> Optional[DirectAnswer]:
@@ -232,23 +235,29 @@ def _extract_direct_answer(question: str, documents: List[RankedDocument]) -> Op
         return None
 
     wants_date = bool(re.search(r"\b(when|date|deadline|kab|kabse)\b", question_lower))
+
+    # Search every retrieved chunk for an explicit "Last date" before falling
+    # back to the first date anywhere in the first chunk — a calendar row in
+    # position 0 must not swallow a fee-notice answer.
+    if wants_date and "last date" in question_lower:
+        for document in documents[:6]:
+            text = " ".join(document.content.split())
+            source_file, doc_type, relevance = _document_source(document)
+            for occurrence in re.finditer(r"last date", text, re.I):
+                window = text[occurrence.end(): occurrence.end() + 200]
+                ocr_date = _CALENDAR_DATE_RE.search(window)
+                if ocr_date:
+                    return f"Last date: {_normalise_calendar_date(ocr_date)}", source_file, doc_type, relevance
+                plain_date = re.search(_DATE_VALUE, window, re.I)
+                if plain_date:
+                    return f"Last date: {_clean_date_text(plain_date.group(0))}", source_file, doc_type, relevance
+
     for document in documents[:6]:
         text = " ".join(document.content.split())
 
         source_file, doc_type, relevance = _document_source(document)
 
         if wants_date:
-            # "Last date" must not resolve to the first date in the chunk,
-            # which is often the fee window's *opening* date.
-            if "last date" in question_lower:
-                for occurrence in re.finditer(r"last date", text, re.I):
-                    window = text[occurrence.end(): occurrence.end() + 200]
-                    ocr_date = _CALENDAR_DATE_RE.search(window)
-                    if ocr_date:
-                        return f"Last date: {_normalise_calendar_date(ocr_date)}", source_file, doc_type, relevance
-                    plain_date = re.search(_DATE_VALUE, window, re.I)
-                    if plain_date:
-                        return f"Last date: {_clean_date_text(plain_date.group(0))}", source_file, doc_type, relevance
             match = re.search(_DATE_RE, text, re.I)
             if match:
                 return f"Date: {_clean_date_text(match.group(0))}", source_file, doc_type, relevance

@@ -155,6 +155,15 @@ class AIEngineConfig(BaseSettings):
     OCR_MIN_TEXT_CHARS: int = Field(default=60, ge=0, le=500)
     OCR_DPI: int = Field(default=200, ge=100, le=400)
     OCR_LANGUAGE: str = Field(default="eng")
+    # Tesseract page segmentation.  PSM 4 keeps table rows on one line
+    # ("21 | Diwali 20 October,25"), unlike automatic PSM 3 which often puts
+    # the date on the line above the event name.
+    OCR_PSM: int = Field(default=4, ge=3, le=13)
+
+    # Rebuild the vector index from the document files on every boot.  Railway
+    # can mount an empty volume over the image's baked-in ChromaDB, which is
+    # why previously uploaded documents disappeared after a redeploy.
+    REBUILD_INDEX_ON_STARTUP: bool = Field(default=True)
 
     # -----------------------------------------------------------------------
     # Observability

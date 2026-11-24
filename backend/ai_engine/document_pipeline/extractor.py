@@ -62,7 +62,9 @@ def _ocr_page(fitz, page, language: str, dpi: int) -> str:
         # OSD language data is optional; continue with the unrotated image.
         pass
 
-    return pytesseract.image_to_string(image, lang=language, config="--psm 3")
+    return pytesseract.image_to_string(
+        image, lang=language, config=f"--psm {ai_config.OCR_PSM}"
+    )
 
 
 def extract_pdf(file_path: str) -> PagedText:
