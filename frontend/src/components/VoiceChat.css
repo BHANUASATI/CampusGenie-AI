@@ -197,3 +197,53 @@
   transition: background 0.15s;
 }
 .vc-end-btn:hover { background: rgba(239,68,68,0.18); }
+
+/* ── Errors and typing fallback ───────────────────────── */
+.vc-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.8rem 1rem;
+  border-radius: 12px;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  color: rgba(254, 202, 202, 0.95);
+  font-size: 0.82rem;
+  line-height: 1.45;
+  text-align: left;
+}
+.vc-error-icon { flex-shrink: 0; }
+
+.vc-fallback {
+  display: flex;
+  gap: 0.5rem;
+  width: 100%;
+}
+.vc-fallback input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.7rem 0.9rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.2);
+  background: rgba(255,255,255,0.08);
+  color: #fff;
+  font-size: 0.88rem;
+  outline: none;
+}
+.vc-fallback input:focus { border-color: rgba(129, 140, 248, 0.8); }
+.vc-fallback button,
+.vc-retry {
+  padding: 0.7rem 1rem;
+  border-radius: 999px;
+  border: 1px solid rgba(129, 140, 248, 0.4);
+  background: rgba(99, 102, 241, 0.25);
+  color: #e0e7ff;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.vc-fallback button:disabled { opacity: 0.45; cursor: not-allowed; }
+.vc-retry:hover,
+.vc-fallback button:not(:disabled):hover { background: rgba(99, 102, 241, 0.45); }

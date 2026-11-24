@@ -958,6 +958,11 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ isOpen, onClose }) => {
                   <span className="cg-ai-voice-text">Listening... {voiceRecognition.transcript}</span>
                 </div>
               )}
+              {voiceRecognition.error && (
+                <div className="cg-ai-voice-status" style={{ color: '#fca5a5' }}>
+                  ⚠️ {voiceRecognition.error}
+                </div>
+              )}
 
               {/* Voice mode indicator, and the voice picker.
                   When the backend can synthesise, the picker lists neural voices

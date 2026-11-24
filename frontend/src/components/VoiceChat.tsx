@@ -23,6 +23,18 @@ type Phase = 'listening' | 'thinking' | 'speaking' | 'error';
 const API = process.env.REACT_APP_API_URL || 'http://localhost:8002';
 const SILENCE_MS = 1600; // silence before auto-send
 
+const getSpeechRecognition = () =>
+  (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+
+const SPEECH_ERRORS: Record<string, string> = {
+  'not-allowed': 'Microphone permission was denied. Allow the mic for this site in your browser settings.',
+  'service-not-allowed': 'Speech service was blocked. Check browser microphone permissions.',
+  'audio-capture': 'No microphone was found or it is already in use.',
+  'network': 'Speech recognition needs a network connection. Check your internet.',
+  'no-speech': 'No speech was detected.',
+  'aborted': '',
+};
+
 // ── Cartesia TTS directly — fastest path, no extra round-trip ─────────────
 async function speakWithCartesia(text: string, lang: string, token: string): Promise<void> {
   const clean = stripMarkdownForSpeech(text);
@@ -69,6 +81,9 @@ export const VoiceChat: React.FC<VoiceChatProps> = ({ isOpen, onClose }) => {
   const [liveText, setLiveText] = useState('');   // what user is saying right now
   const [aiText, setAiText]   = useState('');     // last AI sentence being spoken
   const [convId, setConvId]   = useState<number | null>(null);
+  const [error, setError]     = useState<string | null>(null);
+  const [typedText, setTypedText] = useState('');
+  const voiceSupported = Boolean(getSpeechRecognition());
 
   const recRef        = useRef<any>(null);
   const silenceTimer  = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -119,15 +134,23 @@ export const VoiceChat: React.FC<VoiceChatProps> = ({ isOpen, onClose }) => {
       }
     } catch (e: any) {
       speakingRef.current = false;
-      if (activeRef.current) setPhase('listening'); // recover silently
+      if (activeRef.current) {
+        setError(e?.message ? `Could not get an answer: ${e.message}` : 'Could not get an answer. Check your connection.');
+        setPhase('error');
+      }
     }
   }, [getConvId, token]);
 
   // ── Open mic ─────────────────────────────────────────────────────────────
   const openMic = useCallback(() => {
     if (!activeRef.current) return;
-    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SR) return;
+    const SR = getSpeechRecognition();
+    if (!SR) {
+      setError('Voice input is not supported in this browser. Use Chrome or Edge, or type your question below.');
+      setPhase('error');
+      return;
+    }
+    setError(null);
 
     const rec = new SR();
     rec.continuous     = true;
@@ -158,7 +181,12 @@ export const VoiceChat: React.FC<VoiceChatProps> = ({ isOpen, onClose }) => {
     rec.onerror = (e: any) => {
       if (e.error === 'no-speech' && activeRef.current) {
         setTimeout(() => activeRef.current && !speakingRef.current && openMic(), 200);
+        return;
       }
+      if (e.error === 'aborted') return;
+      const message = SPEECH_ERRORS[e.error] || `Speech recognition failed: ${e.error}`;
+      setError(message);
+      setPhase('error');
     };
 
     rec.onend = () => {
@@ -174,6 +202,21 @@ export const VoiceChat: React.FC<VoiceChatProps> = ({ isOpen, onClose }) => {
   // eslint-disable-next-line
   }, [phase, sendToAI]);
 
+  // Type a question when speech input is unavailable or fails
+  const submitTyped = useCallback(() => {
+    const text = typedText.trim();
+    if (!text) return;
+    setTypedText('');
+    setError(null);
+    void sendToAI(text);
+  }, [typedText, sendToAI]);
+
+  const retryMic = useCallback(() => {
+    setError(null);
+    setTypedText('');
+    setPhase('listening');
+  }, []);
+
   // Auto-open mic when phase becomes 'listening'
   useEffect(() => {
     if (phase === 'listening' && activeRef.current) openMic();
@@ -184,14 +227,21 @@ export const VoiceChat: React.FC<VoiceChatProps> = ({ isOpen, onClose }) => {
   useEffect(() => {
     if (isOpen) {
       activeRef.current = true;
-      setPhase('listening');
       setLiveText('');
       setAiText('');
+      setTypedText('');
+      if (!voiceSupported) {
+        setError('Voice input is not supported in this browser. Use Chrome or Edge, or type your question below.');
+        setPhase('error');
+      } else {
+        setError(null);
+        setPhase('listening');
+      }
     } else {
       activeRef.current = false;
       stopMic();
     }
-  }, [isOpen, stopMic]);
+  }, [isOpen, stopMic, voiceSupported]);
 
   // Cleanup
   useEffect(() => () => {
@@ -210,7 +260,8 @@ export const VoiceChat: React.FC<VoiceChatProps> = ({ isOpen, onClose }) => {
   const statusText =
     phase === 'listening' ? 'Listening…' :
     phase === 'thinking'  ? 'Thinking…'  :
-    phase === 'speaking'  ? 'Speaking…'  : '';
+    phase === 'speaking'  ? 'Speaking…'  :
+    phase === 'error'     ? 'Voice input unavailable' : '';
 
   return (
     <div className="vc-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
@@ -247,6 +298,34 @@ export const VoiceChat: React.FC<VoiceChatProps> = ({ isOpen, onClose }) => {
         {/* Hint */}
         {!liveText && !aiText && phase === 'listening' && (
           <div className="vc-hint">Speak in Hindi, Hinglish, or English</div>
+        )}
+
+        {error && (
+          <div className="vc-error" role="alert">
+            <span className="vc-error-icon">⚠️</span>
+            <span>{error}</span>
+          </div>
+        )}
+
+        {phase === 'error' && (
+          <>
+            <form
+              className="vc-fallback"
+              onSubmit={(e) => { e.preventDefault(); submitTyped(); }}
+            >
+              <input
+                autoFocus
+                value={typedText}
+                onChange={(e) => setTypedText(e.target.value)}
+                placeholder="Type your question instead…"
+                aria-label="Type your question"
+              />
+              <button type="submit" disabled={!typedText.trim()}>Send</button>
+            </form>
+            {voiceSupported && (
+              <button className="vc-retry" onClick={retryMic}>Try mic again</button>
+            )}
+          </>
         )}
 
         {/* End button */}
