@@ -11,7 +11,12 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { aiAssistantService } from '../services/api';
-import { stripMarkdownForSpeech } from '../hooks/useTextToSpeech';
+import {
+  chunkForSpeech,
+  pickBestVoice,
+  speechDeadlineMs,
+  stripMarkdownForSpeech,
+} from '../hooks/useTextToSpeech';
 
 interface VoiceChatProps {
   isOpen: boolean;
@@ -35,13 +40,14 @@ const SPEECH_ERRORS: Record<string, string> = {
   'aborted': '',
 };
 
-// ── Cartesia TTS directly — fastest path, no extra round-trip ─────────────
-async function speakWithCartesia(text: string, lang: string, token: string): Promise<void> {
+// ── Neural voice first; browser speech as a free, unlimited fallback ──────
+async function speakWithCartesia(text: string, lang: string, token: string): Promise<boolean> {
   const clean = stripMarkdownForSpeech(text);
-  if (!clean.trim()) return;
+  if (!clean.trim()) return false;
 
-  // Split into sentences for faster first audio
+  // Split into sentences for faster first audio.
   const sentences = clean.match(/[^.!?।]+[.!?।]*/g)?.filter(s => s.trim()) || [clean];
+  let played = false;
 
   for (const sentence of sentences) {
     try {
@@ -54,7 +60,13 @@ async function speakWithCartesia(text: string, lang: string, token: string): Pro
         body: JSON.stringify({ text: sentence.trim(), language: lang }),
         signal: AbortSignal.timeout(15000),
       });
-      if (!res.ok) continue;
+      if (!res.ok) {
+        // Cartesia's free tier allows only 2 concurrent requests. If the very
+        // first sentence fails, hand the whole reply to the browser instead of
+        // silently skipping it (which made the assistant look mute).
+        if (!played) return false;
+        continue;
+      }
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       await new Promise<void>((resolve) => {
@@ -63,8 +75,37 @@ async function speakWithCartesia(text: string, lang: string, token: string): Pro
         audio.onerror = () => { URL.revokeObjectURL(url); resolve(); };
         audio.play().catch(() => resolve());
       });
-    } catch { /* skip failed sentence */ }
+      played = true;
+    } catch {
+      if (!played) return false;
+    }
   }
+  return played;
+}
+
+async function speakWithBrowser(text: string, lang: string): Promise<boolean> {
+  if (!('speechSynthesis' in window)) return false;
+  const clean = stripMarkdownForSpeech(text);
+  if (!clean.trim()) return false;
+
+  const locale = lang === 'hi' ? 'hi-IN' : 'en-US';
+  const voice = pickBestVoice(window.speechSynthesis.getVoices(), locale);
+  window.speechSynthesis.cancel();
+
+  for (const chunk of chunkForSpeech(clean)) {
+    await new Promise<void>((resolve) => {
+      const utterance = new SpeechSynthesisUtterance(chunk);
+      if (voice) utterance.voice = voice;
+      utterance.lang = locale;
+      utterance.rate = 1;
+      const timer = setTimeout(resolve, speechDeadlineMs(chunk, 1));
+      const done = () => { clearTimeout(timer); resolve(); };
+      utterance.onend = done;
+      utterance.onerror = done;
+      window.speechSynthesis.speak(utterance);
+    });
+  }
+  return true;
 }
 
 // ── Language detection ─────────────────────────────────────────────────────
@@ -82,6 +123,7 @@ export const VoiceChat: React.FC<VoiceChatProps> = ({ isOpen, onClose }) => {
   const [aiText, setAiText]   = useState('');     // last AI sentence being spoken
   const [convId, setConvId]   = useState<number | null>(null);
   const [error, setError]     = useState<string | null>(null);
+  const [notice, setNotice]   = useState<string | null>(null);
   const [typedText, setTypedText] = useState('');
   const voiceSupported = Boolean(getSpeechRecognition());
 
@@ -110,6 +152,7 @@ export const VoiceChat: React.FC<VoiceChatProps> = ({ isOpen, onClose }) => {
   // ── Send to AI + speak response ──────────────────────────────────────────
   const sendToAI = useCallback(async (text: string) => {
     if (!text.trim() || !activeRef.current) return;
+    setNotice(null);
     setPhase('thinking');
     thinkingSinceRef.current = Date.now();
 
@@ -129,7 +172,11 @@ export const VoiceChat: React.FC<VoiceChatProps> = ({ isOpen, onClose }) => {
       const answerShownAt = Date.now();
       setAiText(ans.slice(0, 120) + (ans.length > 120 ? '…' : ''));
 
-      await speakWithCartesia(ans, lng, token);
+      const neuralPlayed = await speakWithCartesia(ans, lng, token);
+      if (!neuralPlayed) {
+        const browserPlayed = await speakWithBrowser(ans, lng);
+        setNotice(browserPlayed ? null : 'Audio playback is unavailable — the reply is shown above.');
+      }
       const remaining = 2500 - (Date.now() - answerShownAt);
       if (remaining > 0) await new Promise<void>(resolve => setTimeout(resolve, remaining));
 
@@ -250,6 +297,7 @@ export const VoiceChat: React.FC<VoiceChatProps> = ({ isOpen, onClose }) => {
       activeRef.current = true;
       setLiveText('');
       setAiText('');
+      setNotice(null);
       setTypedText('');
       if (!voiceSupported) {
         setError('Voice input is not supported in this browser. Use Chrome or Edge, or type your question below.');
@@ -319,6 +367,10 @@ export const VoiceChat: React.FC<VoiceChatProps> = ({ isOpen, onClose }) => {
         {/* Hint */}
         {!liveText && !aiText && phase === 'listening' && (
           <div className="vc-hint">Speak in Hindi, Hinglish, or English</div>
+        )}
+
+        {notice && (
+          <div className="vc-notice">{notice}</div>
         )}
 
         {error && (
