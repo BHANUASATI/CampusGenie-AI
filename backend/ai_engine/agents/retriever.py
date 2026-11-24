@@ -313,7 +313,10 @@ def retrieve_context_node(state: AgentState) -> AgentState:
     )
 
     vector_store = get_vector_store()
-    fast_mode = ai_config.FAST_RESPONSE_MODE
+    # Prefer the small, no-rerank candidate set whenever local grounded answers
+    # are enabled — reranking adds ~1s and the local builder only needs the top
+    # few excerpts.
+    fast_mode = ai_config.FAST_RESPONSE_MODE or ai_config.PREFER_LOCAL_GROUNDED_ANSWERS
     reranker = None if fast_mode else get_reranker()
     candidate_limit = (
         ai_config.FAST_RETRIEVAL_TOP_K if fast_mode else ai_config.RETRIEVAL_TOP_K

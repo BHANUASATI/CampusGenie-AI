@@ -91,9 +91,13 @@ def _select_sentences(question: str, documents: Iterable[RankedDocument]) -> tup
         scored.append((len(query_words & sentence_words), -index, sentence))
 
     scored.sort(reverse=True)
+    # Only answer from the document when a sentence actually overlaps the
+    # question. Falling back to the first sentence produced confident but
+    # irrelevant answers, which is worse than asking the LLM or saying "I
+    # don't know".
     selected = [item[2] for item in scored[:2] if item[0] > 0]
     if not selected:
-        selected = [sentences[0]]
+        return None
     excerpt = " ".join(selected)
     if len(excerpt) > 600:
         excerpt = excerpt[:597].rsplit(" ", 1)[0] + "…"
@@ -136,7 +140,9 @@ def build_fast_response(
         excerpt=excerpt,
     )
     return AgentResponse(
-        answer=f"According to [{source.filename}], {excerpt}",
+        # The UI already renders `sources` chips, so the answer text stays
+        # clean and conversational instead of embedding a filename.
+        answer=excerpt,
         confidence=max(0.55, relevance),
         sources=[source],
         follow_up_questions=[],

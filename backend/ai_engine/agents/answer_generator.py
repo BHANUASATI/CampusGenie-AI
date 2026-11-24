@@ -251,7 +251,7 @@ def generate_answer_node(state: AgentState) -> AgentState:
     # avoids an unpredictable remote-model round trip.  It is deliberately
     # limited to live tool data and cited source excerpts; anything else uses
     # the existing full LLM path when fast mode is disabled.
-    if ai_config.FAST_RESPONSE_MODE:
+    if ai_config.PREFER_LOCAL_GROUNDED_ANSWERS or ai_config.FAST_RESPONSE_MODE:
         from ai_engine.services.fast_response import build_fast_response
 
         with Timer() as t:

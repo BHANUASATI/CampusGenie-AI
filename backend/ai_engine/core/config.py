@@ -92,6 +92,10 @@ class AIEngineConfig(BaseSettings):
     RETRIEVAL_TOP_K: int = Field(default=8, description="Candidates fetched from ChromaDB")
     RERANK_TOP_N: int = Field(default=4, description="Documents passed to LLM after reranking")
     FAST_RESPONSE_MODE: bool = Field(default=False)
+    # Prefer instant, grounded answers from live DB data / indexed documents.
+    # The remote LLM is used only when no grounded local answer can be built,
+    # which keeps voice chat responsive even when providers are slow.
+    PREFER_LOCAL_GROUNDED_ANSWERS: bool = Field(default=True)
     FAST_INTENT_ROUTING: bool = Field(default=True)
     FAST_RETRIEVAL_TOP_K: int = Field(
         default=3,
@@ -183,7 +187,7 @@ class AIEngineConfig(BaseSettings):
         description="Hard timeout for one remote LLM request",
     )
     LLM_ANSWER_TIMEOUT_SECONDS: float = Field(
-        default=8.0,
+        default=3.0,
         ge=1.0,
         le=60.0,
         description=(
