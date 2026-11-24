@@ -357,14 +357,8 @@ def _clamp(value: float) -> float:
     return min(1.0, max(0.0, value))
 
 
-def format_tool_result_answer(tool_result: Optional[ToolResult]) -> Optional[str]:
-    """Present complete live DB data without asking a remote model to restate it.
-
-    This is the only local answer path used in normal operation: the data comes
-    straight from MySQL, so formatting it locally is both exact and instant.
-    """
-    if tool_result is None:
-        return None
+def _format_tool_answer(tool_result: ToolResult) -> Optional[str]:
+    """Present complete live DB data without asking a remote model to restate it."""
     data: Dict[str, Any] = tool_result.data or {}
     tool_name = tool_result.tool_name
 
@@ -408,52 +402,6 @@ def format_tool_result_answer(tool_result: Optional[ToolResult]) -> Optional[str
         return str(data["message"])
 
     return None
-
-
-# Backwards-compatible private alias used by older callers/tests.
-_format_tool_answer = format_tool_result_answer
-
-
-def build_llm_fallback_response(
-    question: str,
-    documents: List[RankedDocument],
-    tool_result: Optional[ToolResult],
-) -> Optional[AgentResponse]:
-    """Last-resort answer when the remote LLM fails or times out.
-
-    Unlike ``build_fast_response`` this never presents a cherry-picked fragment
-    as a confident fact: it explicitly labels the text as the closest matching
-    excerpt and points the student at the source to verify.
-    """
-    tool_answer = format_tool_result_answer(tool_result)
-    if tool_answer:
-        return AgentResponse(
-            answer=tool_answer,
-            confidence=0.95,
-            sources=[],
-            follow_up_questions=[],
-            retrieval_used=bool(documents),
-            tool_used=tool_result.tool_name if tool_result else None,
-            tool_result=tool_result.data if tool_result else None,
-        )
-
-    selected = _select_sentences(question, documents)
-    if not selected:
-        return None
-    excerpt, document = selected
-    source_file, doc_type, relevance = _document_source(document)
-    return AgentResponse(
-        answer=(
-            f"The AI service is unavailable right now. The closest matching "
-            f"excerpt I found is: \"{excerpt}\" — please verify it in "
-            f"[{source_file}]."
-        ),
-        confidence=0.4,
-        sources=[Source(filename=source_file, doc_type=doc_type, relevance=relevance)],
-        follow_up_questions=[],
-        retrieval_used=True,
-        tool_used=None,
-    )
 
 
 def _select_sentences(question: str, documents: Iterable[RankedDocument]) -> tuple[str, RankedDocument] | None:

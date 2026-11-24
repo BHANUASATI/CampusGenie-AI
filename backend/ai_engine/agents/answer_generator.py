@@ -3,7 +3,7 @@ Answer Generation Agent
 ========================
 LangGraph node that generates the final answer using RAG.
 
-Calls the configured Gemini model (flash-lite by default) with:
+Calls Gemini 2.5 Flash with:
   - System prompt (personality + rules)
   - Retrieved context (reranked documents from ChromaDB)
   - Tool results (live DB data)
@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import json
 import re
-from typing import Any, Dict, Iterator, List, Optional
+from typing import Any, Dict, Iterator, List
 
 from ai_engine.core.config import ai_config
 from ai_engine.core.logging import Timer, get_logger, log_llm_call
@@ -25,15 +25,14 @@ from ai_engine.llm.client import call_llm
 from ai_engine.prompts.rag_prompt import build_rag_prompt
 from ai_engine.prompts.safety_prompt import (
     GREETING_RESPONSE,
+    NO_INFORMATION_RESPONSE,
     add_low_confidence_warning,
-    no_information_response,
 )
 from ai_engine.prompts.system_prompt import build_system_prompt
 from ai_engine.schemas.agent_state import AgentState
 from ai_engine.schemas.intent import IntentType
 from ai_engine.schemas.response import AgentResponse
 from ai_engine.schemas.retrieval import Source
-from ai_engine.services.fast_response import format_tool_result_answer
 
 logger = get_logger(__name__)
 
@@ -99,16 +98,7 @@ def _parse_answer_json(raw: str) -> Dict[str, Any]:
       - the model returning a plain markdown answer instead of JSON
       - truncated JSON (salvage whatever complete fields exist)
     """
-    cleaned = re.sub(r"^\s*```(?:json)?\s*|\s*```\s*$", "", raw.strip(), flags=re.I)
-    # Some models put the newline *inside* the key string ("answer\n": ...).
-    # Normalising the four expected keys keeps those replies parseable instead
-    # of showing the raw JSON block to the student.
-    cleaned = re.sub(
-        r'"\s*(answer|confidence|sources|follow_up_questions)\s*"\s*:',
-        r'"\1":',
-        cleaned,
-        flags=re.I,
-    )
+    cleaned = re.sub(r"```(?:json)?", "", raw).strip()
     cleaned = re.sub(r",\s*([}\]])", r"\1", cleaned)
 
     # Try the whole (fence-stripped) response as JSON first
@@ -135,10 +125,10 @@ def _parse_answer_json(raw: str) -> Dict[str, Any]:
     data: Dict[str, Any] = {}
     for field_name in ("answer", "confidence", "sources", "follow_up_questions"):
         if field_name == "answer":
-            pattern = r'"\s*answer\s*"\s*:\s*("(?:[^"\\]|\\.)*)'
+            pattern = r'"(?:answer|Answer)"\s*:\s*("(?:[^"\\]|\\.)*)'
         else:
             pattern = (
-                rf'"\s*{field_name}\s*"\s*:\s*'
+                rf'"{field_name}"\s*:\s*'
                 r'("(?:[^"\\]|\\.)*"|true|false|null|-?\d+(?:\.\d+)?|\[[^\]]*\])'
             )
         m = re.search(pattern, cleaned)
@@ -168,68 +158,16 @@ def _parse_answer_json(raw: str) -> Dict[str, Any]:
     return _coerce_answer_fields(data, raw)
 
 
-def _coerce_string_list(value: Any, *, limit: Optional[int] = None) -> List[str]:
-    """Turn a model-supplied list field into real strings.
-
-    Gemini sometimes truncates the follow-up array mid-string, which used to
-    leave a bare string in the Pydantic model and throw away an otherwise good
-    answer. Never let a malformed list break the whole response.
-    """
-    if value is None:
-        return []
-    if isinstance(value, str):
-        text = value.strip()
-        if not text:
-            return []
-        try:
-            parsed = json.loads(text)
-        except json.JSONDecodeError:
-            # Salvage complete quoted values from a truncated array/string.
-            return [m.group(1) for m in re.finditer(r'"((?:[^"\\]|\\.)*)"', text)][:limit]
-        value = parsed
-    if isinstance(value, dict):
-        value = [value]
-    if not isinstance(value, (list, tuple)):
-        return [str(value)]
-    result: List[str] = []
-    for item in value:
-        if isinstance(item, str):
-            text = item.strip()
-        elif isinstance(item, dict):
-            text = str(
-                item.get("filename")
-                or item.get("source")
-                or item.get("name")
-                or item.get("text")
-                or ""
-            ).strip()
-        else:
-            text = str(item).strip()
-        if text:
-            result.append(text)
-    return result[:limit] if limit is not None else result
-
-
 def _coerce_answer_fields(data: Dict[str, Any], raw: str) -> Dict[str, Any]:
     """Normalise parsed fields and guarantee the answer is a plain string."""
     answer = data.get("answer")
     if not isinstance(answer, str) or not answer.strip():
-        # A list/dict answer (or an empty one) is a model error. Keep a modest
-        # fallback instead of risking a raw JSON blob in the chat window.
-        stripped = raw.strip()
-        data["answer"] = stripped if stripped and not stripped.startswith("{") else no_information_response()
-    else:
-        data["answer"] = answer.strip()
-
-    try:
-        data["confidence"] = float(data.get("confidence", 0.5))
-    except (TypeError, ValueError):
-        data["confidence"] = 0.5
-
-    data["sources"] = _coerce_string_list(data.get("sources"))
-    data["follow_up_questions"] = _coerce_string_list(
-        data.get("follow_up_questions"), limit=3
-    )
+        # A list/dict answer (or an empty one) is a model error — keep the
+        # full raw response so the student still sees something useful.
+        data["answer"] = raw.strip()
+    data.setdefault("confidence", 0.5)
+    data.setdefault("sources", [])
+    data.setdefault("follow_up_questions", [])
     return data
 
 
@@ -293,7 +231,7 @@ def generate_answer_node(state: AgentState) -> AgentState:
     has_context = bool(retrieved_docs) or (tool_result_obj and tool_result_obj.success)
     if not has_context:
         response = AgentResponse(
-            answer=no_information_response(user_message),
+            answer=NO_INFORMATION_RESPONSE,
             confidence=0.0,
             sources=[],
             follow_up_questions=[],
@@ -306,67 +244,18 @@ def generate_answer_node(state: AgentState) -> AgentState:
         return {**state, "agent_response": response}
 
     # -----------------------------------------------------------------------
-    # Out-of-scope guard: no relevant document and no live tool data.
-    # Without this, the LLM happily answers general-knowledge questions from
-    # its own training data and then cites unrelated campus documents.
-    # -----------------------------------------------------------------------
-    if not tool_result_obj and retrieved_docs:
-        best_similarity = max(
-            (doc.similarity_score or 0.0 for doc in retrieved_docs), default=0.0
-        )
-        if best_similarity < ai_config.MIN_GROUNDED_SIMILARITY:
-            response = AgentResponse(
-                answer=no_information_response(user_message),
-                confidence=0.0,
-                sources=[],
-                follow_up_questions=[],
-                intent_detected=intent.value if intent else "unknown",
-                retrieval_used=True,
-                tool_used=None,
-                execution_trace=state.get("execution_trace", [])
-                + ["generate_answer(out_of_scope)"],
-                total_latency_ms=0.0,
-            )
-            logger.info(
-                "answer.generate.out_of_scope",
-                extra={
-                    "event": "answer.generate.out_of_scope",
-                    "best_similarity": round(best_similarity, 3),
-                    "trace_id": trace_id,
-                },
-            )
-            return {**state, "agent_response": response}
-
-    # -----------------------------------------------------------------------
     # Main path: RAG answer generation
     # -----------------------------------------------------------------------
 
-    # Live database answers are exact and need no LLM round-trip. Format them
-    # locally and return immediately — this is the legitimate "fast path".
-    if tool_result_obj and tool_result_obj.success:
-        tool_answer = format_tool_result_answer(tool_result_obj)
-        if tool_answer:
-            response = AgentResponse(
-                answer=tool_answer,
-                confidence=0.95,
-                sources=[],
-                follow_up_questions=[],
-                intent_detected=intent.value if intent else "unknown",
-                retrieval_used=bool(retrieved_docs),
-                tool_used=tool_result_obj.tool_name,
-                tool_result=tool_result_obj.data,
-                execution_trace=state.get("execution_trace", [])
-                + ["generate_answer(live_tool)"],
-                total_latency_ms=0.0,
-            )
-            return {**state, "agent_response": response}
-
-    # Explicit local-only mode (or FAST_RESPONSE_MODE) is kept as an escape
-    # hatch for LLM outages. It is NOT the default: a regex picking one sentence
-    # out of a chunk cannot combine rules, resolve tables, or answer "which /
-    # compare / why" questions reliably.
+    # Fast mode keeps answers grounded in the local database/vector store and
+    # avoids an unpredictable remote-model round trip.  It is deliberately
+    # limited to live tool data and cited source excerpts; anything else uses
+    # the existing full LLM path when fast mode is disabled.
     if ai_config.PREFER_LOCAL_GROUNDED_ANSWERS or ai_config.FAST_RESPONSE_MODE:
-        from ai_engine.services.fast_response import build_fast_response
+        from ai_engine.services.fast_response import (
+            NO_INFORMATION_ANSWER,
+            build_fast_response,
+        )
 
         with Timer() as t:
             fast_response = build_fast_response(
@@ -378,12 +267,36 @@ def generate_answer_node(state: AgentState) -> AgentState:
             response = fast_response.model_copy(
                 update={
                     "intent_detected": intent.value if intent else "unknown",
-                    "execution_trace": state.get("execution_trace", [])
-                    + ["generate_answer(local_only)"],
+                    "execution_trace": state.get("execution_trace", []) + ["generate_answer(fast)"],
                     "total_latency_ms": t.elapsed_ms,
                 }
             )
+            logger.info(
+                "answer.generate.fast_done",
+                extra={
+                    "event": "answer.generate.fast_done",
+                    "sources_count": len(response.sources),
+                    "latency_ms": t.elapsed_ms,
+                    "trace_id": trace_id,
+                },
+            )
             return {**state, "agent_response": response}
+
+        # Never hold a student (especially a voice conversation) hostage to a
+        # slow remote model just because one question had no document overlap.
+        no_info = AgentResponse(
+            answer=NO_INFORMATION_ANSWER,
+            confidence=0.0,
+            sources=[],
+            follow_up_questions=[],
+            intent_detected=intent.value if intent else "unknown",
+            retrieval_used=bool(retrieved_docs),
+            tool_used=tool_result_obj.tool_name if tool_result_obj else None,
+            execution_trace=state.get("execution_trace", [])
+            + ["generate_answer(no_info)"],
+            total_latency_ms=t.elapsed_ms,
+        )
+        return {**state, "agent_response": no_info}
 
     # Build tool result dict for prompt
     tool_result_dict = None
@@ -407,17 +320,17 @@ def generate_answer_node(state: AgentState) -> AgentState:
 
     try:
         with Timer() as t:
-            # Use the configured provider directly instead of always trying
-            # Gemini first. Keep a hard ceiling, but leave enough room for a
-            # real RAG answer (the old 3s cap expired before most replies).
-            deadline_s = min(float(ai_config.LLM_ANSWER_TIMEOUT_SECONDS), 15.0)
+            # Use the configured LLM provider directly instead of always trying Gemini first
+            # Cap even if an old Railway variable still holds a larger value —
+            # a slow provider must never block the chat for a minute again.
+            deadline_s = min(float(ai_config.LLM_ANSWER_TIMEOUT_SECONDS), 3.0)
             if ai_config.LLM_PROVIDER == "openrouter":
                 # Call OpenRouter directly to avoid Gemini fallback delay
                 from ai_engine.llm.client import _call_openrouter
                 llm_result = _call_with_deadline(
                     lambda: _call_openrouter(
                         prompt=full_prompt,
-                        temperature=0.0,
+                        temperature=ai_config.LLM_TEMPERATURE,
                         max_tokens=ai_config.GEMINI_MAX_OUTPUT_TOKENS,
                     ),
                     deadline_s,
@@ -430,7 +343,7 @@ def generate_answer_node(state: AgentState) -> AgentState:
                     lambda: call_llm(
                         prompt=full_prompt,
                         model_override=ai_config.GEMINI_CHAT_MODEL,
-                        temperature=0.0,
+                        temperature=ai_config.GEMINI_TEMPERATURE,
                         max_tokens=ai_config.GEMINI_MAX_OUTPUT_TOKENS,
                     ),
                     deadline_s,
@@ -538,12 +451,12 @@ def generate_answer_node(state: AgentState) -> AgentState:
     except Exception as e:
         logger.error("answer.generate.failed", extra={"error": str(e), "trace_id": trace_id})
 
-        # Fall back to a clearly-labelled sourced excerpt so the student still
-        # gets something useful when the remote LLM errors out or is slow.
+        # Fall back to the local grounded answer builder so the student still
+        # gets a sourced answer even when the remote LLM errors out or is slow.
         try:
-            from ai_engine.services.fast_response import build_llm_fallback_response
+            from ai_engine.services.fast_response import build_fast_response
 
-            fast_response = build_llm_fallback_response(
+            fast_response = build_fast_response(
                 question=user_message,
                 documents=retrieved_docs,
                 tool_result=tool_result_obj,

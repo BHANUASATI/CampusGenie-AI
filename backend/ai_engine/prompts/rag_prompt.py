@@ -14,32 +14,10 @@ Output is structured JSON with answer, confidence, sources, follow_up_questions.
 
 from __future__ import annotations
 
-import re
 from typing import Any, Dict, List, Optional
 
 from ai_engine.schemas.agent_state import ConversationMessage
 from ai_engine.schemas.retrieval import RankedDocument
-
-
-_HINGLISH_MARKERS = frozenset({
-    "bhai", "yaar", "kya", "hai", "hain", "ka", "ki", "ke", "ko", "mein",
-    "men", "se", "pe", "par", "chahiye", "batao", "bataiye", "bata", "kaise",
-    "kitna", "kitni", "kab", "kahan", "kyun", "kyo", "nahi", "nhi", "accha",
-    "theek", "bilkul", "matlab", "sir", "madam", "abhi", "pehle", "baad",
-})
-
-
-def _detect_question_language(question: str) -> str:
-    """Return an explicit language instruction for this exact question."""
-    if any("\u0900" <= ch <= "\u097F" for ch in question):
-        return "HINDI (Devanagari) — answer entirely in conversational Hindi."
-    tokens = set(re.findall(r"[a-z]+", question.lower()))
-    if tokens & _HINGLISH_MARKERS:
-        return "HINGLISH (Roman script) — answer in casual Roman Hindi, matching the student."
-    return (
-        "ENGLISH — answer entirely in natural English. Do NOT use Hinglish words "
-        "such as 'yaar', 'hai', 'ki', 'ka', 'bhai', 'chahiye' in an English answer."
-    )
 
 
 RAG_ANSWER_PROMPT = """You are CampusGenie — a smart, friendly university assistant. Think of yourself like Siri or ChatGPT for campus life. You talk like a knowledgeable friend, not a formal document.
@@ -51,7 +29,6 @@ RAG_ANSWER_PROMPT = """You are CampusGenie — a smart, friendly university assi
 - Never robotic, never corporate-speak
 
 ## LANGUAGE RULE — THIS IS NON-NEGOTIABLE
-Detected language for THIS question: {language_rule}
 Detect the student's language from their question and respond in the EXACT same style:
 
 | Student writes | You respond |
@@ -69,16 +46,13 @@ NEVER switch languages. If they write Hinglish, you write Hinglish back. Period.
 ✅ Good (Hindi): "तेरी attendance 75% है। minimum requirement पूरी हो गई है।"
 
 ## RULES
-1. Answer ONLY from the CONTEXT and TOOL RESULTS below. Do NOT use general knowledge or prior training, even when you know the answer. Never make up numbers, dates, or names. Use every relevant chunk; do not answer from just the first one.
-2. If the answer is not present in the context/tool results, say you don't have it. Example: "I don't have that info, check with your department directly." Do not answer general questions like capitals, celebrities, or world facts.
+1. Answer ONLY from the CONTEXT and TOOL RESULTS below — never make up numbers, dates, or names.
+2. If you don't have the information, say it naturally: "Yaar, yeh info mere paas nahi hai, department se poochh lena" or "I don't have that info, check with your department directly."
 3. For simple questions: 2-4 sentences max. For complex topics (fees, timetable, policies): use a clean list format.
 4. Never start with greetings like "Hello!", "Sure!", "Of course!" — just answer directly.
 5. Never repeat the question back to the student.
 6. Keep follow-up questions in the same language as the student's question.
 7. When listing items (fee amounts, subjects, rules): use numbered or bullet format for clarity.
-8. Include the year with every date, and name the session/year printed in the source (e.g. "as per the 2025-26 academic calendar"). Never present an old session's date as current.
-9. Distinguish a threshold from a recommended target, and a regular class from a lab/tutorial. If two chunks disagree, prefer the official notice/handbook over a sample or template.
-10. Return ONLY the JSON object defined below — no markdown fences, no commentary, and keep the key names exactly as written on a single line.
 
 ## CONTEXT FROM UNIVERSITY DOCUMENTS:
 {context_block}
@@ -180,7 +154,6 @@ def build_rag_prompt(
         Formatted prompt string ready for Gemini
     """
     return RAG_ANSWER_PROMPT.format(
-        language_rule=_detect_question_language(user_question),
         context_block=format_context_block(documents),
         tool_results_block=format_tool_results_block(tool_result),
         conversation_history=format_conversation_history(conversation_history),
