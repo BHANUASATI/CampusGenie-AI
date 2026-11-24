@@ -36,10 +36,142 @@ NO_INFORMATION_ANSWER = (
 _MONTHS = (
     "January|February|March|April|May|June|July|August|September|October|November|December"
 )
-_DATE_VALUE = rf"\d{{1,2}}\s+(?:{_MONTHS})\s+\d{{4}}"
+_DATE_VALUE = rf"\d{{1,2}}[^\d\s]{{0,3}}\s+(?:{_MONTHS})\s*,?\s*\d{{2,4}}"
 _DATE_RE = rf"\b(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)?\s*{_DATE_VALUE}\b"
 _TIME_RE = r"\b\d{1,2}:\d{2}\s*(?:AM|PM)\b"
 _PERCENT_RE = r"\b\d+(?:\.\d+)?\s*%"
+
+# Calendar tables are OCR'd as adjacent lines ("Diwali", "20th October,25
+# (Monday)") rather than clean sentences. Match ordinals, two-digit years and
+# an optional weekday so the exact cell can be turned into a direct answer.
+_CALENDAR_DATE_RE = re.compile(
+    rf"(?P<day>\d{{1,2}}[^\d\s]{{0,3}})\s+(?P<month>{_MONTHS})\s*,?\s*"
+    rf"(?P<year>\d{{2,4}})?\s*(?:\((?P<weekday>[A-Za-z]+)\))?",
+    re.I,
+)
+
+# Named events get priority over generic long words like "academic calendar".
+# The keys are matched against the question; values are the display labels.
+_KNOWN_DATE_EVENTS = {
+    "diwali": "Diwali",
+    "deepawali": "Deepawali",
+    "edm fest": "EDM Fest",
+    "govardhan puja": "Govardhan Puja",
+    "bhai duj": "Bhai Duj",
+    "guru nanak jayanti": "Guru Nanak Jayanti",
+    "parent teacher meeting": "Parent Teacher Meeting",
+    "parents teacher meeting": "Parent Teacher Meeting",
+    "mid term exam": "Mid Term Exam",
+    "end semester examination": "End Semester Examination",
+    "last day of teaching": "Last Day of Teaching",
+    "winter break": "Winter Break",
+    "summer break": "Summer Break",
+    "christmas": "Christmas",
+    "convocation": "Convocation",
+    "result declaration": "Result Declaration",
+    "holi": "Holi",
+    "eid": "Eid",
+    "new year": "New Year",
+}
+
+_QUESTION_NOISE = {
+    "academic", "calendar", "hisab", "se", "ki", "hai", "kab", "kya",
+    "kyo", "kahan", "kaise", "kitne", "university", "univ", "date", "time",
+    "tell", "please", "about", "krmu", "college", "sir", "maam",
+    "last", "first", "next", "upcoming", "deadline", "submission", "last date",
+}
+
+
+def _normalise_calendar_date(match: re.Match) -> str:
+    """Render an OCR-friendly date match as ``20 October 2025 (Monday)``."""
+    day = re.sub(r"\D", "", match.group("day"))[:2]
+    month = match.group("month").title()
+    year_raw = match.group("year")
+    year = ""
+    if year_raw:
+        year_number = int(year_raw)
+        if year_number < 100:
+            year_number += 2000
+        year = str(year_number)
+    weekday = match.group("weekday")
+    parts = [str(int(day)), month]
+    if year:
+        parts.append(year)
+    date_text = " ".join(parts)
+    if weekday:
+        date_text += f" ({weekday.title()})"
+    return date_text
+
+
+def _clean_date_text(value: str) -> str:
+    """Normalise an ordinal/two-digit-year date extracted from OCR text."""
+    match = _CALENDAR_DATE_RE.search(value)
+    return _normalise_calendar_date(match) if match else value.strip()
+
+
+def _has_known_date_event(question: str) -> bool:
+    lower = question.lower()
+    return any(
+        re.search(rf"\b{re.escape(term)}\b", lower)
+        for term in _KNOWN_DATE_EVENTS
+    )
+
+
+def _question_event_terms(question: str) -> List[tuple[str, str]]:
+    """Return ``(search term, display label)`` pairs, named events first."""
+    lower = question.lower()
+    terms: List[tuple[str, str]] = []
+    for term, label in _KNOWN_DATE_EVENTS.items():
+        if re.search(rf"\b{re.escape(term)}\b", lower):
+            terms.append((term, label))
+    if terms:
+        return terms
+
+    for token in re.findall(r"[a-zA-Z][a-zA-Z'\-]{2,}", lower):
+        token = token.strip()
+        if len(token) < 4 or token in _QUESTION_NOISE or token in _STOP_WORDS:
+            continue
+        terms.append((token, token.title()))
+    return terms
+
+
+def _date_near_term(text: str, term: str) -> Optional[str]:
+    """Find a calendar date in the same row as ``term`` (OCR or prose)."""
+    flat = " ".join(text.split())
+    for match in re.finditer(re.escape(term), flat, re.I):
+        after = flat[match.end(): match.end() + 160]
+        date = _CALENDAR_DATE_RE.search(after)
+        if date:
+            return _normalise_calendar_date(date)
+        before = flat[max(0, match.start() - 120): match.start()]
+        earlier = list(_CALENDAR_DATE_RE.finditer(before))
+        if earlier:
+            return _normalise_calendar_date(earlier[-1])
+
+    # Scanned tables often keep the event and date on separate OCR lines.
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    for index, line in enumerate(lines):
+        if not re.search(re.escape(term), line, re.I):
+            continue
+        window = " ".join(lines[index:index + 3])
+        date = _CALENDAR_DATE_RE.search(window)
+        if date:
+            return _normalise_calendar_date(date)
+        previous = " ".join(lines[max(0, index - 2):index + 1])
+        earlier = list(_CALENDAR_DATE_RE.finditer(previous))
+        if earlier:
+            return _normalise_calendar_date(earlier[-1])
+    return None
+
+
+def _extract_event_date(question: str, documents: List[RankedDocument]) -> Optional[str]:
+    """Answer event-date questions such as "diwali kab ki hai" from the calendar."""
+    for term, label in _question_event_terms(question):
+        for document in documents[:6]:
+            date_text = _date_near_term(document.content, term)
+            if date_text:
+                return f"{label} is on {date_text}."
+    return None
 
 
 def _extract_direct_answer(question: str, documents: List[RankedDocument]) -> Optional[str]:
@@ -50,21 +182,37 @@ def _extract_direct_answer(question: str, documents: List[RankedDocument]) -> Op
     surrounding broken fragment.
     """
     question_lower = question.lower()
-    for document in documents[:4]:
+
+    # Event names must be anchored before the generic "first date in chunk"
+    # rule, otherwise a calendar row returns the header or the previous event.
+    event_answer = _extract_event_date(question, documents)
+    if event_answer:
+        return event_answer
+    # A known event with no matching date in the retrieved chunks must not fall
+    # through to "first date in chunk" — that is how calendar headers were
+    # returned instead of the event's own date.
+    if _has_known_date_event(question):
+        return None
+
+    wants_date = bool(re.search(r"\b(when|date|deadline|kab|kabse)\b", question_lower))
+    for document in documents[:6]:
         text = " ".join(document.content.split())
 
-        if re.search(r"\b(when|date|deadline)\b", question_lower):
+        if wants_date:
             # "Last date" must not resolve to the first date in the chunk,
             # which is often the fee window's *opening* date.
             if "last date" in question_lower:
-                last_date = re.search(
-                    rf"Last Date[^0-9]{{0,80}}?({_DATE_VALUE})", text, re.I
-                )
-                if last_date:
-                    return f"Last date: {last_date.group(1)}"
+                for occurrence in re.finditer(r"last date", text, re.I):
+                    window = text[occurrence.end(): occurrence.end() + 200]
+                    ocr_date = _CALENDAR_DATE_RE.search(window)
+                    if ocr_date:
+                        return f"Last date: {_normalise_calendar_date(ocr_date)}"
+                    plain_date = re.search(_DATE_VALUE, window, re.I)
+                    if plain_date:
+                        return f"Last date: {_clean_date_text(plain_date.group(0))}"
             match = re.search(_DATE_RE, text, re.I)
             if match:
-                return f"Date: {match.group(0).strip()}"
+                return f"Date: {_clean_date_text(match.group(0))}"
 
         if re.search(r"\b(time|timings|curfew)\b", question_lower):
             match = re.search(_TIME_RE, text, re.I)
