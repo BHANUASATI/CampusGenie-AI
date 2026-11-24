@@ -15,6 +15,14 @@ _STOP_WORDS = {
     "where", "which", "with", "you", "your",
 }
 
+# Table rows score highly on keyword overlap ("attendance", "required") but are
+# not sentences a student can be answered with. Penalise them so a real policy
+# sentence wins, while still allowing them to be used for band/status questions.
+_TABLE_ROW_MARKERS = (
+    "band:", "rule id:", "required action:", "situation:",
+    "defined condition:", "table ", "columns:",
+)
+
 
 def _clamp(value: float) -> float:
     return min(1.0, max(0.0, value))
@@ -68,40 +76,95 @@ def _format_tool_answer(tool_result: ToolResult) -> Optional[str]:
 
 
 def _select_sentences(question: str, documents: Iterable[RankedDocument]) -> tuple[str, RankedDocument] | None:
-    """Choose compact, relevant source sentences by lexical overlap."""
-    document_list = list(documents)
+    """Pick the most answer-like sentence from the retrieved chunks.
+
+    Ranking by raw keyword overlap alone promoted table rows ("Band: AAP-B4,
+    Attendance Range: Below 45%...") over the actual rule sentence. This scorer
+    rewards question phrases and numeric answers, penalises table fragments,
+    and searches every retrieved chunk rather than only the first one.
+    """
+    document_list = list(documents)[:6]
     if not document_list:
         return None
 
-    query_words = {
-        word for word in re.findall(r"[a-zA-Z0-9]{3,}", question.lower()) if word not in _STOP_WORDS
-    }
-    document = document_list[0]
-    sentences = [
-        " ".join(sentence.split())
-        for sentence in re.split(r"(?<=[.!?])\s+|\n+", document.content)
-        if sentence.strip()
+    raw_question = question.lower()
+    query_tokens = [
+        word for word in re.findall(r"[a-zA-Z0-9]{3,}", raw_question)
+        if word not in _STOP_WORDS
     ]
-    if not sentences:
+    query_words = set(query_tokens)
+    # Only meaningful adjacent pairs. Including stop-word pairs such as
+    # "the minimum" gave table rows a false phrase match.
+    query_bigrams = {
+        (query_tokens[i], query_tokens[i + 1])
+        for i in range(len(query_tokens) - 1)
+    }
+    wants_number = any(
+        marker in raw_question
+        for marker in (
+            "minimum", "maximum", "required", "percentage", "percent",
+            "how much", "how many", "below", "above", "%",
+        )
+    )
+
+    candidates: list[tuple[float, int, int, str, RankedDocument]] = []
+    for doc_rank, document in enumerate(document_list):
+        content = re.sub(
+            r"\bTABLE\s+\d+\s*\(Columns:[^)]*\)\s*:?",
+            " ",
+            document.content,
+            flags=re.I,
+        )
+        sentences = [
+            " ".join(sentence.split())
+            for sentence in re.split(r"(?<=[.!?])\s+|\n+", content)
+            if sentence.strip()
+        ]
+        for index, sentence in enumerate(sentences):
+            if len(sentence) < 20:
+                continue
+            lower = re.sub(r"\s+", " ", sentence.lower())
+            sentence_words = set(re.findall(r"[a-zA-Z0-9]{3,}", lower))
+            overlap = len(query_words & sentence_words)
+            phrase_hits = sum(
+                1 for first, second in query_bigrams if f"{first} {second}" in lower
+            )
+            # A moderate penalty stops table rows winning generic rule questions
+            # but still lets them answer "which band is below 45%?" style asks.
+            table_penalty = -3 if any(marker in lower for marker in _TABLE_ROW_MARKERS) else 0
+            number_bonus = (
+                3 if wants_number and re.search(r"\d+(?:\.\d+)?\s*%", sentence) else 0
+            )
+            score = (
+                overlap
+                + (2 * phrase_hits)
+                + number_bonus
+                + table_penalty
+                - (0.2 * doc_rank)
+                - (0.1 * index)
+            )
+            if score > 0:
+                candidates.append((score, -doc_rank, -index, sentence, document))
+
+    if not candidates:
         return None
 
-    scored = []
-    for index, sentence in enumerate(sentences):
-        sentence_words = set(re.findall(r"[a-zA-Z0-9]{3,}", sentence.lower()))
-        scored.append((len(query_words & sentence_words), -index, sentence))
+    candidates.sort(reverse=True, key=lambda item: item[:3])
+    _, _, _, best_sentence, best_doc = candidates[0]
+    excerpt = best_sentence
 
-    scored.sort(reverse=True)
-    # Only answer from the document when a sentence actually overlaps the
-    # question. Falling back to the first sentence produced confident but
-    # irrelevant answers, which is worse than asking the LLM or saying "I
-    # don't know".
-    selected = [item[2] for item in scored[:2] if item[0] > 0]
-    if not selected:
-        return None
-    excerpt = " ".join(selected)
+    # Add one more useful sentence from the same document when it adds detail.
+    for candidate in candidates[1:]:
+        if candidate[4].chunk_id != best_doc.chunk_id or candidate[0] < 2:
+            continue
+        if candidate[3] not in excerpt:
+            excerpt += " " + candidate[3]
+        if len(excerpt) > 600:
+            break
+
     if len(excerpt) > 600:
         excerpt = excerpt[:597].rsplit(" ", 1)[0] + "…"
-    return excerpt, document
+    return excerpt, best_doc
 
 
 def build_fast_response(
