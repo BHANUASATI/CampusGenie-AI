@@ -73,3 +73,68 @@ Two bugs made this confusing:
 
 > Resend's free tier still limits test-sender delivery to the account owner's
 > address. Once a domain is verified, you can send to any student/faculty email.
+
+## Without a domain
+
+Resend cannot deliver to arbitrary students without a verified domain. Two
+options avoid DNS changes; **Brevo is recommended on Railway** because it uses
+HTTPS (some hosts block outbound SMTP ports).
+
+### Option A (recommended): Brevo HTTPS API
+
+1. Create a free account at [brevo.com](https://www.brevo.com), then go to
+   **Senders & Domains → Senders → Add a sender** and verify an email address
+   you control (e.g. your Gmail address). No domain or DNS records required.
+2. Go to **API Keys** → **Generate new API key** with **Send emails** permission
+   and copy the key.
+3. In **Railway backend service → Variables**, set:
+
+   ```bash
+   EMAIL_PROVIDER=brevo
+   BREVO_API_KEY=your-brevo-api-key
+   BREVO_FROM_EMAIL=your-verified-sender@example.com
+   FROM_EMAIL=your-verified-sender@example.com
+   ```
+
+   The existing `RESEND_API_KEY` can stay; `EMAIL_PROVIDER=brevo` forces Brevo.
+4. Redeploy, then `GET /registrar/email/config` should return:
+
+   ```json
+   {"configured": true, "provider": "brevo", "using_test_sender": false}
+   ```
+
+5. Send a test with `POST /registrar/email/test`, then add a student again.
+
+### Option B: Gmail SMTP
+
+If you cannot verify a domain, use a mailbox that supports app passwords instead.
+No DNS records are needed. Note that Railway may block SMTP ports; if sends
+time out, use Option A.
+
+1. In the Google Account for the sending mailbox: enable **2-Step Verification**,
+   then go to **Security → 2-Step Verification → App passwords**, create one,
+   and copy the 16-character password.
+2. In **Railway backend service → Variables**, set:
+
+   ```bash
+   EMAIL_PROVIDER=smtp
+   SMTP_SERVER=smtp.gmail.com
+   SMTP_PORT=465
+   SMTP_USERNAME=your-mailbox@gmail.com
+   SMTP_PASSWORD=your-16-character-app-password
+   FROM_EMAIL=your-mailbox@gmail.com
+   ALLOW_RESEND_TEST_SENDER=false
+   ```
+
+   `RESEND_API_KEY` can be left in place — `EMAIL_PROVIDER=smtp` forces SMTP.
+   Port `465` uses implicit SSL; other ports use STARTTLS.
+3. Redeploy the backend and check `GET /registrar/email/config`:
+
+   ```json
+   {"configured": true, "provider": "smtp", "using_test_sender": false}
+   ```
+
+4. Send a test with `POST /registrar/email/test`, then add a student again.
+
+Gmail may reject sends from a `From` address other than the mailbox itself, so
+keep `FROM_EMAIL` equal to `SMTP_USERNAME`.
