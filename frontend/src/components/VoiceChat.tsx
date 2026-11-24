@@ -125,10 +125,13 @@ export const VoiceChat: React.FC<VoiceChatProps> = ({ isOpen, onClose }) => {
   const [error, setError]     = useState<string | null>(null);
   const [notice, setNotice]   = useState<string | null>(null);
   const [typedText, setTypedText] = useState('');
+  const [speechLang, setSpeechLang] = useState<'en-US' | 'hi-IN'>('en-US');
   const voiceSupported = Boolean(getSpeechRecognition());
 
   const recRef        = useRef<any>(null);
   const silenceTimer  = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const noResultTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const restartOnEndRef = useRef(true);
   const activeRef     = useRef(false);
   const speakingRef   = useRef(false);
   const thinkingSinceRef = useRef<number | null>(null);
@@ -146,6 +149,8 @@ export const VoiceChat: React.FC<VoiceChatProps> = ({ isOpen, onClose }) => {
   // ── Stop mic ─────────────────────────────────────────────────────────────
   const stopMic = useCallback(() => {
     if (silenceTimer.current) clearTimeout(silenceTimer.current);
+    if (noResultTimer.current) clearTimeout(noResultTimer.current);
+    restartOnEndRef.current = false;
     try { recRef.current?.stop(); } catch {}
   }, []);
 
@@ -207,55 +212,86 @@ export const VoiceChat: React.FC<VoiceChatProps> = ({ isOpen, onClose }) => {
     }
     setError(null);
 
+    // Never leave a previous recognition instance running in the background.
+    if (silenceTimer.current) clearTimeout(silenceTimer.current);
+    if (noResultTimer.current) clearTimeout(noResultTimer.current);
+    try { recRef.current?.stop(); } catch {}
+
     const rec = new SR();
     rec.continuous     = true;
     rec.interimResults = true;
-    rec.lang           = 'hi-IN'; // supports Hindi + English bilingual
+    rec.lang           = speechLang;
 
     let final = '';
+    let latest = '';
+    restartOnEndRef.current = true;
+
+    const clearNoResult = () => {
+      if (noResultTimer.current) clearTimeout(noResultTimer.current);
+      noResultTimer.current = null;
+    };
+    const fail = (message: string) => {
+      clearNoResult();
+      restartOnEndRef.current = false;
+      setError(message);
+      setPhase('error');
+    };
+
+    // Some browsers silently start the recognizer but never emit a result or
+    // an error (muted mic, blocked speech service). Show a real failure instead
+    // of freezing on "Listening…".
+    noResultTimer.current = setTimeout(() => {
+      if (activeRef.current && restartOnEndRef.current && !latest.trim()) {
+        try { rec.stop(); } catch {}
+        fail('No speech was detected. Check your microphone, switch language, or type your question below.');
+      }
+    }, 8000);
 
     rec.onresult = (e: any) => {
+      clearNoResult();
       let interim = '';
       for (let i = e.resultIndex; i < e.results.length; i++) {
         const t = e.results[i][0].transcript;
         if (e.results[i].isFinal) final += t + ' ';
         else interim += t;
       }
-      const full = (final + interim).trim();
-      setLiveText(full);
+      latest = (final + interim).trim();
+      setLiveText(latest);
 
-      // Reset silence timer
       if (silenceTimer.current) clearTimeout(silenceTimer.current);
       silenceTimer.current = setTimeout(() => {
-        rec.stop();
-        if (full) sendToAI(full);
-        else if (activeRef.current) openMic(); // restart if nothing heard
+        try { rec.stop(); } catch {}
+        restartOnEndRef.current = false;
+        if (latest.trim()) sendToAI(latest.trim());
+        else fail('No speech was detected. Please try again or type below.');
       }, SILENCE_MS);
     };
 
     rec.onerror = (e: any) => {
-      if (e.error === 'no-speech' && activeRef.current) {
-        setTimeout(() => activeRef.current && !speakingRef.current && openMic(), 200);
-        return;
-      }
+      clearNoResult();
       if (e.error === 'aborted') return;
+      restartOnEndRef.current = false;
       const message = SPEECH_ERRORS[e.error] || `Speech recognition failed: ${e.error}`;
-      setError(message);
-      setPhase('error');
+      fail(message);
     };
 
     rec.onend = () => {
-      // If we ended without results and still active, restart
-      if (activeRef.current && !final.trim() && !speakingRef.current && phase === 'listening') {
+      clearNoResult();
+      // Only restart when we did NOT deliberately stop to send/answer/error.
+      if (activeRef.current && restartOnEndRef.current && !speakingRef.current) {
         setTimeout(() => activeRef.current && openMic(), 200);
       }
     };
 
     recRef.current = rec;
     setLiveText('');
-    try { rec.start(); } catch {}
+    try {
+      rec.start();
+    } catch (e: any) {
+      fail(`Could not start the microphone: ${e?.message || String(e)}`);
+    }
   // eslint-disable-next-line
-  }, [phase, sendToAI]);
+  }, [sendToAI, speechLang]);
 
   // Type a question when speech input is unavailable or fails
   const submitTyped = useCallback(() => {
@@ -272,6 +308,11 @@ export const VoiceChat: React.FC<VoiceChatProps> = ({ isOpen, onClose }) => {
     setPhase('listening');
   }, []);
 
+  const toggleLanguage = useCallback(() => {
+    stopMic();
+    setSpeechLang(prev => prev === 'en-US' ? 'hi-IN' : 'en-US');
+  }, [stopMic]);
+
   // Never leave the user staring at "Thinking…" forever.
   useEffect(() => {
     if (phase !== 'thinking') return;
@@ -285,11 +326,11 @@ export const VoiceChat: React.FC<VoiceChatProps> = ({ isOpen, onClose }) => {
     return () => clearTimeout(timer);
   }, [phase]);
 
-  // Auto-open mic when phase becomes 'listening'
+  // Auto-open mic when phase becomes 'listening' or the language changes
   useEffect(() => {
     if (phase === 'listening' && activeRef.current) openMic();
   // eslint-disable-next-line
-  }, [phase]);
+  }, [phase, speechLang]);
 
   // Start session when dialog opens
   useEffect(() => {
@@ -364,9 +405,16 @@ export const VoiceChat: React.FC<VoiceChatProps> = ({ isOpen, onClose }) => {
           <div className="vc-transcript vc-ai-text">{aiText}</div>
         )}
 
-        {/* Hint */}
+        {/* Hint + language switch */}
         {!liveText && !aiText && phase === 'listening' && (
-          <div className="vc-hint">Speak in Hindi, Hinglish, or English</div>
+          <div className="vc-hint-wrap">
+            <div className="vc-hint">
+              Speak in {speechLang === 'hi-IN' ? 'Hindi / Hinglish' : 'English'}
+            </div>
+            <button className="vc-lang" onClick={toggleLanguage}>
+              {speechLang === 'en-US' ? 'Switch to हिंदी' : 'Switch to English'}
+            </button>
+          </div>
         )}
 
         {notice && (

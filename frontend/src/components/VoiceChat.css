@@ -215,6 +215,23 @@
 }
 .vc-error-icon { flex-shrink: 0; }
 
+.vc-hint-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+.vc-lang {
+  padding: 0.35rem 0.8rem;
+  border-radius: 999px;
+  border: 1px solid rgba(129, 140, 248, 0.35);
+  background: rgba(99, 102, 241, 0.15);
+  color: #c7d2fe;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+.vc-lang:hover { background: rgba(99, 102, 241, 0.35); }
+
 .vc-notice {
   width: 100%;
   padding: 0.6rem 0.9rem;
