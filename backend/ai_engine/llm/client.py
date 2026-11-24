@@ -49,7 +49,7 @@ def _get_openrouter_client():
     return OpenAI(
         api_key=ai_config.OPENROUTER_API_KEY,
         base_url=ai_config.LLM_BASE_URL,
-        timeout=ai_config.LLM_REQUEST_TIMEOUT_SECONDS,
+        timeout=min(float(ai_config.LLM_REQUEST_TIMEOUT_SECONDS), 8.0),
         max_retries=0,
     )
 
@@ -87,7 +87,6 @@ def _call_gemini(
     max_tokens: int,
 ) -> LLMResult:
     """Call Gemini via the google-generativeai SDK. Raises on any failure."""
-    import re
     import time
     from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
     import google.generativeai as genai
@@ -104,36 +103,32 @@ def _call_gemini(
             ),
         )
 
+    # Cap the per-model wait so a single slow/quota-blocked candidate cannot
+    # consume the whole voice request budget. Deployments can still lower this
+    # via GEMINI_TIMEOUT_SECONDS, but never silently inherit a huge value.
+    timeout_s = min(float(ai_config.GEMINI_TIMEOUT_SECONDS), 5.0)
+
     def _attempt(model: Any) -> Any:
         # request_options {"timeout": <ms>} bounds the RPC (incl. the SDK's own
         # retries); the ThreadPoolExecutor timeout below is a hard fallback.
         def _do_call():
             return model.generate_content(
                 prompt,
-                request_options={"timeout": int(ai_config.GEMINI_TIMEOUT_SECONDS * 1000)},
+                request_options={"timeout": int(timeout_s * 1000)},
             )
 
         executor = ThreadPoolExecutor(max_workers=1)
         try:
             future = executor.submit(_do_call)
-            return future.result(timeout=ai_config.GEMINI_TIMEOUT_SECONDS)
+            return future.result(timeout=timeout_s)
         finally:
             # Never block on a still-running request; otherwise a hung RPC
             # would defeat the timeout.
             executor.shutdown(wait=False, cancel_futures=False)
 
-    def _retry_delay(exc: Exception) -> float:
-        m = re.search(r"retry_delay\s*\{[^}]*seconds:\s*([0-9.]+)", str(exc))
-        return max(1.0, min(10.0, float(m.group(1)) if m else 5.0))
-
-    # Gemini returns 429 for two very different situations and they must not be
-    # treated the same:
-    #   * "exceeded your current quota" / billing  -> a hard requests-per-day cap
-    #     on the free tier.  Waiting cannot help; the model is out for the day.
-    #   * "rate limit" with a retry_delay           -> a transient per-minute cap
-    #     that is worth one short wait.
-    # Sleeping on the first case used to add ~25s per exhausted model before
-    # rotating, which is most of a student's wait for a chatbot reply.
+    # A 429 (quota or transient rate limit) is handled by rotating to the next
+    # configured model immediately. Sleeping here used to add 5–10s per model
+    # and was the main reason voice replies took 45s+ on the free tier.
     _QUOTA_MARKERS = (
         "exceeded your current quota",
         "quota exceeded",
@@ -144,30 +139,6 @@ def _call_gemini(
     def _is_hard_quota(message: str) -> bool:
         lowered = message.lower()
         return any(marker in lowered for marker in _QUOTA_MARKERS)
-
-    def _attempt_with_retry(model: Any) -> Any:
-        name = getattr(model, "model_name", "?")
-        try:
-            return _attempt(model)
-        except Exception as exc:  # noqa: BLE001 — SDK raises varied error types
-            message = str(exc)
-            is_429 = "429" in message or "RESOURCE_EXHAUSTED" in message
-            if not is_429:
-                raise
-            if _is_hard_quota(message):
-                logger.warning(
-                    "llm.call.gemini.quota_exhausted | model=%s rotating immediately",
-                    name,
-                )
-                raise
-            delay = _retry_delay(exc)
-            logger.warning(
-                "llm.call.gemini.rate_limited | model=%s retrying after %.0fs",
-                name,
-                delay,
-            )
-            time.sleep(delay)
-            return _attempt(model)
 
     # Each free-tier Gemini model has a hard requests/day cap.  Rotate through
     # the configured fallbacks so a capped/busy model doesn't take the whole
@@ -188,7 +159,7 @@ def _call_gemini(
     for model_name in candidates:
         model = _make_model(model_name)
         try:
-            response = _attempt_with_retry(model)
+            response = _attempt(model)
         except FuturesTimeout:
             # A slow/hung model must not sink the whole request — rotate.
             timed_out = True

@@ -37,6 +37,24 @@ from ai_engine.schemas.retrieval import Source
 logger = get_logger(__name__)
 
 
+def _call_with_deadline(fn, timeout_s: float, label: str):
+    """Run a blocking LLM call with a hard wall-clock deadline.
+
+    Voice conversations cannot wait 45–80s for a quota-blocked provider. When
+    the deadline expires we let the caller's existing fallback build an answer
+    from the retrieved documents instead.
+    """
+    from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
+
+    executor = ThreadPoolExecutor(max_workers=1)
+    try:
+        return executor.submit(fn).result(timeout=timeout_s)
+    except FuturesTimeout:
+        raise TimeoutError(f"{label} timed out after {timeout_s:.0f}s") from None
+    finally:
+        executor.shutdown(wait=False, cancel_futures=True)
+
+
 def _balanced_json_regions(text: str) -> Iterator[str]:
     """Yield the fullest balance-checked { ... } regions, in order found.
 
@@ -284,21 +302,31 @@ def generate_answer_node(state: AgentState) -> AgentState:
     try:
         with Timer() as t:
             # Use the configured LLM provider directly instead of always trying Gemini first
+            deadline_s = float(ai_config.LLM_ANSWER_TIMEOUT_SECONDS)
             if ai_config.LLM_PROVIDER == "openrouter":
                 # Call OpenRouter directly to avoid Gemini fallback delay
                 from ai_engine.llm.client import _call_openrouter
-                llm_result = _call_openrouter(
-                    prompt=full_prompt,
-                    temperature=ai_config.LLM_TEMPERATURE,
-                    max_tokens=ai_config.GEMINI_MAX_OUTPUT_TOKENS,
+                llm_result = _call_with_deadline(
+                    lambda: _call_openrouter(
+                        prompt=full_prompt,
+                        temperature=ai_config.LLM_TEMPERATURE,
+                        max_tokens=ai_config.GEMINI_MAX_OUTPUT_TOKENS,
+                    ),
+                    deadline_s,
+                    "OpenRouter",
                 )
             else:
-                # Use standard call_llm with Gemini fallback
-                llm_result = call_llm(
-                    prompt=full_prompt,
-                    model_override=ai_config.GEMINI_CHAT_MODEL,
-                    temperature=ai_config.GEMINI_TEMPERATURE,
-                    max_tokens=ai_config.GEMINI_MAX_OUTPUT_TOKENS,
+                # Use standard call_llm with Gemini fallback, but never let a
+                # slow provider hold the voice conversation hostage.
+                llm_result = _call_with_deadline(
+                    lambda: call_llm(
+                        prompt=full_prompt,
+                        model_override=ai_config.GEMINI_CHAT_MODEL,
+                        temperature=ai_config.GEMINI_TEMPERATURE,
+                        max_tokens=ai_config.GEMINI_MAX_OUTPUT_TOKENS,
+                    ),
+                    deadline_s,
+                    "Gemini/OpenRouter",
                 )
 
         raw_text = llm_result.text

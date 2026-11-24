@@ -89,6 +89,7 @@ export const VoiceChat: React.FC<VoiceChatProps> = ({ isOpen, onClose }) => {
   const silenceTimer  = useRef<ReturnType<typeof setTimeout> | null>(null);
   const activeRef     = useRef(false);
   const speakingRef   = useRef(false);
+  const thinkingSinceRef = useRef<number | null>(null);
 
   const token = localStorage.getItem('authToken') || '';
 
@@ -110,6 +111,7 @@ export const VoiceChat: React.FC<VoiceChatProps> = ({ isOpen, onClose }) => {
   const sendToAI = useCallback(async (text: string) => {
     if (!text.trim() || !activeRef.current) return;
     setPhase('thinking');
+    thinkingSinceRef.current = Date.now();
 
     try {
       const id  = await getConvId();
@@ -118,13 +120,18 @@ export const VoiceChat: React.FC<VoiceChatProps> = ({ isOpen, onClose }) => {
       const lng = res?.ai_message?.tts_language || detectLang(text);
 
       if (!activeRef.current) return;
+      thinkingSinceRef.current = null;
       setPhase('speaking');
       speakingRef.current = true;
 
-      // Show first 80 chars of what AI is saying
+      // Show the answer text long enough to be read even if audio playback
+      // fails or the TTS service returns no audio.
+      const answerShownAt = Date.now();
       setAiText(ans.slice(0, 120) + (ans.length > 120 ? '…' : ''));
 
       await speakWithCartesia(ans, lng, token);
+      const remaining = 2500 - (Date.now() - answerShownAt);
+      if (remaining > 0) await new Promise<void>(resolve => setTimeout(resolve, remaining));
 
       speakingRef.current = false;
       if (activeRef.current) {
@@ -134,6 +141,7 @@ export const VoiceChat: React.FC<VoiceChatProps> = ({ isOpen, onClose }) => {
       }
     } catch (e: any) {
       speakingRef.current = false;
+      thinkingSinceRef.current = null;
       if (activeRef.current) {
         setError(e?.message ? `Could not get an answer: ${e.message}` : 'Could not get an answer. Check your connection.');
         setPhase('error');
@@ -216,6 +224,19 @@ export const VoiceChat: React.FC<VoiceChatProps> = ({ isOpen, onClose }) => {
     setTypedText('');
     setPhase('listening');
   }, []);
+
+  // Never leave the user staring at "Thinking…" forever.
+  useEffect(() => {
+    if (phase !== 'thinking') return;
+    const timer = setTimeout(() => {
+      if (activeRef.current && thinkingSinceRef.current) {
+        thinkingSinceRef.current = null;
+        setError('The AI is taking too long to respond. Please try again or type your question.');
+        setPhase('error');
+      }
+    }, 25000);
+    return () => clearTimeout(timer);
+  }, [phase]);
 
   // Auto-open mic when phase becomes 'listening'
   useEffect(() => {

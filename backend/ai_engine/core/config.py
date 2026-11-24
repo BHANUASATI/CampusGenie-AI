@@ -182,6 +182,16 @@ class AIEngineConfig(BaseSettings):
         le=120.0,
         description="Hard timeout for one remote LLM request",
     )
+    LLM_ANSWER_TIMEOUT_SECONDS: float = Field(
+        default=8.0,
+        ge=1.0,
+        le=60.0,
+        description=(
+            "Maximum time the answer generator waits for a remote LLM before "
+            "falling back to the local, document-grounded answer. Keeps voice "
+            "conversations responsive when Gemini/OpenRouter are slow."
+        ),
+    )
 
     # -----------------------------------------------------------------------
     # Safety
