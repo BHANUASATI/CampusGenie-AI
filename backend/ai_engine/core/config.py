@@ -98,7 +98,7 @@ class AIEngineConfig(BaseSettings):
     PREFER_LOCAL_GROUNDED_ANSWERS: bool = Field(default=True)
     FAST_INTENT_ROUTING: bool = Field(default=True)
     FAST_RETRIEVAL_TOP_K: int = Field(
-        default=3,
+        default=5,
         ge=1,
         le=10,
         description="Maximum document chunks considered in fast response mode",

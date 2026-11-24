@@ -15,6 +15,9 @@ from __future__ import annotations
 import os
 import sys
 import tempfile
+import threading
+import uuid
+from pathlib import Path
 from typing import List
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile, status
@@ -33,6 +36,17 @@ from ai_engine.services.document_service import DocumentService
 
 logger = get_logger(__name__)
 router = APIRouter()
+
+# Background uploads need observable state. Without this the UI reports
+# "queued" even when extraction/embedding fails, which is exactly what made
+# uploads look successful while nothing appeared in the knowledge base.
+_upload_jobs: dict = {}
+_upload_jobs_lock = threading.Lock()
+
+
+def _update_job(job_id: str, **changes) -> None:
+    with _upload_jobs_lock:
+        _upload_jobs.setdefault(job_id, {}).update(changes)
 
 
 def _require_admin(current_user: models.User):
@@ -66,12 +80,23 @@ async def upload_document(
         temp.write(await file.read())
         temp_path = temp.name
 
+    job_id = uuid.uuid4().hex
+    _update_job(
+        job_id,
+        status="processing",
+        filename=file.filename,
+        doc_type=doc_type,
+        message="Reading, chunking and embedding the document…",
+        chunks_indexed=0,
+        error=None,
+    )
+
     service = DocumentService()
 
     def _process_and_cleanup():
         """Run indexing then delete the temp file. Permanent file is kept even on failure."""
         try:
-            service.upload_and_index(
+            stats = service.upload_and_index(
                 temp_path,
                 file.filename,
                 doc_type,
@@ -79,11 +104,25 @@ async def upload_document(
                 semester,
                 academic_year,
             )
+            source_file = stats.get("source_file") or Path(temp_path).name
+            message = (
+                f'"{source_file}" indexed — '
+                f'{stats.get("chunks_indexed", 0)} chunks are now searchable.'
+            )
+            _update_job(
+                job_id,
+                status="completed",
+                source_file=source_file,
+                chunks_indexed=stats.get("chunks_indexed", 0),
+                message=message,
+            )
             logger.info(
                 "document.index_success",
-                extra={"filename": file.filename, "doc_type": doc_type},
+                extra={"filename": file.filename, "doc_type": doc_type, **stats},
             )
         except Exception as exc:
+            message = f'Indexing failed for "{file.filename}": {exc}'
+            _update_job(job_id, status="failed", error=str(exc), message=message)
             logger.error(
                 "document.index_failed",
                 extra={
@@ -104,7 +143,23 @@ async def upload_document(
         "filename": file.filename,
         "doc_type": doc_type,
         "status": "processing",
+        "job_id": job_id,
     }
+
+
+@router.get("/documents/jobs/{job_id}")
+async def get_upload_job(
+    job_id: str,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Poll the status of an admin document upload."""
+    _require_admin(current_user)
+    with _upload_jobs_lock:
+        job = dict(_upload_jobs.get(job_id) or {})
+    if not job:
+        raise HTTPException(status_code=404, detail="Upload job not found")
+    return job
 
 
 @router.post("/documents/reindex")
@@ -237,6 +292,9 @@ async def bootstrap_knowledge_base(
         "files": FILES,
         "status": "running",
     }
+
+
+@router.get("/documents")
 async def list_documents(
     current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db),

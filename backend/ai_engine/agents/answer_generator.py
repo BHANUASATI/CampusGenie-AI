@@ -252,7 +252,10 @@ def generate_answer_node(state: AgentState) -> AgentState:
     # limited to live tool data and cited source excerpts; anything else uses
     # the existing full LLM path when fast mode is disabled.
     if ai_config.PREFER_LOCAL_GROUNDED_ANSWERS or ai_config.FAST_RESPONSE_MODE:
-        from ai_engine.services.fast_response import build_fast_response
+        from ai_engine.services.fast_response import (
+            NO_INFORMATION_ANSWER,
+            build_fast_response,
+        )
 
         with Timer() as t:
             fast_response = build_fast_response(
@@ -278,7 +281,23 @@ def generate_answer_node(state: AgentState) -> AgentState:
                 },
             )
             return {**state, "agent_response": response}
-    
+
+        # Never hold a student (especially a voice conversation) hostage to a
+        # slow remote model just because one question had no document overlap.
+        no_info = AgentResponse(
+            answer=NO_INFORMATION_ANSWER,
+            confidence=0.0,
+            sources=[],
+            follow_up_questions=[],
+            intent_detected=intent.value if intent else "unknown",
+            retrieval_used=bool(retrieved_docs),
+            tool_used=tool_result_obj.tool_name if tool_result_obj else None,
+            execution_trace=state.get("execution_trace", [])
+            + ["generate_answer(no_info)"],
+            total_latency_ms=t.elapsed_ms,
+        )
+        return {**state, "agent_response": no_info}
+
     # Build tool result dict for prompt
     tool_result_dict = None
     if tool_result_obj and tool_result_obj.success:
@@ -302,7 +321,9 @@ def generate_answer_node(state: AgentState) -> AgentState:
     try:
         with Timer() as t:
             # Use the configured LLM provider directly instead of always trying Gemini first
-            deadline_s = float(ai_config.LLM_ANSWER_TIMEOUT_SECONDS)
+            # Cap even if an old Railway variable still holds a larger value —
+            # a slow provider must never block the chat for a minute again.
+            deadline_s = min(float(ai_config.LLM_ANSWER_TIMEOUT_SECONDS), 3.0)
             if ai_config.LLM_PROVIDER == "openrouter":
                 # Call OpenRouter directly to avoid Gemini fallback delay
                 from ai_engine.llm.client import _call_openrouter

@@ -114,11 +114,32 @@ const UploadForm: React.FC<UploadFormProps> = ({ onUploaded }) => {
     e.preventDefault();
     if (!file || !docType) { setMessage('Please select a file and document type.'); setState('error'); return; }
     setState('uploading');
-    setMessage('');
+    setMessage(`Uploading "${file.name}"…`);
     try {
-      await aiAdminService.uploadDocument(file, docType, department, semester ? Number(semester) : undefined, acadYear || undefined);
+      const upload: any = await aiAdminService.uploadDocument(
+        file, docType, department, semester ? Number(semester) : undefined, acadYear || undefined,
+      );
+      const jobId = upload?.job_id;
+      if (!jobId) throw new Error('Upload did not return a tracking job.');
+
+      // Indexing happens in the background. Poll until the backend reports the
+      // real outcome instead of assuming success and leaving a phantom upload.
+      let job: any = { status: 'processing', message: 'Indexing…' };
+      for (let attempt = 0; attempt < 90; attempt++) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        job = await aiAdminService.getUploadJob(jobId) as any;
+        setMessage(job?.message || 'Indexing…');
+        if (job?.status === 'completed' || job?.status === 'failed') break;
+      }
+
+      if (job?.status !== 'completed') {
+        setState('error');
+        setMessage(job?.message || 'Indexing did not finish. Please retry with a smaller file.');
+        return;
+      }
+
       setState('success');
-      setMessage(`"${file.name}" queued for indexing. It will be searchable within a few seconds.`);
+      setMessage(job.message || `"${file.name}" is now searchable.`);
       setFile(null); setDocType(''); setDept('all'); setSemester(''); setAcadYear('');
       if (fileRef.current) fileRef.current.value = '';
       onUploaded();
@@ -372,12 +393,12 @@ const AIKnowledgeBase: React.FC = () => {
                 <svg className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path d="M12 9v4M12 17h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
                 <div className="text-sm text-amber-700">
                   <strong>Processing time:</strong> PDFs may take 30–60 seconds per document.
-                  Upload returns immediately — indexing happens in the background.
-                  Refresh the Documents tab after a minute to verify.
+                  Keep this page open — it waits for indexing to finish and shows the exact
+                  number of chunks added (or the error) before refreshing the list.
                 </div>
               </div>
 
-              <UploadForm onUploaded={() => { setTimeout(load, 2000); setTab('documents'); }} />
+              <UploadForm onUploaded={() => { load(); setTab('documents'); }} />
 
               <div className="mt-6 p-4 bg-slate-50 border border-slate-200 rounded-xl">
                 <h4 className="text-xs font-bold text-slate-600 uppercase tracking-wider mb-3">Supported Document Types</h4>

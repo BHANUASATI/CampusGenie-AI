@@ -555,6 +555,11 @@ export const aiAdminService = {
     return apiClient.delete(`/api/ai/documents/${encodeURIComponent(sourceFile)}`);
   },
 
+  // Poll a background upload until indexing completes or fails
+  getUploadJob: async (jobId: string) => {
+    return apiClient.get(`/api/ai/documents/jobs/${encodeURIComponent(jobId)}`);
+  },
+
   // Get vector store stats (total chunks, unique documents)
   getStats: async () => {
     return apiClient.get('/api/ai/documents/stats');

@@ -103,6 +103,10 @@ class DocumentService:
                 semester=semester,
                 academic_year=academic_year,
             )
+            # The indexer uses the on-disk name (which may gain a _1 suffix for
+            # duplicates). Report that exact name so the UI and vector store
+            # never disagree about what was uploaded.
+            stats["source_file"] = permanent_path.name
             return stats
         except Exception as e:
             # Keep the permanent file on disk so admin can retry indexing

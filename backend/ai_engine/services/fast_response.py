@@ -22,6 +22,139 @@ _TABLE_ROW_MARKERS = (
     "band:", "rule id:", "required action:", "situation:",
     "defined condition:", "table ", "columns:",
 )
+_GENERIC_TABLE_KEYS = {
+    "event", "particular", "details", "rule id", "id", "columns", "table",
+    "definition", "action", "handling",
+}
+
+NO_INFORMATION_ANSWER = (
+    "I couldn't find that in the university documents right now. "
+    "Try asking about attendance, fees, timetable, hostel rules, events or courses — "
+    "or check with your department for the latest update."
+)
+
+_MONTHS = (
+    "January|February|March|April|May|June|July|August|September|October|November|December"
+)
+_DATE_VALUE = rf"\d{{1,2}}\s+(?:{_MONTHS})\s+\d{{4}}"
+_DATE_RE = rf"\b(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)?\s*{_DATE_VALUE}\b"
+_TIME_RE = r"\b\d{1,2}:\d{2}\s*(?:AM|PM)\b"
+_PERCENT_RE = r"\b\d+(?:\.\d+)?\s*%"
+
+
+def _extract_direct_answer(question: str, documents: List[RankedDocument]) -> Optional[str]:
+    """Pull a single unambiguous date/time/percentage from document text.
+
+    Prose chunks often split a sentence across "K.R." or a table boundary. A
+    direct regex answer is both cleaner and more reliable than returning the
+    surrounding broken fragment.
+    """
+    question_lower = question.lower()
+    for document in documents[:4]:
+        text = " ".join(document.content.split())
+
+        if re.search(r"\b(when|date|deadline)\b", question_lower):
+            # "Last date" must not resolve to the first date in the chunk,
+            # which is often the fee window's *opening* date.
+            if "last date" in question_lower:
+                last_date = re.search(
+                    rf"Last Date[^0-9]{{0,80}}?({_DATE_VALUE})", text, re.I
+                )
+                if last_date:
+                    return f"Last date: {last_date.group(1)}"
+            match = re.search(_DATE_RE, text, re.I)
+            if match:
+                return f"Date: {match.group(0).strip()}"
+
+        if re.search(r"\b(time|timings|curfew)\b", question_lower):
+            match = re.search(_TIME_RE, text, re.I)
+            if match:
+                hostel = re.search(r"(?:Boys'|Girls')\s+Hostel", text, re.I)
+                prefix = f"{hostel.group(0)} — " if hostel else ""
+                return f"{prefix}Time: {match.group(0).upper()}"
+
+        if "minimum" in question_lower and "attendance" in question_lower:
+            match = re.search(_PERCENT_RE, text)
+            if match:
+                return f"Minimum attendance: {match.group(0)}"
+    return None
+
+
+def _table_candidates(content: str) -> List[str]:
+    """Turn PDF/DOCX table rows into clean, answerable ``Label: Value`` lines.
+
+    Raw chunks contain strings like ``Event: Date, EDM Fest 2026: Saturday,
+    26 September 2026 Event: Highlight, ...``. Returning that verbatim produced
+    broken answers; splitting it into rows lets the scorer pick the single
+    relevant field.
+    """
+    cleaned = re.sub(
+        r"\bTABLE\s+\d+\s*\(Columns:[^)]*\)\s*:?",
+        " ",
+        content,
+        flags=re.I,
+    )
+    # Split on any Title-Cased Label: pattern, so document-specific labels such
+    # as "EDM Fest 2026:" are handled as well as the generic table headers.
+    parts = re.split(r"(?=\b[A-Z][A-Za-z0-9 &'\-]{1,40}:\s)", cleaned)
+
+    fields: List[tuple] = []
+    for part in parts:
+        part = part.strip(" ,;")
+        if ":" not in part:
+            continue
+        key, value = part.split(":", 1)
+        key, value = key.strip(), value.strip(" ,;")
+        if key and value and len(value) < 300:
+            fields.append((key, value))
+    if not fields:
+        return []
+
+    rows: List[List[tuple]] = []
+    current: List[tuple] = []
+    for key, value in fields:
+        lower = key.lower()
+        starts_row = lower in {"particular", "rule id", "id", "band"}
+        repeats_event = lower == "event" and any(k.lower() == "event" for k, _ in current)
+        if current and (starts_row or repeats_event):
+            rows.append(current)
+            current = []
+        current.append((key, value))
+    if current:
+        rows.append(current)
+
+    candidates: List[str] = []
+    for row in rows:
+        values = {key.lower(): value for key, value in row}
+        if "criterion" in values and "value" in values:
+            candidates.append(f"{values['criterion']}: {values['value']}")
+            continue
+        if "residence" in values and (
+            "standard return time" in values or "time" in values
+        ):
+            key = "standard return time" if "standard return time" in values else "time"
+            label = "Standard Return Time" if key == "standard return time" else "Return Time"
+            candidates.append(f"{values['residence']} — {label}: {values[key]}")
+            continue
+        if "particular" in values and "details" in values:
+            candidates.append(f"{values['particular']}: {values['details']}")
+            continue
+        if "band" in values and "status" in values:
+            detail = " ".join(
+                part for part in (values.get("range"), values.get("action")) if part
+            )
+            candidates.append(
+                f"{values['band']} ({values.get('range', '')}): {values['status']}"
+                + (f" — {detail}" if detail else "")
+            )
+            continue
+        pairs = [
+            f"{key}: {value}" for key, value in row
+            if key.lower() not in _GENERIC_TABLE_KEYS
+        ]
+        if pairs:
+            candidates.append(" ".join(pairs))
+    return candidates
 
 
 def _clamp(value: float) -> float:
@@ -107,7 +240,7 @@ def _select_sentences(question: str, documents: Iterable[RankedDocument]) -> tup
         )
     )
 
-    candidates: list[tuple[float, int, int, str, RankedDocument]] = []
+    candidates: list[tuple[float, int, int, str, RankedDocument, bool]] = []
     for doc_rank, document in enumerate(document_list):
         content = re.sub(
             r"\bTABLE\s+\d+\s*\(Columns:[^)]*\)\s*:?",
@@ -115,52 +248,67 @@ def _select_sentences(question: str, documents: Iterable[RankedDocument]) -> tup
             document.content,
             flags=re.I,
         )
-        sentences = [
-            " ".join(sentence.split())
-            for sentence in re.split(r"(?<=[.!?])\s+|\n+", content)
-            if sentence.strip()
-        ]
-        for index, sentence in enumerate(sentences):
-            if len(sentence) < 20:
+
+        segments: list[tuple[str, bool]] = []
+        for field in _table_candidates(content):
+            segments.append((field, True))
+        for sentence in re.split(r"(?<=[.!?])\s+|\n+", content):
+            sentence = " ".join(sentence.split())
+            if sentence and all(sentence not in existing for existing, _ in segments):
+                segments.append((sentence, False))
+
+        for index, (segment, is_table) in enumerate(segments):
+            if len(segment) < 8:
                 continue
-            lower = re.sub(r"\s+", " ", sentence.lower())
+            lower = re.sub(r"\s+", " ", segment.lower())
             sentence_words = set(re.findall(r"[a-zA-Z0-9]{3,}", lower))
             overlap = len(query_words & sentence_words)
             phrase_hits = sum(
                 1 for first, second in query_bigrams if f"{first} {second}" in lower
             )
-            # A moderate penalty stops table rows winning generic rule questions
-            # but still lets them answer "which band is below 45%?" style asks.
-            table_penalty = -3 if any(marker in lower for marker in _TABLE_ROW_MARKERS) else 0
+            raw_table_marker = any(marker in lower for marker in _TABLE_ROW_MARKERS)
+            # Clean table fields get a bonus because they are already concise
+            # and answer-shaped; raw table rows get a penalty.
+            table_penalty = -2 if is_table else (-3 if raw_table_marker else 0)
+            format_bonus = 2 if is_table else 0
             number_bonus = (
-                3 if wants_number and re.search(r"\d+(?:\.\d+)?\s*%", sentence) else 0
+                3
+                if wants_number and re.search(r"\d+(?:\.\d+)?\s*%|\b\d{1,2}:\d{2}\s*(?:AM|PM)\b", segment, re.I)
+                else 0
             )
             score = (
                 overlap
-                + (2 * phrase_hits)
+                + (3 * phrase_hits)
                 + number_bonus
                 + table_penalty
+                + format_bonus
                 - (0.2 * doc_rank)
                 - (0.1 * index)
             )
             if score > 0:
-                candidates.append((score, -doc_rank, -index, sentence, document))
+                candidates.append(
+                    (score, -doc_rank, -index, segment, document, is_table)
+                )
 
     if not candidates:
         return None
 
     candidates.sort(reverse=True, key=lambda item: item[:3])
-    _, _, _, best_sentence, best_doc = candidates[0]
-    excerpt = best_sentence
+    _, _, _, best_segment, best_doc, best_is_table = candidates[0]
+    excerpt = best_segment
 
-    # Add one more useful sentence from the same document when it adds detail.
-    for candidate in candidates[1:]:
-        if candidate[4].chunk_id != best_doc.chunk_id or candidate[0] < 2:
-            continue
-        if candidate[3] not in excerpt:
-            excerpt += " " + candidate[3]
-        if len(excerpt) > 600:
-            break
+    # Extend narrative answers with one adjacent sentence. Table answers are
+    # already complete — appending sibling rows would add unrelated facts.
+    if not best_is_table:
+        for candidate in candidates[1:]:
+            if candidate[4].chunk_id != best_doc.chunk_id or candidate[0] < 2:
+                continue
+            if candidate[5]:
+                continue
+            if candidate[3] not in excerpt:
+                excerpt += " " + candidate[3]
+            if len(excerpt) > 600:
+                break
 
     if len(excerpt) > 600:
         excerpt = excerpt[:597].rsplit(" ", 1)[0] + "…"
@@ -189,6 +337,25 @@ def build_fast_response(
                 tool_used=tool_result.tool_name,
                 tool_result=tool_result.data,
             )
+
+    direct = _extract_direct_answer(question, documents)
+    if direct:
+        source_doc = documents[0]
+        return AgentResponse(
+            answer=direct,
+            confidence=max(0.85, _clamp(source_doc.similarity_score)),
+            sources=[
+                Source(
+                    filename=source_doc.metadata.source_file,
+                    doc_type=source_doc.metadata.doc_type,
+                    relevance=_clamp(source_doc.similarity_score),
+                )
+            ],
+            follow_up_questions=[],
+            retrieval_used=True,
+            tool_used=tool_result.tool_name if tool_result and tool_result.success else None,
+            tool_result=tool_result.data if tool_result and tool_result.success else None,
+        )
 
     selected = _select_sentences(question, documents)
     if not selected:
