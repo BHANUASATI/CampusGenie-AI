@@ -3,6 +3,7 @@ import logging
 import os
 import re
 import smtplib
+import socket
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from typing import Optional
@@ -260,6 +261,28 @@ class EmailService:
             logger.error("%s", self.last_error)
             return False
 
+    def _smtp_connection(self):
+        """Open an SMTP connection, preferring IPv4.
+
+        Railway services with outbound IPv6 disabled return ENETUNREACH for
+        IPv6 attempts, so resolve an IPv4 address explicitly while keeping the
+        original hostname for TLS SNI and certificate validation.
+        """
+        host = self.smtp_server
+        try:
+            ipv4 = socket.getaddrinfo(
+                host, self.smtp_port, socket.AF_INET, socket.SOCK_STREAM
+            )[0][4][0]
+        except Exception:
+            ipv4 = host
+
+        server = smtplib.SMTP_SSL(timeout=10) if self.smtp_use_ssl else smtplib.SMTP(timeout=10)
+        server._host = host
+        server.connect(ipv4, self.smtp_port)
+        if not self.smtp_use_ssl:
+            server.starttls()
+        return server
+
     def _send_via_smtp(self, to_email: str, subject: str, html: str, text: Optional[str]) -> bool:
         try:
             msg = MIMEMultipart("alternative")
@@ -270,12 +293,7 @@ class EmailService:
                 msg.attach(MIMEText(text, "plain"))
             msg.attach(MIMEText(html, "html"))
 
-            if self.smtp_use_ssl:
-                server = smtplib.SMTP_SSL(self.smtp_server, self.smtp_port, timeout=10)
-            else:
-                server = smtplib.SMTP(self.smtp_server, self.smtp_port, timeout=10)
-                server.starttls()
-            with server:
+            with self._smtp_connection() as server:
                 server.login(self.smtp_username, self.smtp_password)
                 server.send_message(msg)
             logger.info("Email sent via SMTP to %s", to_email)
