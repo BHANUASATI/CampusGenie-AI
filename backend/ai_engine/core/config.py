@@ -52,13 +52,20 @@ class AIEngineConfig(BaseSettings):
     )
     GEMINI_FALLBACK_MODELS: list[str] = Field(
         default_factory=lambda: [
-            "gemini-2.5-flash",
+            # gemini-2.5-flash spends much of max_output_tokens on thinking and
+            # can finish with MAX_TOKENS after only a few visible words. This
+            # lite model returns complete answers in ~2s on the same prompt.
+            "gemini-3.5-flash-lite",
             "gemini-flash-lite-latest",
         ],
-        description="Models to try when primary is rate-limited",
+        description="Models to try when primary is rate-limited or stalls",
     )
     GEMINI_RATE_LIMIT_RETRIES: int = Field(default=0, ge=0, le=5)
-    GEMINI_TIMEOUT_SECONDS: float = Field(default=10.0)
+    GEMINI_TIMEOUT_SECONDS: float = Field(default=8.0)
+    # If the primary model has not answered within this many seconds, start the
+    # fallback models in parallel and take whichever answer arrives first. This
+    # removes the long tail when one Gemini endpoint stalls.
+    GEMINI_HEDGE_DELAY_SECONDS: float = Field(default=2.0, ge=0.5, le=10.0)
 
     # -----------------------------------------------------------------------
     # Embedding model (sentence-transformers, runs locally, no API cost)
@@ -90,12 +97,15 @@ class AIEngineConfig(BaseSettings):
     # RAG / Retrieval
     # -----------------------------------------------------------------------
     RETRIEVAL_TOP_K: int = Field(default=8, description="Candidates fetched from ChromaDB")
-    RERANK_TOP_N: int = Field(default=4, description="Documents passed to LLM after reranking")
+    RERANK_TOP_N: int = Field(default=6, description="Documents passed to LLM after reranking")
     FAST_RESPONSE_MODE: bool = Field(default=False)
-    # Prefer instant, grounded answers from live DB data / indexed documents.
-    # The remote LLM is used only when no grounded local answer can be built,
-    # which keeps voice chat responsive even when providers are slow.
-    PREFER_LOCAL_GROUNDED_ANSWERS: bool = Field(default=True)
+    # Live DB tool results are formatted locally (fast and exact), but document
+    # answers must go through the LLM. The old default built an answer by
+    # picking one regex-scored sentence from a chunk, which produced wrong or
+    # half-finished answers ("Name: Advanced Database", raw JSON, first date
+    # found in a calendar, etc.). Enable this only as a temporary LLM-outage
+    # fallback, not as the normal answering path.
+    PREFER_LOCAL_GROUNDED_ANSWERS: bool = Field(default=False)
     FAST_INTENT_ROUTING: bool = Field(default=True)
     FAST_RETRIEVAL_TOP_K: int = Field(
         default=5,
@@ -112,6 +122,14 @@ class AIEngineConfig(BaseSettings):
     SIMILARITY_THRESHOLD: float = Field(
         default=0.1,
         description="Minimum cosine similarity to include a document",
+    )
+    MIN_GROUNDED_SIMILARITY: float = Field(
+        default=0.25,
+        description=(
+            "If even the best retrieved chunk is below this cosine similarity, "
+            "answer from the knowledge base is not supported — return the "
+            "out-of-scope response instead of letting the LLM use general knowledge."
+        ),
     )
     CHUNK_SIZE: int = Field(default=768, description="Token chunk size for text splitting")
     CHUNK_OVERLAP: int = Field(default=100, description="Token overlap between consecutive chunks")
@@ -204,13 +222,14 @@ class AIEngineConfig(BaseSettings):
         description="Hard timeout for one remote LLM request",
     )
     LLM_ANSWER_TIMEOUT_SECONDS: float = Field(
-        default=3.0,
+        default=12.0,
         ge=1.0,
         le=60.0,
         description=(
-            "Maximum time the answer generator waits for a remote LLM before "
-            "falling back to the local, document-grounded answer. Keeps voice "
-            "conversations responsive when Gemini/OpenRouter are slow."
+            "Maximum time the answer generator waits for one remote LLM answer "
+            "before falling back. A 3s cap used to expire before Gemini could "
+            "answer a RAG prompt (2-5s healthy, longer cold), so nearly every "
+            "reply silently used the low-quality local extraction path."
         ),
     )
 

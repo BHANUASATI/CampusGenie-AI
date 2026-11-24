@@ -44,7 +44,30 @@ _GENERAL_ACADEMIC_MARKERS = (
 def _needs_live_tool(intent: IntentType, normalized_message: str) -> bool:
     """Only call a personal-data tool when the wording asks for live data."""
     if intent == IntentType.ATTENDANCE_QUERY:
-        return any(marker in normalized_message for marker in ("my attendance", "current attendance", "attendance percentage"))
+        # "minimum attendance percentage required?" is a POLICY question, not a
+        # request for the student's own record. Treating "attendance percentage"
+        # as a live-data marker used to return "Your current attendance is 92.5%"
+        # instead of the 45% rule from the attendance policy document.
+        personal_markers = (
+            "my attendance",
+            "my current attendance",
+            "current attendance",
+            "this semester attendance",
+            "attendance this semester",
+            "meri attendance",
+            "mere attendance",
+            "mera attendance",
+        )
+        policy_markers = (
+            "minimum", "required", "requirement", "requirements", "policy",
+            "rules", "rule", "criteria", "cutoff", "cut-off", "threshold",
+            "eligibility", "eligible", "needed", "need to maintain",
+            "chahiye", "kam se kam", "kitni attendance", "kitna attendance",
+        )
+        return (
+            any(marker in normalized_message for marker in personal_markers)
+            and not any(marker in normalized_message for marker in policy_markers)
+        )
     if intent == IntentType.COURSE_QUERY:
         return any(marker in normalized_message for marker in ("my course", "my courses", "enrolled", "am i taking"))
     if intent == IntentType.NOTICE_QUERY:

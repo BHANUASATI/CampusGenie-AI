@@ -71,6 +71,12 @@ def _overlap_fraction(query: str, content: str) -> float:
 # produced by the docx table extractor) get a fixed relevance nudge when the
 # question is schedule-intent.
 _TABLE_ROW_BONUS = 0.22
+# An exact/near-exact subject match is much stronger evidence than rank alone:
+# "who teaches Database Management Systems on Wednesday?" must surface the
+# Advanced Database Management Systems rows, not whichever timetable row the
+# cross-encoder happened to like.
+_TABLE_SUBJECT_BONUS = 0.35
+_TABLE_DAY_BONUS = 0.15
 _TABLE_ROW_LABELS = (
     "Day:", "Time:", "Subject / Course:", "Faculty:", "Room:",
     "Course Title:", "Credits:", "Type:", "Code:",
@@ -270,20 +276,34 @@ def _multi_query_search(
     top_k: int,
     where: Optional[Dict[str, Any]],
 ) -> List[RetrievedDocument]:
-    """Run several ChromaDB searches and merge results (dedupe by chunk_id)."""
+    """Run several ChromaDB searches in one batch and merge by chunk_id."""
+    cleaned_queries = [(q or "").strip() for q in queries]
+    cleaned_queries = [q for q in cleaned_queries if q]
+    if not cleaned_queries:
+        return []
+
     merged: Dict[str, RetrievedDocument] = {}
-    for query in queries:
-        query = (query or "").strip()
-        if not query:
-            continue
-        try:
-            results = vector_store.search(query=query, top_k=top_k, where=where)
-        except Exception as e:  # noqa: BLE001 — one bad sub-query must not sink retrieval
-            logger.warning(
-                "retriever.search_subquery_failed",
-                extra={"error": str(e), "query": query[:60]},
-            )
-            continue
+    try:
+        results_per_query = vector_store.search_many(
+            queries=cleaned_queries, top_k=top_k, where=where
+        )
+    except Exception as e:  # noqa: BLE001 — a metadata filter can be rejected
+        logger.warning(
+            "retriever.search_batch_failed",
+            extra={"error": str(e), "queries": len(cleaned_queries)},
+        )
+        # Fall back to independent searches so one malformed batch cannot take
+        # retrieval down entirely.
+        results_per_query = []
+        for query in cleaned_queries:
+            try:
+                results_per_query.append(
+                    vector_store.search(query=query, top_k=top_k, where=where)
+                )
+            except Exception:
+                results_per_query.append([])
+
+    for results in results_per_query:
         for doc in results:
             current = merged.get(doc.chunk_id)
             if current is None or doc.similarity_score > current.similarity_score:
@@ -348,10 +368,11 @@ def retrieve_context_node(state: AgentState) -> AgentState:
     )
 
     vector_store = get_vector_store()
-    # Prefer the small, no-rerank candidate set whenever local grounded answers
-    # are enabled — reranking adds ~1s and the local builder only needs the top
-    # few excerpts.
-    fast_mode = ai_config.FAST_RESPONSE_MODE or ai_config.PREFER_LOCAL_GROUNDED_ANSWERS
+    # Reranking now costs ~0.2s after startup warmup and is what keeps the exact
+    # rule/table row at the top for the LLM. Only explicit FAST_RESPONSE_MODE
+    # skips it. PREFER_LOCAL_GROUNDED_ANSWERS is an answer-generation setting
+    # and must not silently downgrade retrieval quality.
+    fast_mode = ai_config.FAST_RESPONSE_MODE
     reranker = None if fast_mode else get_reranker()
     candidate_limit = (
         ai_config.FAST_RETRIEVAL_TOP_K if fast_mode else ai_config.RETRIEVAL_TOP_K
@@ -370,22 +391,24 @@ def retrieve_context_node(state: AgentState) -> AgentState:
     # Subject of a schedule question (e.g. "Advanced Database Management
     # Systems"); the table-row bonus applies only to row chunks that actually
     # mention it, so unrelated timetable rows cannot crowd them out.
-    subject_tokens = (
-        _content_tokens(subject_phrase)
-        if (subject_phrase := _extract_subject_phrase(user_message))
-        else set()
-    )
+    subject_phrase = _extract_subject_phrase(user_message)
+    subject_tokens = _content_tokens(subject_phrase) if subject_phrase else set()
+    day_name = next((d for d in _DAY_NAMES_FULL if d in f"{user_message} {query}".lower()), None)
+
     search_queries: List[str] = []
     for q in (
         query,
         user_message,
-        *_curriculum_enrichment_queries(user_message, query),
         *_calendar_enrichment_queries(user_message, query),
+        *_curriculum_enrichment_queries(user_message, query),
         *schedule_queries,
     ):
         q = (q or "").strip()
         if q and q not in search_queries:
             search_queries.append(q)
+    # Eight targeted searches are plenty; more only adds CPU time and lets
+    # generic probes dilute the candidate pool.
+    search_queries = search_queries[:8]
 
     with Timer() as retrieval_timer:
         try:
@@ -489,9 +512,19 @@ def retrieve_context_node(state: AgentState) -> AgentState:
             if not subject_tokens:
                 bonus = _TABLE_ROW_BONUS
             else:
-                frac = len(_content_tokens(content) & subject_tokens) / len(subject_tokens)
+                content_tokens = _content_tokens(content)
+                frac = len(content_tokens & subject_tokens) / len(subject_tokens)
                 if frac >= 0.5:
                     bonus = _TABLE_ROW_BONUS * frac
+                    content_lower = content.lower()
+                    if subject_phrase and subject_phrase.lower() in content_lower:
+                        bonus += _TABLE_SUBJECT_BONUS
+                    elif subject_tokens <= content_tokens:
+                        # Partial course names: "Database Management Systems"
+                        # inside "Advanced Database Management Systems".
+                        bonus += _TABLE_SUBJECT_BONUS * 0.8
+                    if day_name and day_name in content_lower:
+                        bonus += _TABLE_DAY_BONUS
         if fast_mode:
             return _hybrid_score(
                 sim_rank=idx,

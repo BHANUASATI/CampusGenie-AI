@@ -86,114 +86,181 @@ def _call_gemini(
     temperature: float,
     max_tokens: int,
 ) -> LLMResult:
-    """Call Gemini via the google-generativeai SDK. Raises on any failure."""
+    """Call Gemini via the google-generativeai SDK. Raises on any failure.
+
+    The first model is tried alone for a short grace period. If it has not
+    answered by then, the fallback models start in parallel and the first
+    successful answer wins. This keeps the common case to one request while
+    removing the long tail when a single Gemini endpoint stalls.
+    """
     import time
-    from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
+    from concurrent.futures import ThreadPoolExecutor, wait
     import google.generativeai as genai
     from ai_engine.core.config import ai_config
 
     genai.configure(api_key=ai_config.GEMINI_API_KEY)
 
-    def _make_model(model_name: str):
+    def _make_model(model: str):
         return genai.GenerativeModel(
-            model_name=model_name,
+            model_name=model,
             generation_config=genai.types.GenerationConfig(
                 temperature=temperature,
                 max_output_tokens=max_tokens,
             ),
         )
 
-    # Cap the per-model wait so a single slow/quota-blocked candidate cannot
-    # consume the whole voice request budget. Deployments can still lower this
-    # via GEMINI_TIMEOUT_SECONDS, but never silently inherit a huge value.
-    timeout_s = min(float(ai_config.GEMINI_TIMEOUT_SECONDS), 5.0)
+    # Bound the RPC itself; the coordinator below enforces the overall budget.
+    timeout_s = min(float(ai_config.GEMINI_TIMEOUT_SECONDS), 8.0)
+    hedge_delay_s = min(float(ai_config.GEMINI_HEDGE_DELAY_SECONDS), timeout_s / 2.0)
 
-    def _attempt(model: Any) -> Any:
-        # request_options {"timeout": <ms>} bounds the RPC (incl. the SDK's own
-        # retries); the ThreadPoolExecutor timeout below is a hard fallback.
-        def _do_call():
-            return model.generate_content(
-                prompt,
-                request_options={"timeout": int(timeout_s * 1000)},
-            )
+    def _do_call(model):
+        return model.generate_content(
+            prompt,
+            request_options={"timeout": int(timeout_s * 1000)},
+        )
 
-        executor = ThreadPoolExecutor(max_workers=1)
-        try:
-            future = executor.submit(_do_call)
-            return future.result(timeout=timeout_s)
-        finally:
-            # Never block on a still-running request; otherwise a hung RPC
-            # would defeat the timeout.
-            executor.shutdown(wait=False, cancel_futures=False)
-
-    # A 429 (quota or transient rate limit) is handled by rotating to the next
-    # configured model immediately. Sleeping here used to add 5–10s per model
-    # and was the main reason voice replies took 45s+ on the free tier.
     _QUOTA_MARKERS = (
         "exceeded your current quota",
         "quota exceeded",
         "billing",
         "check your plan",
     )
+    _TIMEOUT_MARKERS = ("timeout", "timed out", "deadline exceeded")
 
-    def _is_hard_quota(message: str) -> bool:
+    def _failure_reason(message: str) -> str:
         lowered = message.lower()
-        return any(marker in lowered for marker in _QUOTA_MARKERS)
+        if any(marker in lowered for marker in _QUOTA_MARKERS):
+            return "quota_exhausted"
+        if any(marker in lowered for marker in _TIMEOUT_MARKERS):
+            return "timeout"
+        if "incomplete answer" in lowered:
+            return "incomplete"
+        return "error"
 
-    # Each free-tier Gemini model has a hard requests/day cap.  Rotate through
-    # the configured fallbacks so a capped/busy model doesn't take the whole
-    # chatbot down.
+    def _is_complete(response) -> bool:
+        """Reject answers cut off by the model's output-token budget.
+
+        Some thinking models (notably gemini-2.5-flash) burn max_output_tokens
+        on internal reasoning and finish with only a few visible words. Showing
+        that half-sentence to a student is worse than trying the next model, so
+        treat MAX_TOKENS as a failed candidate.
+        """
+        text = response.text or ""
+        if not text.strip():
+            return False
+        stripped = text.strip()
+        json_like = stripped.startswith("{")
+        for candidate in getattr(response, "candidates", []) or []:
+            reason = getattr(candidate, "finish_reason", None)
+            name = getattr(reason, "name", str(reason) if reason else "")
+            hit_cap = "MAX_TOKENS" in name.upper() or str(reason) == "2"
+            # A plain-text warmup ("OK") can legitimately finish at the token
+            # cap. Only a half-written JSON object is unusable to the caller.
+            if hit_cap and json_like and stripped.count("{") > stripped.count("}"):
+                return False
+        if json_like and stripped.count("{") > stripped.count("}"):
+            return False
+        return True
+
     candidates: list[str] = []
-    for m in (model_name, *ai_config.GEMINI_FALLBACK_MODELS):
-        m = (m or "").strip()
-        if m and m not in candidates:
-            candidates.append(m)
+    for model in (model_name, *ai_config.GEMINI_FALLBACK_MODELS):
+        model = (model or "").strip()
+        if model and model not in candidates:
+            candidates.append(model)
 
     t0 = time.perf_counter()
-    response = None
-    last_error: Optional[Exception] = None
-    timed_out = False
-    # Why each skipped model was skipped — surfaced in LangSmith so a slow
-    # reply can be explained without reading the server log.
+    deadline = t0 + timeout_s
+    executor = ThreadPoolExecutor(max_workers=max(1, len(candidates)))
+    pending = {}  # Future -> model name
     skipped: list[dict] = []
-    for model_name in candidates:
-        model = _make_model(model_name)
-        try:
-            response = _attempt(model)
-        except FuturesTimeout:
-            # A slow/hung model must not sink the whole request — rotate.
-            timed_out = True
-            last_error = TimeoutError(
-                f"Gemini model {model_name} timed out after {ai_config.GEMINI_TIMEOUT_SECONDS}s"
-            )
-            skipped.append(
-                {"model": model_name, "reason": "timeout",
-                 "detail": f">{ai_config.GEMINI_TIMEOUT_SECONDS}s"}
-            )
-            logger.warning(
-                "llm.call.gemini.timeout | model=%s trying next", model_name
-            )
-            continue
-        except Exception as exc:  # noqa: BLE001
-            last_error = exc
-            message = str(exc)
-            reason = "quota_exhausted" if _is_hard_quota(message) else "error"
-            skipped.append(
-                {"model": model_name, "reason": reason, "detail": message[:160]}
-            )
-            logger.warning(
-                "llm.call.gemini.failed | model=%s trying next | %s",
-                model_name,
-                message[:160],
-            )
-            continue
-        break
+    next_index = 0
+    response = None
+    winner_model = ""
+    last_error: Optional[Exception] = None
+    hedged = False
+
+    def _start_next():
+        nonlocal next_index
+        if next_index >= len(candidates):
+            return
+        model = candidates[next_index]
+        next_index += 1
+        pending[executor.submit(_do_call, _make_model(model))] = model
+
+    try:
+        _start_next()
+        while response is None and pending:
+            now = time.perf_counter()
+            remaining = deadline - now
+            if remaining <= 0:
+                break
+
+            # Primary gets a head start. After the grace period, release every
+            # remaining model at once instead of waiting for a hung one.
+            if not hedged and next_index < len(candidates) and now - t0 >= hedge_delay_s:
+                while next_index < len(candidates):
+                    _start_next()
+                hedged = True
+
+            if hedged:
+                wait_seconds = remaining
+            else:
+                wait_seconds = hedge_delay_s - (now - t0)
+            done, _ = wait(list(pending), timeout=max(0.01, wait_seconds))
+
+            if not done:
+                if not hedged:
+                    continue  # loop again and trigger the hedge
+                break
+
+            for future in list(done):
+                model = pending.pop(future)
+                try:
+                    candidate_response = future.result()
+                    if not _is_complete(candidate_response):
+                        raise RuntimeError("model returned an incomplete answer (MAX_TOKENS)")
+                    response = candidate_response
+                    winner_model = model
+                    break
+                except Exception as exc:  # noqa: BLE001
+                    last_error = exc
+                    reason = _failure_reason(str(exc))
+                    skipped.append(
+                        {"model": model, "reason": reason, "detail": str(exc)[:160]}
+                    )
+                    logger.warning(
+                        "llm.call.gemini.%s | model=%s trying next | %s",
+                        reason,
+                        model,
+                        str(exc)[:120],
+                    )
+                    # A fast failure still has models left to try.
+                    if next_index < len(candidates):
+                        _start_next()
+    finally:
+        # Do not wait on still-running requests: a hung RPC would defeat the
+        # timeout that protects the student's chat request.
+        executor.shutdown(wait=False, cancel_futures=True)
 
     if response is None:
-        if skipped:
-            add_metadata(skipped_models=skipped, candidates_tried=len(skipped))
-        if timed_out:
-            raise TimeoutError(str(last_error)) from None
+        if not skipped:
+            # The futures can finish just after the deadline and leave no
+            # exception to report. Name the models instead of logging "None".
+            skipped = [
+                {"model": model, "reason": "timeout", "detail": "no answer before deadline"}
+                for model in candidates
+            ]
+            logger.warning(
+                "llm.call.gemini.no_response | models=%s deadline=%.1fs",
+                ",".join(candidates),
+                timeout_s,
+            )
+        add_metadata(skipped_models=skipped, candidates_tried=len(skipped))
+        if any(item["reason"] == "timeout" for item in skipped):
+            raise TimeoutError(
+                f"Gemini models timed out after {timeout_s:.0f}s "
+                f"(tried: {', '.join(candidates)})"
+            ) from None
         raise RuntimeError(f"All Gemini models failed: {last_error}") from last_error
 
     latency_ms = (time.perf_counter() - t0) * 1000
@@ -211,7 +278,7 @@ def _call_gemini(
     )
 
     record_usage(
-        model=model_name,
+        model=winner_model,
         provider="gemini",
         input_tokens=prompt_tokens,
         output_tokens=completion_tokens,
@@ -223,7 +290,7 @@ def _call_gemini(
     return LLMResult(
         text=raw_text,
         provider="gemini",
-        model=model_name,
+        model=winner_model,
         prompt_tokens=prompt_tokens,
         completion_tokens=completion_tokens,
         latency_ms=latency_ms,

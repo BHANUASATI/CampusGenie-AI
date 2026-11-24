@@ -149,8 +149,36 @@ async def startup_warmup():
             print(f"⚠️  AI Engine warmup warning: {e}")
 
     loop = asyncio.get_event_loop()
-    executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
-    loop.run_in_executor(executor, _warmup)
+    # Wait for local models to load. Previously this was fire-and-forget, so
+    # the first student could pay the 5-10s model load cost inside their chat.
+    await loop.run_in_executor(
+        concurrent.futures.ThreadPoolExecutor(max_workers=1), _warmup
+    )
+
+    # Warm the remote LLM connection too. The first Gemini call on a cold
+    # process took ~13s in local testing; doing it here keeps the first answer
+    # in the same 2-5s range as the rest. Never block startup on a bad key.
+    if _ai_cfg.GEMINI_API_KEY and _ai_cfg.GEMINI_API_KEY.strip() not in {
+        "", "your-gemini-api-key", "your_gemini_api_key"
+    }:
+        def _warm_llm():
+            try:
+                from ai_engine.llm.client import call_llm
+
+                call_llm("Reply with OK.", max_tokens=16)
+                print("✅ LLM connection warm")
+            except Exception as e:
+                print(f"⚠️  LLM warmup warning (will retry on first chat): {str(e)[:120]}")
+
+        try:
+            await asyncio.wait_for(
+                loop.run_in_executor(
+                    concurrent.futures.ThreadPoolExecutor(max_workers=1), _warm_llm
+                ),
+                timeout=10.0,
+            )
+        except asyncio.TimeoutError:
+            print("⚠️  LLM warmup timed out; first chat will retry the provider")
     
     # Start notification scheduler
     try:

@@ -427,10 +427,13 @@ Configure via `.env`:
 GEMINI_API_KEY=...
 GEMINI_CHAT_MODEL=gemini-flash-lite-latest
 GEMINI_FAST_MODEL=gemini-flash-lite-latest
-GEMINI_FALLBACK_MODELS=gemini-2.5-flash,gemini-3.1-flash-lite
-# Healthy latency for this app's ~6k-token RAG prompt is 2-5s, so 25s is a
-# generous hard cap. Lower it if you would rather rotate sooner.
-GEMINI_TIMEOUT_SECONDS=25
+# gemini-2.5-flash consumes its output budget on thinking and returns half a
+# sentence for RAG answers; use a lite model as the fallback instead.
+GEMINI_FALLBACK_MODELS=["gemini-3.5-flash-lite", "gemini-flash-lite-latest"]
+# One Gemini attempt gets 8s. If the primary is still silent after 2s, the
+# fallback starts in parallel and the first complete answer wins.
+GEMINI_TIMEOUT_SECONDS=8
+GEMINI_HEDGE_DELAY_SECONDS=2
 
 # Fallback
 OPENROUTER_API_KEY=sk-or-v1-...
@@ -868,10 +871,11 @@ SMTP_PASSWORD=your-app-password
 
 # Gemini (primary LLM)
 GEMINI_API_KEY=your-gemini-key
-GEMINI_CHAT_MODEL=gemini-3.5-flash
-GEMINI_FAST_MODEL=gemini-3.1-flash-lite
-GEMINI_FALLBACK_MODELS=gemini-flash-latest,gemini-flash-lite-latest,gemini-3.1-flash-lite
-GEMINI_TIMEOUT_SECONDS=60
+GEMINI_CHAT_MODEL=gemini-flash-lite-latest
+GEMINI_FAST_MODEL=gemini-flash-lite-latest
+GEMINI_FALLBACK_MODELS=["gemini-3.5-flash-lite", "gemini-flash-lite-latest"]
+GEMINI_TIMEOUT_SECONDS=8
+GEMINI_HEDGE_DELAY_SECONDS=2
 
 # OpenRouter (fallback LLM)
 OPENROUTER_API_KEY=sk-or-v1-...
@@ -880,9 +884,10 @@ LLM_BASE_URL=https://openrouter.ai/api/v1
 LLM_TEMPERATURE=0.3
 
 # Retrieval / ingestion knobs
-RETRIEVAL_TOP_K=15
-RERANK_TOP_N=8
-FAST_RETRIEVAL_TOP_K=3
+RETRIEVAL_TOP_K=12
+RERANK_TOP_N=6
+MAX_CONTEXT_CHARS_PER_DOCUMENT=900
+FAST_RETRIEVAL_TOP_K=5
 CHUNK_SIZE=768
 CHUNK_OVERLAP=100
 TABLE_ROWS_PER_CHUNK=3

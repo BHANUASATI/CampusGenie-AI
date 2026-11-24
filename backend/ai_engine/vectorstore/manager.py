@@ -88,6 +88,154 @@ class VectorStoreManager:
     # -----------------------------------------------------------------------
     # Search
     # -----------------------------------------------------------------------
+    def _documents_from_query_result(
+        self,
+        result: Dict[str, Any],
+        similarity_threshold: float,
+    ) -> List[RetrievedDocument]:
+        """Convert one ChromaDB query result into RetrievedDocument objects.
+
+        The collection is configured with ``hnsw:space=cosine``, so ChromaDB
+        returns cosine *distance* in [0, 2]. The old ``1 - distance² / 2``
+        conversion was wrong (it reported 0.995 for a distance of 0.1 and
+        badly compressed the score range used for confidence).
+        """
+        retrieved: List[RetrievedDocument] = []
+        if not result or not result.get("ids") or not result["ids"][0]:
+            return retrieved
+
+        ids = result["ids"][0]
+        documents = result.get("documents") or [[]]
+        metadatas = result.get("metadatas") or [[]]
+        distances = result.get("distances") or [[]]
+
+        for i, chunk_id in enumerate(ids):
+            try:
+                distance = float(distances[0][i])
+            except (IndexError, TypeError, ValueError):
+                continue
+            similarity = max(0.0, 1.0 - distance)
+            if similarity < similarity_threshold:
+                continue
+            retrieved.append(
+                RetrievedDocument(
+                    chunk_id=chunk_id,
+                    content=documents[0][i],
+                    metadata=DocumentMetadata(**metadatas[0][i]),
+                    similarity_score=similarity,
+                )
+            )
+        return retrieved
+
+    def _brute_force_search(
+        self,
+        query: str,
+        top_k: int,
+        where: Optional[Dict[str, Any]],
+        similarity_threshold: float,
+    ) -> List[RetrievedDocument]:
+        """Exact cosine search over stored vectors when HNSW query fails.
+
+        Some Chroma/HNSW versions raise ``Cannot return the results in a
+        contigious 2D array`` for filtered or batched queries. The collection is
+        small (hundreds of chunks), so fetching the stored embeddings and doing
+        the dot product locally is both fast and more reliable.
+        """
+        import numpy as np
+
+        from ai_engine.embeddings.model import get_embedding_model
+
+        data = self.collection.get(
+            where=where,
+            include=["embeddings", "documents", "metadatas"],
+        )
+        ids = data.get("ids") or []
+        embeddings = data.get("embeddings")
+        if not ids or embeddings is None or len(embeddings) == 0:
+            return []
+
+        query_vector = get_embedding_model().encode_query(query)
+        query_norm = float(np.linalg.norm(query_vector)) or 1.0
+        matrix = np.asarray(embeddings, dtype=np.float32)
+        norms = np.linalg.norm(matrix, axis=1)
+        norms[norms == 0] = 1.0
+        similarities = (matrix @ query_vector.astype(np.float32)) / (norms * query_norm)
+
+        order = np.argsort(-similarities)[:top_k]
+        documents = data.get("documents") or ["" for _ in ids]
+        metadatas = data.get("metadatas") or [{} for _ in ids]
+
+        retrieved: List[RetrievedDocument] = []
+        for idx in order:
+            score = float(similarities[idx])
+            if score < similarity_threshold:
+                continue
+            retrieved.append(
+                RetrievedDocument(
+                    chunk_id=ids[idx],
+                    content=documents[idx],
+                    metadata=DocumentMetadata(**metadatas[idx]),
+                    similarity_score=score,
+                )
+            )
+        return retrieved
+
+    def search_many(
+        self,
+        queries: List[str],
+        top_k: int = None,
+        where: Dict[str, Any] = None,
+        similarity_threshold: float = None,
+    ) -> List[List[RetrievedDocument]]:
+        """Embed and search several queries in ONE ChromaDB round trip.
+
+        The retriever used to call ``search`` once per enrichment query, which
+        meant embedding each query separately and opening a new Chroma query
+        each time. Batching cuts warm retrieval latency substantially.
+        """
+        if not queries:
+            return []
+        if top_k is None:
+            top_k = ai_config.RETRIEVAL_TOP_K
+        if similarity_threshold is None:
+            similarity_threshold = ai_config.SIMILARITY_THRESHOLD
+
+        try:
+            results = self.collection.query(
+                query_texts=queries,
+                n_results=top_k,
+                where=where,
+                include=["documents", "metadatas", "distances"],
+            )
+        except Exception as e:  # noqa: BLE001 — HNSW has a fragile batched path
+            logger.warning(
+                "vectorstore.batch_query_failed_searching_individually",
+                extra={"error": str(e), "queries": len(queries)},
+            )
+            return [
+                self.search(
+                    query=q,
+                    top_k=top_k,
+                    where=where,
+                    similarity_threshold=similarity_threshold,
+                )
+                for q in queries
+            ]
+
+        per_query = results.get("ids") or []
+        return [
+            self._documents_from_query_result(
+                {
+                    "ids": [per_query[i]],
+                    "documents": [(results.get("documents") or [[]])[i]],
+                    "metadatas": [(results.get("metadatas") or [[]])[i]],
+                    "distances": [(results.get("distances") or [[]])[i]],
+                },
+                similarity_threshold,
+            )
+            for i in range(len(per_query))
+        ]
+
     def search(
         self,
         query: str,
@@ -119,39 +267,28 @@ class VectorStoreManager:
                 where=where,
                 include=["documents", "metadatas", "distances"],
             )
-
-            if not results or not results["ids"]:
-                return []
-
-            # Convert to RetrievedDocument objects
-            retrieved = []
-            for i in range(len(results["ids"][0])):
-                chunk_id = results["ids"][0][i]
-                content = results["documents"][0][i]
-                metadata = results["metadatas"][0][i]
-                distance = results["distances"][0][i]
-
-                # ChromaDB returns L2 distance; convert to cosine similarity
-                # similarity = 1 - (distance^2 / 2)  for normalized vectors
-                similarity = max(0.0, 1.0 - (distance ** 2) / 2.0)
-
-                if similarity < similarity_threshold:
-                    continue
-
-                retrieved.append(
-                    RetrievedDocument(
-                        chunk_id=chunk_id,
-                        content=content,
-                        metadata=DocumentMetadata(**metadata),
-                        similarity_score=similarity,
-                    )
-                )
-
-            return retrieved
+            return self._documents_from_query_result(results, similarity_threshold)
 
         except Exception as e:
-            logger.error("vectorstore.search_failed", extra={"error": str(e), "query": query})
-            raise VectorStoreError("Failed to search vector store", {"error": str(e)}) from e
+            logger.warning(
+                "vectorstore.query_failed_using_exact_search",
+                extra={"error": str(e), "query": query},
+            )
+            try:
+                return self._brute_force_search(
+                    query=query,
+                    top_k=top_k,
+                    where=where,
+                    similarity_threshold=similarity_threshold,
+                )
+            except Exception as exact_error:  # noqa: BLE001
+                logger.error(
+                    "vectorstore.search_failed",
+                    extra={"error": str(exact_error), "query": query},
+                )
+                raise VectorStoreError(
+                    "Failed to search vector store", {"error": str(exact_error)}
+                ) from exact_error
 
     def search_mmr(
         self,
